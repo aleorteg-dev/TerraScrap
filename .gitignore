@@ -1,0 +1,121 @@
+# ============================================
+# TerraScrap — .gitignore
+# Stack: Python 3.12 + FastAPI | React 18 + TS + Vite | Docker
+# ============================================
+
+# ─── Entornos virtuales Python ───────────────────────────
+backend/.venv/
+backend/venv/
+backend/env/
+.venv/
+venv/
+env/
+
+# ─── Dependencias / caché Python ─────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ─── Herramientas de build/dist Python ───────────────────
+backend/dist/
+backend/build/
+backend/*.egg-info/
+backend/src/*.egg-info/
+*.egg
+*.whl
+
+# ─── mypy ────────────────────────────────────────────────
+.mypy_cache/
+
+# ─── pytest ──────────────────────────────────────────────
+.pytest_cache/
+backend/htmlcov/
+backend/coverage.xml
+backend/.coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# ─── ruff ────────────────────────────────────────────────
+.ruff_cache/
+
+# ─── Hypothesis (property-based testing) ─────────────────
+.hypothesis/
+
+# ─── Node / npm (Frontend) ──────────────────────────────
+frontend/node_modules/
+node_modules/
+
+# ─── Build de producción Vite ────────────────────────────
+frontend/dist/
+frontend/build/
+
+# ─── Vitest ──────────────────────────────────────────────
+frontend/coverage/
+
+# ─── ESLint / Prettier caché ─────────────────────────────
+.eslintcache
+.prettiercache
+
+# ─── TypeScript ──────────────────────────────────────────
+*.tsbuildinfo
+
+# ─── Tipos generados desde OpenAPI ───────────────────────
+# (se regeneran con cada build; no commitear)
+frontend/src/api-client/__generated__/
+
+# ─── Ficheros de mundo Terraria (.wld) ───────────────────
+# Pueden pesar cientos de MB; nunca subirlos al repo
+*.wld
+
+# ─── Fixtures de test grandes ────────────────────────────
+# Los fixtures sintéticos pequeños SÍ se suben.
+# Ignorar dumps grandes que se generen localmente.
+backend/tests/fixtures/*.wld
+
+# ─── Docker ──────────────────────────────────────────────
+# Los Dockerfiles y docker-compose.yml SÍ se suben.
+# Ignorar volúmenes y datos locales.
+docker/data/
+docker/volumes/
+
+# ─── Caché local del catálogo de ítems (scraping wiki) ───
+backend/src/twi/item_catalog/.cache/
+item_catalog_cache/
+*.scrapy
+
+# ─── Logs ────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Variables de entorno ────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── IDEs y editores ────────────────────────────────────
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ─── Sistema operativo ──────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.DS_Store?
+._*
+
+# ─── Gemini / Antigravity (contexto IA local) ───────────
+.gemini/
