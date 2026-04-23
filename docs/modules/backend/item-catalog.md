@@ -48,15 +48,15 @@ async def refresh_cache_from_wiki(cache_path: Path, client: HttpClient) -> None:
 - **SP-07** La búsqueda es diacritic-insensitive (`"Chloro"` matchea `"Chlorophyte"`).
 
 ## 6. Plan de tests (TDD)
-- [ ] `T-01 test_search_prefix_match_returns_item`
-- [ ] `T-02 test_search_is_case_insensitive`
-- [ ] `T-03 test_search_respects_limit`
-- [ ] `T-04 test_search_orders_prefix_before_substring`
-- [ ] `T-05 test_get_returns_item_detail`
-- [ ] `T-06 test_get_unknown_id_raises_ItemNotFoundError`
-- [ ] `T-07 test_create_catalog_from_cache_invalid_schema_raises`
-- [ ] `T-08 test_refresh_cache_writes_versioned_json` (mockear `HttpClient`)
-- [ ] `T-09 test_refresh_cache_parses_sample_wiki_html_page` (fixture HTML local)
+- [x] `T-01 test_search_prefix_match_returns_item`
+- [x] `T-02 test_search_is_case_insensitive`
+- [x] `T-03 test_search_respects_limit`
+- [x] `T-04 test_search_orders_prefix_before_substring`
+- [x] `T-05 test_get_returns_item_detail`
+- [x] `T-06 test_get_unknown_id_raises_ItemNotFoundError`
+- [x] `T-07 test_create_catalog_from_cache_invalid_schema_raises`
+- [x] `T-08 test_refresh_cache_writes_versioned_json` (mockear `HttpClient`)
+- [x] `T-09 test_refresh_cache_parses_sample_wiki_html_page` (fixture HTML local)
 
 ## 7. Notas de implementación
 - La lista de ítems de Terraria es finita (~5000). Se carga entera en memoria.
@@ -74,7 +74,10 @@ async def refresh_cache_from_wiki(cache_path: Path, client: HttpClient) -> None:
 - `httpx.HTTPError` propagado desde `refresh_cache_from_wiki`.
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v1
+- **Último cierre**: 2026-04-23 (iter-001)
+- **Iteración actual**: cerrada
+- **Deuda / follow-ups**:
+  - `items.fallback.json` aún no existe; ante wiki caída `refresh_cache_from_wiki` lanzará `httpx.HTTPError`. Crear el fallback en la iteración de `app-bootstrap` (B6) o como tarea independiente.
+  - User-Agent con contacto pendiente de añadir al `httpx.AsyncClient` real en B6.
+  - Cobertura de rama para `create_catalog_from_cache` con fichero ausente (FileNotFoundError) no tiene test explícito; lo cubre el comportamiento por defecto de `Path.read_text`.
