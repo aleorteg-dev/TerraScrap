@@ -31,6 +31,7 @@ packages = ["src/twi"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
+markers = ["perf: performance / budget tests"]
 
 [tool.mypy]
 strict = true
