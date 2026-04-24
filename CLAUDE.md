@@ -3,7 +3,13 @@
 Aplicación web para subir mundos de Terraria (`.wld`), explorarlos sin niebla de guerra en un canvas interactivo, y localizar ítems por nombre o ID con resaltado visual.
 
 ---
+## Descubrimiento de skills (obligatorio en cada turno)
 
+Antes de responder a cualquier petición del usuario, invoca **siempre primero** la skill `find-skills` para descubrir skills relevantes a la tarea solicitada. Si `find-skills` recomienda alguna, úsala en lugar de improvisar el flujo manualmente. Solo si no hay ninguna aplicable, continúa con el resto de instrucciones de este documento.
+
+Esta regla aplica incluso a peticiones cortas o aparentemente triviales: el coste de una llamada a `find-skills` es bajo y evita reinventar capacidades ya empaquetadas.
+
+---
 ## Regla de oro: trabaja un módulo por iteración
 
 **Antes de escribir una sola línea de código**, lee:

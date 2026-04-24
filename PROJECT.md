@@ -305,3 +305,5 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | Fecha | Módulo | Cambio | PR/Iter |
 |-------|--------|--------|---------|
 | 2026-04-23 | — | Documento inicial. | iter-000 |
+| 2026-04-23 | B3 item-catalog | Contrato v1: `ItemCatalog`, `ItemSummary`, `ItemDetail`, `ItemNotFoundError`, `create_catalog_from_cache`, `refresh_cache_from_wiki`. | iter-001 |
+| 2026-04-24 | B1 wld-parser | Contrato v1: añadido `Sign`, `TileGrid`, códigos de error en `WldParseError`. Implementación completa del parser v230-v279. | iter-002 |
