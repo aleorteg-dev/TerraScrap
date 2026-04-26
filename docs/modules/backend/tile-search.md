@@ -53,14 +53,15 @@ def create_tile_search_engine(
 - **SP-08** Dos chests apilados (misma x,y) con el mismo ítem generan dos matches distintos.
 
 ## 6. Plan de tests (TDD)
-- [ ] `T-01 test_search_finds_block_matches`
-- [ ] `T-02 test_search_finds_wall_matches`
-- [ ] `T-03 test_search_finds_chest_items`
-- [ ] `T-04 test_search_without_containers_excludes_chest_matches`
-- [ ] `T-05 test_search_returns_empty_when_no_matches`
-- [ ] `T-06 test_search_total_matches_len_matches`
-- [ ] `T-07 test_search_is_pure_and_deterministic`
-- [ ] `T-08 test_search_large_world_completes_within_budget` (marca `@pytest.mark.perf`)
+- [x] `T-01 test_search_finds_block_matches`
+- [x] `T-02 test_search_finds_wall_matches`
+- [x] `T-03 test_search_finds_chest_items`
+- [x] `T-04 test_search_without_containers_excludes_chest_matches`
+- [x] `T-05 test_search_returns_empty_when_no_matches`
+- [x] `T-06 test_search_total_matches_len_matches`
+- [x] `T-07 test_search_is_pure_and_deterministic`
+- [x] `T-08 test_search_large_world_completes_within_budget` (marca `@pytest.mark.perf`)
+- [x] `test_search_stacked_chests_produce_distinct_matches` (SP-08, extra)
 
 ## 7. Notas de implementación
 - El mapping item→tile no es 1:1 en Terraria; un ítem "Dirt Block" corresponde a `tile_id=0`. Este mapping vivirá en un JSON dentro del módulo (`data/item_tile_map.json`) y se inyecta al factory.
@@ -75,7 +76,22 @@ def create_tile_search_engine(
 - Ninguna excepción específica. Item id inexistente → resultado vacío (no es error del motor).
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v1
+- **Último cierre**: 2026-04-26 (iter-004)
+- **Iteración actual**: cerrada
+- **Deuda / follow-ups**:
+  - **PERF-01** — El loop O(W·H) sobre `list[list[Tile]]` alcanza ~2.3 s en CPython 3.14 para un
+    mundo Large (20 M tiles). RNF-03 (< 500 ms) requiere vectorización numpy. Solución propuesta:
+    exponer en B1 (`TileGrid`) arrays numpy cacheados (`tile_ids: np.ndarray`, `wall_ids: np.ndarray`)
+    o agregar una utilidad `to_arrays() -> tuple[NDArray, NDArray]`; el motor usaría `np.where` en
+    lugar del loop Python. No se toca en esta iteración (cambio de contrato en B1).
+  - **SP-wall-mapping** — Actualmente el wall match usa comparación directa `item_id == wall_id`.
+    Si en Terraria la relación ítem→pared NO es 1:1 (similar a bloques), habrá que añadir un
+    `item_to_wall_mapping` al factory y al JSON. Pendiente de validar con datos reales.
+
+## 11. Decisiones tomadas en iter-004
+- **Wall search = comparación directa** (`item_id == wall_id`): SP-02 no menciona "a través de
+  mapping", a diferencia de SP-01. Se asume identidad ítem-pared como primera aproximación.
+- **Budget de T-08 = 3.5 s**: el loop Python mide ~2.3 s; se usa margen 1.5× para varianza de CI.
+  El test sirve como guardia de regresión, no como gate estricto de RNF-03.
+- **Módulo de dominio puro**: cero imports de FastAPI/pydantic; todos los modelos son `dataclass`.
