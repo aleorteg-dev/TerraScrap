@@ -48,18 +48,18 @@ DTOs (pydantic v2) definidos en `src/twi/api_rest/schemas.py`:
 ## 6. Plan de tests (TDD)
 Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 
-- [ ] `T-01 test_post_world_returns_world_id_and_metadata`
-- [ ] `T-02 test_post_world_too_large_returns_413`
-- [ ] `T-03 test_post_world_invalid_bytes_returns_400`
-- [ ] `T-04 test_post_world_unsupported_version_returns_422`
-- [ ] `T-05 test_get_world_unknown_id_returns_404`
-- [ ] `T-06 test_search_endpoint_returns_matches`
-- [ ] `T-07 test_search_endpoint_missing_item_id_returns_400`
-- [ ] `T-08 test_items_search_endpoint_returns_limited_results`
-- [ ] `T-09 test_delete_world_returns_204`
-- [ ] `T-10 test_delete_world_unknown_id_returns_404`
-- [ ] `T-11 test_every_response_includes_api_version_header`
-- [ ] `T-12 test_openapi_schema_snapshot` (compara contra fichero checked-in)
+- [x] `T-01 test_post_world_returns_world_id_and_metadata`
+- [x] `T-02 test_post_world_too_large_returns_413`
+- [x] `T-03 test_post_world_invalid_bytes_returns_400`
+- [x] `T-04 test_post_world_unsupported_version_returns_422`
+- [x] `T-05 test_get_world_unknown_id_returns_404`
+- [x] `T-06 test_search_endpoint_returns_matches`
+- [x] `T-07 test_search_endpoint_missing_item_id_returns_400`
+- [x] `T-08 test_items_search_endpoint_returns_limited_results`
+- [x] `T-09 test_delete_world_returns_204`
+- [x] `T-10 test_delete_world_unknown_id_returns_404`
+- [x] `T-11 test_every_response_includes_api_version_header`
+- [x] `T-12 test_openapi_schema_snapshot` (compara contra fichero checked-in)
 
 ## 7. Notas de implementación
 - Usa un `APIRouter` con prefijo `/api`. El montaje ocurre en `app-bootstrap`.
@@ -78,7 +78,32 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`.
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v0.1.0
+- **Último cierre**: 2026-04-26 (iter-005)
+- **Iteración actual**: cerrada
+
+## 11. Decisiones tomadas en iter-005
+
+- `response_model=None` en todos los endpoints: FastAPI ≥ 0.111 con Python 3.14 rechaza
+  `PydanticModel | JSONResponse` como union de respuesta. Se retorna `JSONResponse` siempre
+  y se documenta el schema de éxito vía el parámetro `responses={}` del decorador.
+- `_ok()` helper centraliza la serialización de DTOs de éxito con header `X-API-Version`.
+- `_err()` helper centraliza los errores; usa `Mapping[str, object]` para `details`
+  (covariant) en lugar de `dict` (invariant) para cumplir mypy --strict sin `Any` explícito.
+- `_OkDto` type alias (union) evita línea larga en la firma de `_ok()`.
+- `DELETE /api/worlds/{id}` llama `repo.get()` antes de `repo.delete()` porque el contrato
+  de `WorldRepository.delete()` no lanza `WorldNotFoundError` (silencia el key faltante).
+  Se anotó en deuda que sería más limpio añadir `delete_strict` al repositorio.
+- Encoding `base64-rle-v1` implementado con 6 bytes por tile: tile_id (2 LE, 0xFFFF=None),
+  wall_id (2 LE, 0xFFFF=None), liquid (1), flags & 0xFF (1). Pendiente confirmación con
+  el spec de wld-parser.md / world-canvas.md antes de implementar el decoder frontend.
+
+## 12. Deuda / follow-ups
+
+- **iter-006 (B6 app-bootstrap)**: añadir CORS, lifespan, settings, montar el router.
+- **Tiles encoding**: confirmar el spec exacto de `base64-rle-v1` con `wld-parser.md` y
+  `world-canvas.md` antes de implementar el decoder en F3 world-canvas.
+- **`WorldRepository.delete_strict`**: añadir método que lanza `WorldNotFoundError` si el
+  id no existe, para eliminar el `get()+delete()` en el endpoint DELETE.
+- **Cobertura tiles**: T-01..T-12 no incluyen test directo del endpoint `/tiles`; se cubre
+  indirectamente por T-12 (snapshot OpenAPI). Añadir test dedicado en integración.
