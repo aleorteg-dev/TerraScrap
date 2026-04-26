@@ -40,14 +40,14 @@ def create_in_memory_repository(
 - **SP-07** Es thread-safe para `store`/`get`/`delete` concurrentes (ok si se protege con lock).
 
 ## 6. Plan de tests (TDD)
-- [ ] `T-01 test_store_returns_unique_uuid_per_call`
-- [ ] `T-02 test_get_returns_stored_world`
-- [ ] `T-03 test_get_unknown_id_raises_WorldNotFoundError`
-- [ ] `T-04 test_get_after_ttl_expires_raises_WorldNotFoundError` (usa `clock` inyectado)
-- [ ] `T-05 test_touch_extends_ttl`
-- [ ] `T-06 test_delete_is_idempotent`
-- [ ] `T-07 test_purge_expired_removes_only_expired_entries`
-- [ ] `T-08 test_concurrent_store_and_get_is_safe` (threads)
+- [x] `T-01 test_store_returns_unique_uuid_per_call`
+- [x] `T-02 test_get_returns_stored_world`
+- [x] `T-03 test_get_unknown_id_raises_world_not_found_error`
+- [x] `T-04 test_get_after_ttl_expires_raises_world_not_found_error` (usa `clock` inyectado)
+- [x] `T-05 test_touch_extends_ttl`
+- [x] `T-06 test_delete_is_idempotent`
+- [x] `T-07 test_purge_expired_removes_only_expired_entries`
+- [x] `T-08 test_concurrent_store_and_get_is_safe` (threads)
 
 ## 7. Notas de implementación
 - Implementación base: `dict[str, tuple[World, datetime]]` + `threading.RLock`.
@@ -62,7 +62,15 @@ def create_in_memory_repository(
 - `WorldNotFoundError` con atributo `world_id: str`.
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v1
+- **Último cierre**: 2026-04-26
+- **Iteración actual**: iter-003
+
+### Decisiones tomadas
+- `get` renueva `last_accessed` al leer (comportamiento de caché de sesión; `touch` existe para heartbeat sin payload).
+- `touch` lanza `WorldNotFoundError` si la entrada está expirada o no existe.
+- Clock inyectado como `Callable[[], datetime]`; default `_utcnow` usa `datetime.now(UTC)` (evita `utcnow` deprecado en Python 3.12+).
+- Nombres de tests adaptados a N802 (ruff): `WorldNotFoundError` → `world_not_found_error` en el nombre de función.
+
+### Deuda / follow-ups
+- `purge_expired` no se auto-ejecuta; `app-bootstrap` (B6) deberá arrancar una tarea asyncio que lo invoque periódicamente.
