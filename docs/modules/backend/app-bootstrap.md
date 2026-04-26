@@ -10,11 +10,14 @@ Arrancar la aplicación FastAPI: configurar logging, CORS, límites, leer env va
 def create_app(settings: Settings | None = None) -> FastAPI: ...
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="TWI_")
+
     max_upload_mb: int = 200
     item_cache_path: Path = Path("data/items.json")
     world_ttl_seconds: int = 1800
     cors_origins: list[str] = ["http://localhost:5173"]
     log_level: str = "INFO"
+    purge_interval_seconds: int = 60   # intervalo del task de purga (testeable)
 ```
 
 ## 3. Dependencias
@@ -54,7 +57,32 @@ class Settings(BaseSettings):
 - Fallo cargando cache de ítems → log warning; el endpoint `/api/items` devolverá 503 hasta que exista.
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v0.1.0
+- **Último cierre**: 2026-04-26 (iter-006)
+- **Iteración actual**: cerrada
+
+## 11. Decisiones tomadas en iter-006
+
+- `purge_interval_seconds: int = 60` añadido a `Settings` para hacer T-06 testeable sin
+  parchear `asyncio.sleep`: el test usa `purge_interval_seconds=0` + `time.sleep(0.05)`.
+- `_NullCatalog` definido en `app.py` (implementa el Protocol `ItemCatalog`) para que el
+  arranque no falle cuando `item_cache_path` no existe; `search()` devuelve `[]` y `get()`
+  lanza `ItemNotFoundError`. El 503 sobre `/api/items` cuando el catálogo no existe
+  requeriría tocar `api_rest` → anotado en deuda.
+- `_UploadSizeLimitMiddleware(BaseHTTPMiddleware)` comprueba el header `Content-Length`
+  antes de que cualquier router lea el body. Si no hay `Content-Length` (chunked), pasa;
+  el router de B5 ya limita el tamaño al leer el fichero.
+- CORS añadido como middleware exterior (se añade después del size-limit para que
+  Starlette lo coloque más al exterior → los errores 413 también llevan cabecera CORS).
+- `__main__` levanta uvicorn con `--factory` para que cada worker llame `create_app()`.
+- `_LOG_LEVELS` dict evita `getattr(logging, ...)` que devolvería `Any` bajo mypy --strict.
+
+## 12. Deuda / follow-ups
+
+- **503 en /api/items sin caché**: requiere que `api_rest.create_router` acepte un
+  catalog opcional o que el router capture una nueva excepción `CatalogUnavailableError`.
+  Anotar para iter-007 (si se necesita antes de F1).
+- **Logging estructurado (JSON)**: SP-04 parcialmente cubierto (nivel configurable). El
+  formato JSON + `request_id` por request queda fuera de esta iteración.
+- **`WorldRepository.delete_strict`**: heredado de iter-005; sigue pendiente para el
+  endpoint DELETE.

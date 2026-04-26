@@ -22,7 +22,7 @@ class Tile:
     tile_id: int | None        # bloque colocado (None = aire)
     wall_id: int | None
     liquid: int                 # 0..255
-    flags: int                  # bitmask
+    flags: int                  # bits de flags2 | (flags3 << 8): cables, slope, actuator
 
 @dataclass(frozen=True)
 class ChestItem:
@@ -39,9 +39,20 @@ class Chest:
     items: tuple[ChestItem, ...]    # tamaño fijo 40, slots vacíos = ChestItem(0,0,0)
 
 @dataclass(frozen=True)
+class Sign:
+    x: int
+    y: int
+    text: str
+
+class TileGrid:                     # read-only, indexable grid[x][y] -> Tile
+    width: int
+    height: int
+    def __getitem__(self, x: int) -> Sequence[Tile]: ...
+
+@dataclass(frozen=True)
 class World:
     metadata: WorldMetadata
-    tiles: TileGrid                 # abstracción read-only, indexable [x][y]
+    tiles: TileGrid
     chests: tuple[Chest, ...]
     signs: tuple[Sign, ...]
 ```
@@ -51,8 +62,11 @@ class World:
 def parse_wld(stream: BinaryIO) -> World: ...
 def parse_wld_bytes(data: bytes) -> World: ...
 
-class WldParseError(Exception): ...
-class UnsupportedWorldVersionError(WldParseError): ...
+class WldParseError(Exception):
+    code: str | None  # "invalid_header" | "truncated" | "corrupt" | "unsupported_version"
+
+class UnsupportedWorldVersionError(WldParseError):
+    version: int
 ```
 
 Rango de versiones soportado v1: **>= 230 y <= 279** (ajustar tras pruebas). Fuera de rango → `UnsupportedWorldVersionError`.
@@ -77,16 +91,16 @@ Rango de versiones soportado v1: **>= 230 y <= 279** (ajustar tras pruebas). Fue
 - **SP-06** El parser es **determinista**: el mismo input produce el mismo `World` (igualdad estructural).
 
 ## 6. Plan de tests (TDD)
-Fixtures sintéticas bajo `backend/tests/fixtures/wld/` generadas por helpers (no usar mundos reales).
+Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por helpers (no usar mundos reales).
 
-- [ ] `T-01 test_parse_empty_minimal_world_returns_expected_metadata`
-- [ ] `T-02 test_parse_reads_tiles_as_grid_with_expected_dimensions`
-- [ ] `T-03 test_parse_air_tile_has_none_tile_id`
-- [ ] `T-04 test_parse_chest_items_returns_40_slots_with_empty_slots_zeroed`
-- [ ] `T-05 test_parse_rejects_invalid_header_with_WldParseError`
-- [ ] `T-06 test_parse_rejects_unsupported_version_with_UnsupportedWorldVersionError`
-- [ ] `T-07 test_parse_is_deterministic_same_bytes_equal_world`
-- [ ] `T-08 test_parse_large_synthetic_world_completes_within_budget` (marca `@pytest.mark.perf`)
+- [x] `T-01 test_parse_empty_minimal_world_returns_expected_metadata`
+- [x] `T-02 test_parse_reads_tiles_as_grid_with_expected_dimensions`
+- [x] `T-03 test_parse_air_tile_has_none_tile_id`
+- [x] `T-04 test_parse_chest_items_returns_40_slots_with_empty_slots_zeroed`
+- [x] `T-05 test_parse_rejects_invalid_header_with_wld_parse_error` (+ truncated variant)
+- [x] `T-06 test_parse_rejects_unsupported_version_{below,above}_range`
+- [x] `T-07 test_parse_is_deterministic_same_bytes_equal_world`
+- [x] `T-08 test_parse_large_synthetic_world_completes_within_budget` (`@pytest.mark.perf`)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -103,7 +117,32 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld/` generadas por helpers (n
 - `UnsupportedWorldVersionError`: fuera de rango soportado. `version: int` como atributo.
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v1
+- **Último cierre**: 2026-04-24
+- **Iteración actual**: iter-002
+- **Tests**: 10/10 ✓ — mypy --strict ✓ — ruff ✓ — perf budget (large world) ✓
+
+### Decisiones tomadas
+- `Sign` se añadió al contrato (referenciado en `World` pero sin definir en v0).
+- `TileGrid` implementada como lista de listas (`list[list[Tile]]`) sin numpy; rendimiento
+  adecuado para el presupuesto de 10 s (el test T-08 pasa holgadamente).
+- Tile `flags` = `flags2 | (flags3 << 8)` del formato binario (cables, slope, actuator).
+- `size` se clasifica por `width`: ≤4200 → small, ≤6400 → medium, >6400 → large.
+- La fixture builder escribe archivos en formato v230-v279 usando el mismo orden de
+  campos que el parser, garantizando round-trip exacto. Las versiones fuera de rango
+  (100, 300) se rechazan inmediatamente tras leer la firma `relogic`.
+- `wld_builder.py` vive en `tests/fixtures/` (no en `src/`); es infraestructura de test,
+  no parte del dominio.
+
+### Deuda / follow-ups
+- **Compatibilidad con mundos reales**: el parser fue validado contra fixtures sintéticas.
+  Una iteración de integración debería probarse con un `.wld` real de Terraria 1.4.4 para
+  verificar que el orden de campos en el header sección 0 coincide exactamente.
+  (Riesgo: algún campo intermedio para versiones específicas podría estar en posición
+  distinta en mundos generados por el juego vs. la especificación implementada.)
+- **numpy para TileGrid**: si el rendimiento de B4 tile-search resulta limitado por
+  iteración Python sobre listas, sustituir `list[list[Tile]]` por un `ndarray` empaquetado.
+- **NPC / TileEntities / Footer**: secciones no parseadas; no son necesarias para el
+  contrato actual pero podrían ser útiles para B2 o future work.
+- **Walls > 255**: la lógica del byte alto de wall (flags3 bit 2) está implementada
+  pero no cubierta por tests; añadir un test específico en una iteración futura.

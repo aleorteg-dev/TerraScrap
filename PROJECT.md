@@ -305,3 +305,9 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | Fecha | Módulo | Cambio | PR/Iter |
 |-------|--------|--------|---------|
 | 2026-04-23 | — | Documento inicial. | iter-000 |
+| 2026-04-23 | B3 item-catalog | Contrato v1: `ItemCatalog`, `ItemSummary`, `ItemDetail`, `ItemNotFoundError`, `create_catalog_from_cache`, `refresh_cache_from_wiki`. | iter-001 |
+| 2026-04-24 | B1 wld-parser | Contrato v1: añadido `Sign`, `TileGrid`, códigos de error en `WldParseError`. Implementación completa del parser v230-v279. | iter-002 |
+| 2026-04-26 | B2 world-repository | Contrato v1: `WorldRepository` (Protocol), `WorldNotFoundError`, `create_in_memory_repository`. Implementación in-memory thread-safe con TTL y clock inyectado. | iter-003 |
+| 2026-04-26 | B4 tile-search | Contrato v1: `SearchMatch`, `SearchResult`, `TileSearchEngine` (Protocol), `create_tile_search_engine`. Wall search por comparación directa. Budget perf test 3.5 s (numpy pendiente). | iter-004 |
+| 2026-04-26 | B5 api-rest | Contrato v0.1.0: `create_router`, DTOs pydantic v2 (`WorldCreatedDto`, `WorldMetadataDto`, `TilesChunkDto`, `SearchResultDto`, `SearchMatchDto`, `ItemSummaryDto`, `ItemDetailDto`, `ErrorDto`). 7 endpoints REST, header `X-API-Version`, encoding base64-rle-v1. | iter-005 |
+| 2026-04-26 | B6 app-bootstrap | Contrato v0.1.0: `create_app(settings?)→FastAPI`, `Settings(BaseSettings)` con prefijo `TWI_` (6 campos + `purge_interval_seconds`). CORS, middleware de tamaño, lifespan con task de purga, `/healthz`, `_NullCatalog` como fallback. | iter-006 |
