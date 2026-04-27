@@ -9,7 +9,11 @@ import {
   visibleChunks,
 } from './viewport';
 import { decodeBase64RleV1 } from './rleDecoder';
-import { getTileColor } from './tileColors';
+import {
+  createChunkBitmapCache,
+  renderChunkBitmap,
+  type ChunkBitmapCache,
+} from './chunkBitmapCache';
 
 const CHUNK_SIZE = 128;
 const MIN_ZOOM = 0.1;
@@ -32,33 +36,6 @@ export interface WorldCanvasProps {
   onTileClick?: (tile: { x: number; y: number }) => void;
 }
 
-function drawChunk(
-  ctx: CanvasRenderingContext2D,
-  view: ViewState,
-  cx: number,
-  cy: number,
-  tiles: Int16Array
-): void {
-  const { zoom, panX, panY } = view;
-  const startTileX = cx * CHUNK_SIZE;
-  const startTileY = cy * CHUNK_SIZE;
-  const tileSize = Math.max(1, zoom);
-
-  for (let ty = 0; ty < CHUNK_SIZE; ty++) {
-    for (let tx = 0; tx < CHUNK_SIZE; tx++) {
-      const tileId = tiles[ty * CHUNK_SIZE + tx] ?? -1;
-      if (tileId < 0) continue;
-      ctx.fillStyle = getTileColor(tileId);
-      ctx.fillRect(
-        Math.round((startTileX + tx - panX) * zoom),
-        Math.round((startTileY + ty - panY) * zoom),
-        Math.ceil(tileSize),
-        Math.ceil(tileSize)
-      );
-    }
-  }
-}
-
 export const WorldCanvas: FC<WorldCanvasProps> = ({
   worldId,
   metadata,
@@ -74,6 +51,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   const viewRef = useRef<ViewState>({ panX: 0, panY: 0, zoom: INITIAL_ZOOM });
   const viewInitializedRef = useRef(false);
   const chunkCacheRef = useRef(new Map<string, Int16Array>());
+  const bitmapCacheRef = useRef<ChunkBitmapCache>(createChunkBitmapCache());
   const pendingRef = useRef(new Set<string>());
   const rafRef = useRef(0);
   const isDraggingRef = useRef(false);
@@ -108,6 +86,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       const view = viewRef.current;
       const meta = metadataRef.current;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
       const chunks = visibleChunks(
         view,
         canvas.width,
@@ -117,8 +96,12 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         CHUNK_SIZE
       );
       for (const { cx, cy } of chunks) {
-        const tiles = chunkCacheRef.current.get(`${cx}:${cy}`);
-        if (tiles) drawChunk(ctx, view, cx, cy, tiles);
+        const rendered = bitmapCacheRef.current.get(worldIdRef.current, cx, cy);
+        if (!rendered) continue;
+        const pixelX = Math.round((cx * CHUNK_SIZE - view.panX) * view.zoom);
+        const pixelY = Math.round((cy * CHUNK_SIZE - view.panY) * view.zoom);
+        const pixelSize = Math.ceil(CHUNK_SIZE * view.zoom);
+        ctx.drawImage(rendered.canvas, pixelX, pixelY, pixelSize, pixelSize);
       }
     });
   }, []); // stable: all deps are refs
@@ -135,6 +118,8 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         .then((chunk: TilesChunk) => {
           const tiles = decodeBase64RleV1(chunk.payload, chunk.width, chunk.height);
           chunkCacheRef.current.set(key, tiles);
+          const rendered = renderChunkBitmap(worldIdRef.current, cx, cy, tiles, CHUNK_SIZE);
+          bitmapCacheRef.current.set(rendered);
           pendingRef.current.delete(key);
           scheduleRedraw();
         })

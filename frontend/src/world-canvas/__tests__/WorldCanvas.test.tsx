@@ -31,6 +31,7 @@ function makeApiClient(): ApiClient {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
     cb(0);
     return 0;
@@ -131,6 +132,22 @@ describe('WorldCanvas', () => {
     const { px, py } = handle.worldToScreen(2100, 240);
     expect(px).toBeCloseTo(400, 0);
     expect(py).toBeCloseTo(300, 0);
+  });
+
+  it('T-12 WorldCanvas should call ctx.drawImage when rendering a loaded chunk', async () => {
+    const apiClient = makeApiClient();
+    render(<WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} />);
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    await waitFor(() => {
+      const ctx = mockCtxGet.mock.results[0]?.value as { drawImage: ReturnType<typeof vi.fn> };
+      expect(ctx.drawImage).toHaveBeenCalledWith(
+        expect.any(HTMLCanvasElement),
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number)
+      );
+    });
   });
 
   it('T-10 onReady emits a handle with imperative API', () => {

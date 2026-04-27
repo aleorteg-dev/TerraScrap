@@ -11,6 +11,7 @@ afterEach(() => {
 const mockCtx: Partial<CanvasRenderingContext2D> = {
   clearRect: vi.fn(),
   fillRect: vi.fn(),
+  drawImage: vi.fn() as unknown as CanvasRenderingContext2D['drawImage'],
 };
 
 HTMLCanvasElement.prototype.getContext = vi
