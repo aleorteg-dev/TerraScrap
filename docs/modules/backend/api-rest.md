@@ -79,7 +79,7 @@ Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`
 
 ## 10. Estado
 - **Versión del contrato**: v0.1.0
-- **Último cierre**: 2026-04-26 (iter-005)
+- **Último cierre**: 2026-04-27 (iter-005) — reabierto y cerrado 2026-04-27 (bugfix)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -94,16 +94,18 @@ Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`
 - `DELETE /api/worlds/{id}` llama `repo.get()` antes de `repo.delete()` porque el contrato
   de `WorldRepository.delete()` no lanza `WorldNotFoundError` (silencia el key faltante).
   Se anotó en deuda que sería más limpio añadir `delete_strict` al repositorio.
-- Encoding `base64-rle-v1` implementado con 6 bytes por tile: tile_id (2 LE, 0xFFFF=None),
-  wall_id (2 LE, 0xFFFF=None), liquid (1), flags & 0xFF (1). Pendiente confirmación con
-  el spec de wld-parser.md / world-canvas.md antes de implementar el decoder frontend.
+- Encoding `base64-rle-v1` **spec confirmado y corregido (bugfix 2026-04-27)**:
+  array plano fila-mayor (`y` outer, `x` inner), RLE sobre tile_id únicamente.
+  Cada run: `(tileId: int16LE, count: uint16LE)` = 4 bytes. Aire → -1. Max run: 65535.
+  La implementación anterior (7 bytes/run, columna-mayor) era incompatible con el decoder
+  de F3 world-canvas → canvas en blanco. Arreglado en T-13.
 
 ## 12. Deuda / follow-ups
 
 - **iter-006 (B6 app-bootstrap)**: añadir CORS, lifespan, settings, montar el router.
-- **Tiles encoding**: confirmar el spec exacto de `base64-rle-v1` con `wld-parser.md` y
-  `world-canvas.md` antes de implementar el decoder en F3 world-canvas.
 - **`WorldRepository.delete_strict`**: añadir método que lanza `WorldNotFoundError` si el
   id no existe, para eliminar el `get()+delete()` en el endpoint DELETE.
-- **Cobertura tiles**: T-01..T-12 no incluyen test directo del endpoint `/tiles`; se cubre
-  indirectamente por T-12 (snapshot OpenAPI). Añadir test dedicado en integración.
+- **world-canvas.md spec sync (F3)**: el doc de F3 dice "Uint16Array" pero la implementación
+  usa `Int16Array` (correcto para el chequeo `tileId < 0`). Actualizar en iteración F3.
+- **wall_id / liquid / flags ausentes del payload**: encoding simplificado solo transmite
+  tile_id. Si F3 necesita paredes o líquidos, revisar encoding en iteración futura.

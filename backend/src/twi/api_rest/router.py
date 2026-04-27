@@ -35,7 +35,6 @@ from .schemas import (
 )
 
 _API_VERSION = "v0.1.0"
-_NONE_ID = 0xFFFF
 _V_HDR = {"X-API-Version": _API_VERSION}
 
 
@@ -91,35 +90,28 @@ def _encode_chunk(
 ) -> tuple[int, int, str]:
     """Pack a grid chunk as base64-rle-v1.
 
-    Each tile record is 6 bytes: tile_id (2 LE), wall_id (2 LE), liquid (1), flags (1).
-    0xFFFF encodes None (air). RLE groups consecutive identical records; each run is
-    (count: u8, 6-byte record). The whole buffer is base64-encoded.
-
-    NOTE: the canonical spec lives in wld-parser.md / world-canvas.md. This encoding
-    must stay in sync with the frontend decoder (deuda iter-005: confirm exact spec).
+    Flat tile_id array in row-major order (y outer, x inner), then RLE-compressed.
+    Each run: (tileId: int16LE, count: uint16LE) = 4 bytes. Air (None) → -1.
+    Max run length: 65535 (uint16 max).
     """
     w = min(chunk_size, max(0, tiles.width - chunk_x))
     h = min(chunk_size, max(0, tiles.height - chunk_y))
 
-    records: list[bytes] = []
-    for x in range(chunk_x, chunk_x + w):
-        col = tiles[x]
-        for y in range(chunk_y, chunk_y + h):
-            tile = col[y]
-            tid = tile.tile_id if tile.tile_id is not None else _NONE_ID
-            wid = tile.wall_id if tile.wall_id is not None else _NONE_ID
-            records.append(
-                struct.pack("<HHBB", tid, wid, tile.liquid & 0xFF, tile.flags & 0xFF)
-            )
+    tile_ids: list[int] = []
+    for y in range(chunk_y, chunk_y + h):
+        for x in range(chunk_x, chunk_x + w):
+            tile = tiles[x][y]
+            tile_ids.append(-1 if tile.tile_id is None else tile.tile_id)
 
     buf = bytearray()
     i = 0
-    while i < len(records):
+    while i < len(tile_ids):
         run = 1
-        while run < 255 and i + run < len(records) and records[i + run] == records[i]:
+        while (
+            run < 65535 and i + run < len(tile_ids) and tile_ids[i + run] == tile_ids[i]
+        ):
             run += 1
-        buf.append(run)
-        buf.extend(records[i])
+        buf.extend(struct.pack("<hH", tile_ids[i], run))
         i += run
 
     return w, h, base64.b64encode(bytes(buf)).decode()

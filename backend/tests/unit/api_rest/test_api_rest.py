@@ -1,8 +1,10 @@
-"""Tests for B5 – api-rest (T-01 … T-12)."""
+"""Tests for B5 – api-rest (T-01 … T-13)."""
 
 from __future__ import annotations
 
+import base64
 import json
+import struct as _struct
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -447,3 +449,60 @@ def test_openapi_schema_snapshot(
 
     expected = json.loads(snapshot_path.read_text())
     assert schema == expected
+
+
+# ---------------------------------------------------------------------------
+# T-13 – GET /api/worlds/{id}/tiles payload decodes as row-major int16 RLE
+# ---------------------------------------------------------------------------
+
+
+def test_get_tiles_payload_encodes_row_major_int16_rle() -> None:
+    """Payload must be base64( runs of (tileId:int16LE, count:uint16LE) ),
+    in row-major order (y outer, x inner), with -1 for air (None tile_id).
+
+    Grid layout (width=2, height=2):
+        (x=0,y=0)=tile_id 5   (x=1,y=0)=tile_id 7
+        (x=0,y=1)=air(-1)     (x=1,y=1)=air(-1)
+
+    Expected flat row-major sequence: [5, 7, -1, -1]
+    """
+    t5 = Tile(tile_id=5, wall_id=None, liquid=0, flags=0)
+    t7 = Tile(tile_id=7, wall_id=None, liquid=0, flags=0)
+    air = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+    grid = TileGrid([[t5, air], [t7, air]])
+    meta = WorldMetadata(
+        name="T",
+        width=2,
+        height=2,
+        version=269,
+        seed="0",
+        size="small",
+        hardmode=False,
+    )
+    world = World(metadata=meta, tiles=grid, chests=(), signs=())
+
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/tiles",
+        params={"chunk_x": 0, "chunk_y": 0, "chunk_size": 2},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["encoding"] == "base64-rle-v1"
+    assert body["width"] == 2
+    assert body["height"] == 2
+
+    raw = base64.b64decode(body["payload"])
+    # Each run is 4 bytes: int16LE tileId + uint16LE count.
+    assert len(raw) % 4 == 0
+
+    flat: list[int] = []
+    for i in range(0, len(raw), 4):
+        tid = _struct.unpack_from("<h", raw, i)[0]
+        cnt = _struct.unpack_from("<H", raw, i + 2)[0]
+        flat.extend([tid] * cnt)
+
+    assert flat == [5, 7, -1, -1], f"got {flat}"
