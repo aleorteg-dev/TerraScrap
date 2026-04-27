@@ -96,10 +96,16 @@ Seed bundled: `backend/src/twi/item_catalog/data/items.seed.json` (schema v1, ~1
 
 ## 10. Estado
 - **Versión del contrato**: v1.1
-- **Último cierre**: 2026-04-27 (iter-014)
+- **Último cierre**: 2026-04-28 (iter-018)
 - **Iteración actual**: cerrada
-- **Cambios cross-módulo**: `app.py` (B6) actualizado para usar `load_catalog` + `item_seed_path` en `Settings`. No se tocó la frontera API; sin cambio en `api-contract.md`.
+- **Cambios iter-018**:
+  - `scraper.py`: actualizado para tabla `class="terraria lined sortable"` (wiki cambió de `wikitable`). Detecta `terraria` primero, cae a `wikitable`, luego a primera tabla en `mw-content-text`. Columnas nuevas: ID | Name | Internal name — category/rarity/tooltip/sprite_url pasan a defaults vacíos.
+  - `items.seed.json`: reemplazado de 12 ítems (minimal) a **6146 ítems** (catálogo completo de wiki.gg, 2026-04-28).
+  - `refresh.py`: creado `python -m twi.item_catalog.refresh [--output PATH]` para regenerar el seed en el futuro.
+  - Fixture `sample_wiki_items.html` actualizado a estructura real de la wiki.
+  - T-09 actualizado (id=1 es "Iron Pickaxe", se eliminó aserción de sprite_url).
 - **Deuda / follow-ups**:
-  - Seed bundled contiene solo ~12 ítems. Para catálogo completo ejecutar `refresh_cache_from_wiki` y hacer commit del JSON resultante como nueva versión del seed.
-  - User-Agent con contacto pendiente de añadir al `httpx.AsyncClient` real en B6.
-  - `refresh_cache_from_wiki` propaga `httpx.HTTPError` ante wiki caída; si el volumen tiene cache previa el fallback funciona, pero en primer arranque sin red solo cuenta el seed bundled.
+  - sprite_url siempre vacío (wiki eliminó columna de sprites). Si se quieren sprites, habría que scrapear páginas individuales por ítem — fuera de alcance v1.
+  - category/rarity/tooltip siempre vacíos/defaults — misma causa. Impacto: `GET /api/items/{id}` devuelve rarity=0 y tooltip=null para todos.
+  - `refresh_cache_from_wiki` propaga `httpx.HTTPError` ante wiki caída; en primer arranque sin red solo cuenta el seed bundled.
+  - Seed debe regenerarse (`python -m twi.item_catalog.refresh`) si la wiki añade nuevos ítems.
