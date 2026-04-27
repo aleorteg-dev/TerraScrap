@@ -70,7 +70,9 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Mutable render state — kept in refs to avoid re-renders on every frame
+  // panX/panY are initialized in ResizeObserver (first fire) once canvas dims are known.
   const viewRef = useRef<ViewState>({ panX: 0, panY: 0, zoom: INITIAL_ZOOM });
+  const viewInitializedRef = useRef(false);
   const chunkCacheRef = useRef(new Map<string, Int16Array>());
   const pendingRef = useRef(new Set<string>());
   const rafRef = useRef(0);
@@ -179,6 +181,19 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       if (!canvas) return;
       canvas.width = entry.contentRect.width;
       canvas.height = entry.contentRect.height;
+      if (!viewInitializedRef.current) {
+        viewInitializedRef.current = true;
+        const meta = metadataRef.current;
+        const zoom = INITIAL_ZOOM;
+        // Center on horizontal midpoint, vertical ~20% depth (approximate surface).
+        const centerX = meta.width / 2;
+        const centerY = Math.floor(meta.height / 5);
+        viewRef.current = {
+          zoom,
+          panX: centerX - canvas.width / (2 * zoom),
+          panY: centerY - canvas.height / (2 * zoom),
+        };
+      }
       loadVisibleChunks();
       scheduleRedraw();
     });

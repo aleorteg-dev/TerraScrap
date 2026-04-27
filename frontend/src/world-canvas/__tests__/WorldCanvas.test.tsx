@@ -70,11 +70,14 @@ describe('WorldCanvas', () => {
     expect(canvas.height).toBe(600);
   });
 
-  it('T-07 calls apiClient.getTilesChunk for initial viewport', async () => {
+  it('T-07 calls apiClient.getTilesChunk for initial viewport near world center', async () => {
     const apiClient = makeApiClient();
     render(<WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} />);
+    // world: 4200×1200, canvas: 800×600, zoom: 2
+    // center: (2100, 240), pan: (1900, 165)
+    // first visible chunk: cx=floor(1900/128)=14, cy=floor(165/128)=1
     await waitFor(() => {
-      expect(apiClient.getTilesChunk).toHaveBeenCalledWith('w1', 0, 0, 128);
+      expect(apiClient.getTilesChunk).toHaveBeenCalledWith('w1', 14, 1, 128);
     });
   });
 
@@ -105,10 +108,29 @@ describe('WorldCanvas', () => {
       />
     );
     const canvas = screen.getByTestId('world-canvas');
-    // Initial: zoom=2, pan=(0,0), getBoundingClientRect returns zeros in jsdom
-    // screenToWorld(100, 200, {panX:0, panY:0, zoom:2}) → {x:50, y:100}
+    // world: 4200×1200, canvas: 800×600, zoom: 2
+    // panX = 2100 - 800/(2*2) = 1900, panY = 240 - 600/(2*2) = 90
+    // getBoundingClientRect returns zeros in jsdom → click at screen (100,200)
+    // screenToWorld(100, 200, {panX:1900, panY:90, zoom:2}) → {x:1950, y:190}
     fireEvent.click(canvas, { clientX: 100, clientY: 200 });
-    expect(onTileClick).toHaveBeenCalledWith({ x: 50, y: 100 });
+    expect(onTileClick).toHaveBeenCalledWith({ x: 1950, y: 190 });
+  });
+
+  it('T-11 WorldCanvas should center viewport on world midpoint at first resize', () => {
+    // world: 4200×1200, canvas: 800×600, zoom: 2
+    // expected center: (2100, floor(1200/5)=240)
+    // expected pan: (1900, 90)
+    const onReady = vi.fn();
+    render(
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={makeApiClient()} onReady={onReady} />
+    );
+    const handle = onReady.mock.calls[0]?.[0] as {
+      worldToScreen: (x: number, y: number) => { px: number; py: number };
+    };
+    // World center (2100, 240) should appear near screen centre (400, 300)
+    const { px, py } = handle.worldToScreen(2100, 240);
+    expect(px).toBeCloseTo(400, 0);
+    expect(py).toBeCloseTo(300, 0);
   });
 
   it('T-10 onReady emits a handle with imperative API', () => {

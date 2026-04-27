@@ -80,8 +80,8 @@ De componente:
 
 ## 10. Estado
 - **Versión del contrato**: v1
-- **Último cierre**: 2026-04-26
-- **Iteración actual**: iter-007
+- **Último cierre**: 2026-04-26 — reabierto y cerrado 2026-04-27 (bugfix viewport inicial)
+- **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-007
 
@@ -92,6 +92,14 @@ De componente:
 - **Compatibilidad vitest@3 / vite@8**: `@vitejs/plugin-react@6` requiere vite@8 pero vitest@3 usa vite@7 internamente. Solución: esbuild config con `jsx: 'automatic'` en `vitest.config.ts` en lugar del plugin Babel.
 - **Canvas en jsdom**: jsdom no implementa canvas rendering. Se añade mock de `getContext('2d')` en `setupTests.ts` con `clearRect` y `fillRect` spy-ables. También se añade `cleanup()` explícito porque RTL no lo llama automáticamente sin globals de Vitest.
 
+## 13. Decisiones tomadas (bugfix viewport-inicial 2026-04-27)
+
+- Viewport arrancaba en `panX:0, panY:0` (top-left = cielo puro). Invisible porque el renderer omite `tileId < 0` (aire).
+- Fix: `viewInitializedRef` flag; en el primer disparo de ResizeObserver, se calcula pan para centrar en `(world_width/2, floor(world_height/5))` (~20% depth ≈ superficie).
+- `world_height/5` es heurístico: superficie Terraria oscila entre ~15-25% de profundidad según tamaño; el valor 20% funciona para small/medium/large.
+- `spawnX`/`spawnY` no están en el contrato API (no en `WorldMetadata`). Si se añaden en el futuro, priorizar spawn sobre la heurística.
+- Añadidos tests T-07 (actualizado), T-09 (actualizado), T-11 (nuevo).
+
 ## 12. Deuda / follow-ups
 
 - **Reemplazar tipos locales por F1**: Cuando F1 (api-client) esté cerrado, sustituir `import type { ... } from './types'` por `import type { ... } from '../api-client'` y borrar `types.ts`. Verificar compatibilidad estructural (WorldMetadata, TilesChunk, ApiClient).
@@ -100,3 +108,4 @@ De componente:
 - **Pinch-to-zoom táctil**: SP-04. No implementado en v1; requires TouchEvent handling.
 - **Animación en centerOn**: SP-07 menciona animación opcional. v1 hace jump instantáneo.
 - **worldId change**: Si el padre cambia `worldId` sin desmontar (raro, pero posible), el chunk cache queda obsoleto. Añadir `useEffect([worldId])` que limpie cache y pending.
+- **Centrar en spawn real**: Si B5/B1 exponen `spawnX`/`spawnY` en `WorldMetadata`, reemplazar la heurística `height/5` por las coordenadas de spawn reales. Anotar en B5 deuda.
