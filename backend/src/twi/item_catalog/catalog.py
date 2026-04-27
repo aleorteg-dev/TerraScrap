@@ -1,10 +1,13 @@
 """In-memory item catalog — domain logic, no FastAPI dependency."""
 
 import json
+import logging
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+
+_logger = logging.getLogger(__name__)
 
 _SUPPORTED_SCHEMA: int = 1
 
@@ -93,3 +96,36 @@ def create_catalog_from_cache(cache_path: Path) -> ItemCatalog:
         for entry in data["items"]
     ]
     return _InMemoryItemCatalog(items)
+
+
+class ItemCatalogUnavailableError(Exception):
+    """Raised when neither cache nor seed catalog can be loaded."""
+
+
+def load_catalog(
+    cache_path: Path,
+    seed_path: Path | None = None,
+) -> ItemCatalog:
+    """Load catalog with fallback: cache_path → seed_path → ItemCatalogUnavailableError.
+
+    Logs WARNING when falling back to seed.
+    """
+    try:
+        return create_catalog_from_cache(cache_path)
+    except (FileNotFoundError, ValueError):
+        pass
+
+    if seed_path is not None:
+        try:
+            catalog = create_catalog_from_cache(seed_path)
+            _logger.warning(
+                "Item cache absent/invalid at %s; serving bundled seed catalog.",
+                cache_path,
+            )
+            return catalog
+        except (FileNotFoundError, ValueError):
+            pass
+
+    raise ItemCatalogUnavailableError(
+        f"No item catalog source available (cache={cache_path!r}, seed={seed_path!r})"
+    )

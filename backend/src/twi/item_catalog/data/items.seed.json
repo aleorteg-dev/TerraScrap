@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "_note": "Minimal seed — regenerate with: python -m twi.item_catalog.refresh",
+  "items": [
+    {"id": 1,    "name": "Copper Shortsword",   "sprite_url": "", "category": "weapon",    "rarity": 0,  "tooltip": "Pretty weak, but better than nothing"},
+    {"id": 2,    "name": "Dirt Block",           "sprite_url": "", "category": "block",     "rarity": 0,  "tooltip": null},
+    {"id": 3,    "name": "Stone Block",          "sprite_url": "", "category": "block",     "rarity": 0,  "tooltip": null},
+    {"id": 4,    "name": "Iron Ore",             "sprite_url": "", "category": "material",  "rarity": 0,  "tooltip": null},
+    {"id": 9,    "name": "Wood",                 "sprite_url": "", "category": "material",  "rarity": 0,  "tooltip": null},
+    {"id": 20,   "name": "Iron Pickaxe",         "sprite_url": "", "category": "tool",      "rarity": 0,  "tooltip": null},
+    {"id": 40,   "name": "Torch",                "sprite_url": "", "category": "furniture", "rarity": 0,  "tooltip": null},
+    {"id": 71,   "name": "Gold Coin",            "sprite_url": "", "category": "currency",  "rarity": 0,  "tooltip": null},
+    {"id": 166,  "name": "Aglet",                "sprite_url": "", "category": "accessory", "rarity": 1,  "tooltip": "Increases movement speed"},
+    {"id": 521,  "name": "Chlorophyte Ore",      "sprite_url": "", "category": "material",  "rarity": 4,  "tooltip": null},
+    {"id": 965,  "name": "Terra Blade",          "sprite_url": "", "category": "weapon",    "rarity": 8,  "tooltip": "Shoots a wide, short-range sword beam"},
+    {"id": 4956, "name": "Zenith",               "sprite_url": "", "category": "weapon",    "rarity": 10, "tooltip": "Forged from the legends of every era"}
+  ]
+}

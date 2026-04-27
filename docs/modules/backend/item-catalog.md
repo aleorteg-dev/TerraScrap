@@ -23,10 +23,20 @@ class ItemCatalog(Protocol):
     def get(self, item_id: int) -> ItemDetail: ...
 
 class ItemNotFoundError(Exception): ...
+class ItemCatalogUnavailableError(Exception): ...
 
 def create_catalog_from_cache(cache_path: Path) -> ItemCatalog: ...
+def load_catalog(cache_path: Path, seed_path: Path | None = None) -> ItemCatalog: ...
 async def refresh_cache_from_wiki(cache_path: Path, client: HttpClient) -> None: ...
 ```
+
+### Orden de carga (`load_catalog`)
+
+1. `cache_path` (env `TWI_ITEM_CACHE_PATH`) — si existe y esquema válido.
+2. `seed_path` (env `TWI_ITEM_SEED_PATH`, default: paquete bundled `item_catalog/data/items.seed.json`) — fallback con WARNING.
+3. `ItemCatalogUnavailableError` — si ambos fallan; `_NullCatalog` en `app.py`.
+
+Seed bundled: `backend/src/twi/item_catalog/data/items.seed.json` (schema v1, ~12 ítems). Regenerar con `refresh_cache_from_wiki` para catálogo completo.
 
 ## 3. Dependencias
 - Stdlib: `json`, `pathlib`, `dataclasses`.
@@ -46,6 +56,8 @@ async def refresh_cache_from_wiki(cache_path: Path, client: HttpClient) -> None:
 - **SP-05** `refresh_cache_from_wiki` escribe un JSON con esquema versionado (`{"schema": 1, "items": [...]}`).
 - **SP-06** `create_catalog_from_cache` con cache ausente lanza `FileNotFoundError`. Con cache de esquema desconocido, lanza `ValueError`.
 - **SP-07** La búsqueda es diacritic-insensitive (`"Chloro"` matchea `"Chlorophyte"`).
+- **SP-08** `load_catalog(cache, seed)` intenta `cache` primero; si falla (`FileNotFoundError` o `ValueError`), usa `seed` con un WARNING; si ambos fallan, lanza `ItemCatalogUnavailableError`.
+- **SP-09** Seed bundled en el paquete (`item_catalog/data/items.seed.json`, schema v1) garantiza arranque sin catálogo vacío incluso con volumen vacío en Docker.
 
 ## 6. Plan de tests (TDD)
 - [x] `T-01 test_search_prefix_match_returns_item`
@@ -57,6 +69,15 @@ async def refresh_cache_from_wiki(cache_path: Path, client: HttpClient) -> None:
 - [x] `T-07 test_create_catalog_from_cache_invalid_schema_raises`
 - [x] `T-08 test_refresh_cache_writes_versioned_json` (mockear `HttpClient`)
 - [x] `T-09 test_refresh_cache_parses_sample_wiki_html_page` (fixture HTML local)
+- [x] `T-10 test_load_catalog_uses_cache_when_present`
+- [x] `T-11 test_load_catalog_falls_back_to_seed_and_logs_warning`
+- [x] `T-12 test_load_catalog_raises_when_both_absent`
+- [x] `T-13 test_load_catalog_falls_back_to_seed_when_cache_invalid_schema`
+- [x] `T-14 test_load_catalog_raises_when_no_seed_and_cache_absent`
+
+### Tests de integración (separados, no en ciclo TDD)
+- [x] `IT-01 test_items_query_dirt_returns_results_from_seed` (`tests/integration/test_item_catalog_seed.py`)
+- [x] `IT-02 test_items_query_empty_returns_all_seed_items`
 
 ## 7. Notas de implementación
 - La lista de ítems de Terraria es finita (~5000). Se carga entera en memoria.
@@ -74,10 +95,11 @@ async def refresh_cache_from_wiki(cache_path: Path, client: HttpClient) -> None:
 - `httpx.HTTPError` propagado desde `refresh_cache_from_wiki`.
 
 ## 10. Estado
-- **Versión del contrato**: v1
-- **Último cierre**: 2026-04-23 (iter-001)
+- **Versión del contrato**: v1.1
+- **Último cierre**: 2026-04-27 (iter-014)
 - **Iteración actual**: cerrada
+- **Cambios cross-módulo**: `app.py` (B6) actualizado para usar `load_catalog` + `item_seed_path` en `Settings`. No se tocó la frontera API; sin cambio en `api-contract.md`.
 - **Deuda / follow-ups**:
-  - `items.fallback.json` aún no existe; ante wiki caída `refresh_cache_from_wiki` lanzará `httpx.HTTPError`. Crear el fallback en la iteración de `app-bootstrap` (B6) o como tarea independiente.
+  - Seed bundled contiene solo ~12 ítems. Para catálogo completo ejecutar `refresh_cache_from_wiki` y hacer commit del JSON resultante como nueva versión del seed.
   - User-Agent con contacto pendiente de añadir al `httpx.AsyncClient` real en B6.
-  - Cobertura de rama para `create_catalog_from_cache` con fichero ausente (FileNotFoundError) no tiene test explícito; lo cubre el comportamiento por defecto de `Path.read_text`.
+  - `refresh_cache_from_wiki` propaga `httpx.HTTPError` ante wiki caída; si el volumen tiene cache previa el fallback funciona, pero en primer arranque sin red solo cuenta el seed bundled.

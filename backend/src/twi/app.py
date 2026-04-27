@@ -20,13 +20,18 @@ from starlette.types import ASGIApp
 from twi.api_rest import create_router
 from twi.item_catalog import (
     ItemCatalog,
+    ItemCatalogUnavailableError,
     ItemDetail,
     ItemNotFoundError,
     ItemSummary,
-    create_catalog_from_cache,
+    load_catalog,
 )
 from twi.tile_search import create_tile_search_engine
 from twi.world_repository import WorldRepository, create_in_memory_repository
+
+_DEFAULT_SEED_PATH: Path = (
+    Path(__file__).parent / "item_catalog" / "data" / "items.seed.json"
+)
 
 _LOG_LEVELS: dict[str, int] = {
     "DEBUG": logging.DEBUG,
@@ -42,6 +47,7 @@ class Settings(BaseSettings):
 
     max_upload_mb: int = 200
     item_cache_path: Path = Path("data/items.json")
+    item_seed_path: Path = _DEFAULT_SEED_PATH
     world_ttl_seconds: int = 1800
     cors_origins: list[str] = ["http://localhost:5173"]
     log_level: str = "INFO"
@@ -99,11 +105,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     catalog: ItemCatalog
     try:
-        catalog = create_catalog_from_cache(settings.item_cache_path)
-    except Exception:
+        catalog = load_catalog(settings.item_cache_path, settings.item_seed_path)
+    except ItemCatalogUnavailableError:
         logging.warning(
-            "Item catalog unavailable at %s; /api/items returns empty results.",
+            "Item catalog unavailable (cache=%s, seed=%s); "
+            "/api/items returns empty results.",
             settings.item_cache_path,
+            settings.item_seed_path,
         )
         catalog = _NullCatalog()
 

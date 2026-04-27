@@ -9,9 +9,15 @@ T-06  test_get_unknown_id_raises_ItemNotFoundError
 T-07  test_create_catalog_from_cache_invalid_schema_raises
 T-08  test_refresh_cache_writes_versioned_json
 T-09  test_refresh_cache_parses_sample_wiki_html_page
+T-10  test_load_catalog_uses_cache_when_present
+T-11  test_load_catalog_falls_back_to_seed_and_logs_warning
+T-12  test_load_catalog_raises_when_both_absent
+T-13  test_load_catalog_falls_back_to_seed_when_cache_invalid_schema
+T-14  test_load_catalog_raises_when_no_seed_and_cache_absent
 """
 
 import json
+import logging
 from pathlib import Path
 
 import httpx
@@ -19,9 +25,11 @@ import pytest
 
 from twi.item_catalog import (
     ItemCatalog,
+    ItemCatalogUnavailableError,
     ItemDetail,
     ItemNotFoundError,
     create_catalog_from_cache,
+    load_catalog,
     refresh_cache_from_wiki,
 )
 
@@ -210,3 +218,67 @@ async def test_refresh_cache_parses_sample_wiki_html_page(tmp_path: Path) -> Non
     assert items_by_id[4956]["rarity"] == 10
 
     assert 99 not in items_by_id, "non-numeric ID row must be skipped"
+
+
+# ---------------------------------------------------------------------------
+# T-10  load_catalog uses cache when present
+# ---------------------------------------------------------------------------
+
+
+def test_load_catalog_uses_cache_when_present(tmp_path: Path) -> None:
+    cache = tmp_path / "items.json"
+    cache.write_text(json.dumps(_VALID_CACHE), encoding="utf-8")
+    catalog = load_catalog(cache)
+    assert catalog.get(4956).name == "Zenith"
+
+
+# ---------------------------------------------------------------------------
+# T-11  load_catalog falls back to seed when cache absent, logs warning
+# ---------------------------------------------------------------------------
+
+
+def test_load_catalog_falls_back_to_seed_and_logs_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    seed = tmp_path / "seed.json"
+    seed.write_text(json.dumps(_VALID_CACHE), encoding="utf-8")
+    with caplog.at_level(logging.WARNING):
+        catalog = load_catalog(tmp_path / "cache.json", seed_path=seed)
+    assert catalog.get(4956).name == "Zenith"
+    assert len(caplog.records) >= 1
+
+
+# ---------------------------------------------------------------------------
+# T-12  load_catalog raises ItemCatalogUnavailableError when both absent
+# ---------------------------------------------------------------------------
+
+
+def test_load_catalog_raises_when_both_absent(tmp_path: Path) -> None:
+    with pytest.raises(ItemCatalogUnavailableError):
+        load_catalog(tmp_path / "cache.json", seed_path=tmp_path / "seed.json")
+
+
+# ---------------------------------------------------------------------------
+# T-13  load_catalog falls back to seed when cache has invalid schema
+# ---------------------------------------------------------------------------
+
+
+def test_load_catalog_falls_back_to_seed_when_cache_invalid_schema(
+    tmp_path: Path,
+) -> None:
+    cache = tmp_path / "cache.json"
+    cache.write_text(json.dumps({"schema": 99, "items": []}), encoding="utf-8")
+    seed = tmp_path / "seed.json"
+    seed.write_text(json.dumps(_VALID_CACHE), encoding="utf-8")
+    catalog = load_catalog(cache, seed_path=seed)
+    assert catalog.get(4956).name == "Zenith"
+
+
+# ---------------------------------------------------------------------------
+# T-14  load_catalog raises when no seed_path and cache absent
+# ---------------------------------------------------------------------------
+
+
+def test_load_catalog_raises_when_no_seed_and_cache_absent(tmp_path: Path) -> None:
+    with pytest.raises(ItemCatalogUnavailableError):
+        load_catalog(tmp_path / "nonexistent.json")
