@@ -79,7 +79,7 @@ Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`
 
 ## 10. Estado
 - **Versión del contrato**: v0.1.0
-- **Último cierre**: 2026-04-27 (iter-005) — reabierto y cerrado 2026-04-27 (bugfix)
+- **Último cierre**: 2026-04-27 (iter-005) — reabierto y cerrado 2026-04-27 (bugfix) — reabierto y cerrado 2026-04-27 (bugfix chunk-index)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -99,6 +99,14 @@ Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`
   Cada run: `(tileId: int16LE, count: uint16LE)` = 4 bytes. Aire → -1. Max run: 65535.
   La implementación anterior (7 bytes/run, columna-mayor) era incompatible con el decoder
   de F3 world-canvas → canvas en blanco. Arreglado en T-13.
+
+## 13. Decisiones tomadas (bugfix chunk-index 2026-04-27)
+
+- `_encode_chunk` interpretaba `chunk_x`/`chunk_y` como coordenadas absolutas de tile. Correcto: son **índices de chunk** (`start = cx * chunk_size`). La convención ya era correcta en el frontend (F3) y en la doc del contrato (implícita). Ahora explícita en `api-contract.md`.
+- Extraído helper puro `_chunk_bounds(cx, cy, size, world_w, world_h) → (start_x, start_y, w, h)` para facilitar tests.
+- Añadidos tests T-14 (index→tiles), T-15 (out-of-bounds→empty), T-16 (unit de `_chunk_bounds`).
+- El test T-13 preexistente usaba `chunk_x=0, chunk_y=0`, lo que enmascaraba el bug (`0 × size = 0`).
+- Deuda registrada en F3: viewport inicial arranca en (0,0) = cielo puro; fix en iteración F3.
 
 ## 12. Deuda / follow-ups
 

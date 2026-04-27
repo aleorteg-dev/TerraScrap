@@ -506,3 +506,117 @@ def test_get_tiles_payload_encodes_row_major_int16_rle() -> None:
         flat.extend([tid] * cnt)
 
     assert flat == [5, 7, -1, -1], f"got {flat}"
+
+
+# ---------------------------------------------------------------------------
+# T-14 – Chunk index (1, 0) maps to correct tiles, not absolute coords
+# ---------------------------------------------------------------------------
+
+
+def test_tiles_endpoint_chunk_index_maps_to_correct_tiles() -> None:
+    """chunk_x/chunk_y are indices: (1,0) size=2 → tiles x=2..3, y=0..1."""
+    air = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+    t5 = Tile(tile_id=5, wall_id=None, liquid=0, flags=0)
+    t7 = Tile(tile_id=7, wall_id=None, liquid=0, flags=0)
+    # 4-wide × 2-high grid: only x=2,3 carry real tiles
+    grid = TileGrid(
+        [
+            [air, air],  # x=0
+            [air, air],  # x=1
+            [t5, air],  # x=2: (2,0)=5, (2,1)=air
+            [t7, air],  # x=3: (3,0)=7, (3,1)=air
+        ]
+    )
+    meta = WorldMetadata(
+        name="T14",
+        width=4,
+        height=2,
+        version=269,
+        seed="0",
+        size="small",
+        hardmode=False,
+    )
+    world = World(metadata=meta, tiles=grid, chests=(), signs=())
+
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/tiles",
+        params={"chunk_x": 1, "chunk_y": 0, "chunk_size": 2},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["width"] == 2
+    assert body["height"] == 2
+
+    raw = base64.b64decode(body["payload"])
+    flat: list[int] = []
+    for i in range(0, len(raw), 4):
+        tid = _struct.unpack_from("<h", raw, i)[0]
+        cnt = _struct.unpack_from("<H", raw, i + 2)[0]
+        flat.extend([tid] * cnt)
+
+    assert flat == [5, 7, -1, -1], f"got {flat}"
+
+
+# ---------------------------------------------------------------------------
+# T-15 – Out-of-bounds chunk returns empty width/height and empty payload
+# ---------------------------------------------------------------------------
+
+
+def test_tiles_endpoint_out_of_bounds_chunk_returns_empty() -> None:
+    air = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+    grid = TileGrid([[air, air], [air, air]])  # 2×2
+    meta = WorldMetadata(
+        name="T15",
+        width=2,
+        height=2,
+        version=269,
+        seed="0",
+        size="small",
+        hardmode=False,
+    )
+    world = World(metadata=meta, tiles=grid, chests=(), signs=())
+
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/tiles",
+        params={"chunk_x": 5, "chunk_y": 5, "chunk_size": 2},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["width"] == 0
+    assert body["height"] == 0
+    assert body["payload"] == ""
+
+
+# ---------------------------------------------------------------------------
+# T-16 – _chunk_bounds pure function: indices → tile range
+# ---------------------------------------------------------------------------
+
+
+def test_chunk_bounds_returns_correct_tile_range() -> None:
+    from twi.api_rest.router import _chunk_bounds  # type: ignore[attr-defined]
+
+    # Interior chunk: index (1,2), size=128, 8400×2400
+    sx, sy, w, h = _chunk_bounds(1, 2, 128, 8400, 2400)
+    assert sx == 128
+    assert sy == 256
+    assert w == 128
+    assert h == 128
+
+    # Partial edge chunk: last column of 8400-wide world with size=128
+    # 65 * 128 = 8320; remaining = 8400 - 8320 = 80
+    sx, sy, w, h = _chunk_bounds(65, 0, 128, 8400, 2400)
+    assert sx == 8320
+    assert w == 80
+
+    # Out-of-bounds → zero area
+    sx, sy, w, h = _chunk_bounds(100, 100, 128, 10, 10)
+    assert w == 0
+    assert h == 0

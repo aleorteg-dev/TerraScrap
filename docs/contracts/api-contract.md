@@ -52,7 +52,7 @@ Libera memoria de la sesión.
 #### `GET /api/worlds/{world_id}/tiles`
 Devuelve los tiles empaquetados para el renderer.
 
-- **Query**: `chunk_x`, `chunk_y`, `chunk_size=128` (opcional, paginación por chunks).
+- **Query**: `chunk_x`, `chunk_y` (**chunk indices**, no coordenadas absolutas de tile), `chunk_size=128` (opcional). Tile coords: `start_x = chunk_x * chunk_size`, `start_y = chunk_y * chunk_size`.
 - **200**:
   ```json
   {

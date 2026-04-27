@@ -82,6 +82,21 @@ def _meta_dto(m: WorldMetadata) -> WorldMetadataDto:
     )
 
 
+def _chunk_bounds(
+    cx: int,
+    cy: int,
+    size: int,
+    world_w: int,
+    world_h: int,
+) -> tuple[int, int, int, int]:
+    """Return (start_x, start_y, width, height) for chunk index (cx, cy)."""
+    start_x = cx * size
+    start_y = cy * size
+    w = min(size, max(0, world_w - start_x))
+    h = min(size, max(0, world_h - start_y))
+    return start_x, start_y, w, h
+
+
 def _encode_chunk(
     tiles: TileGrid,
     chunk_x: int,
@@ -90,16 +105,18 @@ def _encode_chunk(
 ) -> tuple[int, int, str]:
     """Pack a grid chunk as base64-rle-v1.
 
+    chunk_x / chunk_y are chunk *indices* (multiply by chunk_size to get tile coords).
     Flat tile_id array in row-major order (y outer, x inner), then RLE-compressed.
     Each run: (tileId: int16LE, count: uint16LE) = 4 bytes. Air (None) → -1.
     Max run length: 65535 (uint16 max).
     """
-    w = min(chunk_size, max(0, tiles.width - chunk_x))
-    h = min(chunk_size, max(0, tiles.height - chunk_y))
+    start_x, start_y, w, h = _chunk_bounds(
+        chunk_x, chunk_y, chunk_size, tiles.width, tiles.height
+    )
 
     tile_ids: list[int] = []
-    for y in range(chunk_y, chunk_y + h):
-        for x in range(chunk_x, chunk_x + w):
+    for y in range(start_y, start_y + h):
+        for x in range(start_x, start_x + w):
             tile = tiles[x][y]
             tile_ids.append(-1 if tile.tile_id is None else tile.tile_id)
 
