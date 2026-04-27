@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend.Dockerfile
+    environment:
+      TWI_MAX_UPLOAD_MB: "${TWI_MAX_UPLOAD_MB:-200}"
+      TWI_WORLD_TTL_SECONDS: "${TWI_WORLD_TTL_SECONDS:-1800}"
+      TWI_ITEM_CACHE_PATH: "/app/data/items.json"
+      TWI_CORS_ORIGINS: "${TWI_CORS_ORIGINS:-[]}"
+      TWI_LOG_LEVEL: "${TWI_LOG_LEVEL:-INFO}"
+    volumes:
+      - items-cache:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/frontend.Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${PORT:-8080}:80"
+
+volumes:
+  items-cache:
