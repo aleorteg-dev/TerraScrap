@@ -44,14 +44,14 @@ export const UploadWorld: React.FC<UploadProps>;
 ## 6. Plan de tests (TDD)
 Vitest + Testing Library.
 
-- [ ] `T-01 renders dropzone and file input`
-- [ ] `T-02 rejects non-.wld file with error message`
-- [ ] `T-03 rejects file above maxSizeMb`
-- [ ] `T-04 calls onUploaded on 200 response` (apiClient mockeado)
-- [ ] `T-05 calls onError on 400 response`
-- [ ] `T-06 shows loading state while uploading`
-- [ ] `T-07 allows selecting file via drag and drop` (fireEvent drop)
-- [ ] `T-08 input has accessible label`
+- [x] `T-01 renders dropzone and file input`
+- [x] `T-02 rejects non-.wld file with error message`
+- [x] `T-03 rejects file above maxSizeMb`
+- [x] `T-04 calls onUploaded on 200 response` (apiClient mockeado)
+- [x] `T-05 calls onError on 400 response`
+- [x] `T-06 shows loading state while uploading`
+- [x] `T-07 allows selecting file via drag and drop` (fireEvent drop)
+- [x] `T-08 input has accessible label`
 
 ## 7. Notas de implementación
 - Estado local con `useState`/`useReducer` para el flujo `idle → validating → uploading → success|error`.
@@ -65,7 +65,15 @@ Vitest + Testing Library.
 - Delegados al `onError`. Mensajes de validación locales solo para `file_too_large` / `invalid_extension`.
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v1.0
+- **Último cierre**: 2026-04-27 — iter-009
+- **Iteración actual**: cerrada
+- **Decisiones tomadas**:
+  - Input oculto con `.sr-only` (no `display:none`) para que RTL y lectores de pantalla lo encuentren vía `<label htmlFor>`.
+  - `apiClient` inyectable por prop; si no se pasa, crea uno con `createApiClient()` vía `useMemo`.
+  - Estado manejado con tres `useState` (`phase`, `validationErr`, `uploadErr`) + un `useState<boolean>` para drag.
+  - Errores de validación locales (`invalid_extension`, `file_too_large`) no llaman a la API ni disparan `onError`.
+  - `stopPropagation` en el `onClick` del `<input>` para evitar doble apertura del diálogo de fichero.
+- **Deuda / follow-ups**:
+  - El componente usa un ID estático `"wld-file-input"`. Si se renderiza más de una instancia en la misma página, habrá IDs duplicados. Migrar a `useId()` cuando sea necesario (aplaza a F6 app-shell si sigue siendo instancia única).
+  - No hay barra de progreso real (porcentaje); el endpoint `POST /api/worlds` no expone progreso — progreso indeterminado es suficiente para v1.
