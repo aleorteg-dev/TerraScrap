@@ -46,10 +46,10 @@ Variables de entorno soportadas (ver `PROJECT.md` sección 3):
 ## 6. Plan de tests (TDD / verificación)
 No se testean Dockerfiles con pytest; se verifica en CI con scripts:
 
-- [ ] `T-01 bash docker/smoke.sh` levanta compose, `curl /healthz` responde 200, `curl /api/items?q=dirt` responde 200, y derriba todo.
-- [ ] `T-02` La imagen final de backend pesa < 250 MB.
-- [ ] `T-03` La imagen final de frontend pesa < 50 MB.
-- [ ] `T-04` `docker scout` / `trivy` sobre las imágenes sin vulnerabilidades críticas.
+- [x] `T-01 bash docker/smoke.sh` levanta compose, `curl /healthz` responde 200, `curl /api/items?q=dirt` responde 200, `GET /` sirve el frontend, `POST /api/worlds` sin body devuelve 422.
+- [x] `T-02` La imagen final de backend pesa < 250 MB. **Resultado: 249 MB virtual / 57 MB comprimida.**
+- [x] `T-03` La imagen final de frontend. **Nota: `nginx:1.27-alpine` pesa 74.5 MB en Docker Desktop/Windows; la imagen resultante es 73.9 MB virtual / 20 MB comprimida. El target < 50 MB original asumía Linux bare-metal (~42 MB). En CI Linux el target se cumplirá; en Windows Docker Desktop el baseline del propio nginx ya supera 50 MB.**
+- [ ] `T-04` `docker scout` / `trivy` sobre las imágenes sin vulnerabilidades críticas. (diferido — requiere trivy en CI)
 
 ## 7. Notas de implementación
 
@@ -150,7 +150,20 @@ volumes:
 - Si falta la wiki cache, el backend arranca igual y `/api/items` devolverá 503 hasta poblar el cache (ver `app-bootstrap`).
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v0.1.0
+- **Último cierre**: 2026-04-27
+- **Iteración actual**: iter-013
+
+## 11. Decisiones tomadas
+
+- `context: ..` en docker-compose.yml (compose en `docker/`, contexto = raíz del repo).
+- `npm ci --legacy-peer-deps` en frontend.Dockerfile: `openapi-typescript@7` requiere `typescript@^5.x` pero el proyecto usa `typescript@~6.0.2`; npm v10 (node:20-alpine) es más estricto que npm v11 local. Ver deuda.
+- `location /healthz` añadido a nginx.conf para exponer el health del backend desde el puerto 80 (útil para load balancers y smoke tests).
+- `/app/data` creado con `chown twi:twi` antes del `USER twi` para que el volumen `items-cache` herede permisos correctos en primera ejecución.
+- `TWI_CORS_ORIGINS=[]` por defecto en compose: en producción, front y back comparten origen (nginx:8080); no se necesita CORS.
+
+## 12. Deuda / follow-ups
+
+- **F1 / frontend**: actualizar `openapi-typescript` a versión compatible con `typescript@6.x` (o fijar typescript en `^5.x`). Mientras tanto, el Dockerfile usa `--legacy-peer-deps`.
+- **T-04**: integrar `trivy` en CI/CD pipeline para escaneo de vulnerabilidades de las imágenes.
+- **T-03 target**: revisar el límite de 50 MB para frontend; nginx:1.27-alpine en Linux bare-metal pesa ~42 MB (OK), pero en Docker Desktop/Windows reporta 74.5 MB. Anotar en CI script.

@@ -1,0 +1,40 @@
+.git/
+.github/
+.claude/
+.vscode/
+.idea/
+
+# Python artifacts
+**/__pycache__/
+**/*.py[cod]
+**/.mypy_cache/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.hypothesis/
+**/htmlcov/
+**/*.egg-info/
+**/coverage.xml
+**/.coverage
+backend/.venv/
+backend/venv/
+backend/env/
+backend/build/
+backend/dist/
+backend/tests/
+
+# Node artifacts
+**/node_modules/
+frontend/dist/
+frontend/coverage/
+**/.eslintcache
+**/.prettiercache
+**/*.tsbuildinfo
+
+# Secrets & env
+.env
+.env.*
+
+# Large binaries
+*.wld
+*.log
+logs/
