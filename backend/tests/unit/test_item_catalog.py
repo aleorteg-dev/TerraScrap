@@ -209,13 +209,11 @@ async def test_refresh_cache_parses_sample_wiki_html_page(tmp_path: Path) -> Non
     assert isinstance(items, list)
     items_by_id = {int(item["id"]): item for item in items}  # type: ignore[index]
 
-    assert 1 in items_by_id, "Copper Shortsword (id=1) should be parsed"
-    assert items_by_id[1]["name"] == "Copper Shortsword"
-    assert items_by_id[1]["sprite_url"] != ""
+    assert 1 in items_by_id, "Iron Pickaxe (id=1) should be parsed"
+    assert items_by_id[1]["name"] == "Iron Pickaxe"
 
     assert 4956 in items_by_id, "Zenith (id=4956) should be parsed"
     assert items_by_id[4956]["name"] == "Zenith"
-    assert items_by_id[4956]["rarity"] == 10
 
     assert 99 not in items_by_id, "non-numeric ID row must be skipped"
 

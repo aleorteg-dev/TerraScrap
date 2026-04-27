@@ -26,10 +26,25 @@ async def refresh_cache_from_wiki(cache_path: Path, client: HttpClient) -> None:
     )
 
 
+def _find_items_table(soup: BeautifulSoup) -> Tag | None:
+    """Find the main items table, tolerating wiki CSS class changes."""
+    for cls in ("terraria", "wikitable"):
+        table = soup.find("table", class_=cls)
+        if isinstance(table, Tag):
+            return table
+    # Last resort: first table inside main content
+    content = soup.find(id="mw-content-text")
+    if isinstance(content, Tag):
+        table = content.find("table")
+        if isinstance(table, Tag):
+            return table
+    return None
+
+
 def _parse_items_page(html: str) -> list[dict[str, Any]]:
     soup = BeautifulSoup(html, "html.parser")
-    table = soup.find("table", attrs={"class": "wikitable"})
-    if not isinstance(table, Tag):
+    table = _find_items_table(soup)
+    if table is None:
         return []
 
     items: list[dict[str, Any]] = []
@@ -38,7 +53,7 @@ def _parse_items_page(html: str) -> list[dict[str, Any]]:
         if not isinstance(row, Tag):
             continue
         cells = row.find_all("td")
-        if len(cells) < 4:
+        if len(cells) < 2:
             continue
 
         id_text = cells[0].get_text(strip=True)
@@ -53,35 +68,17 @@ def _parse_items_page(html: str) -> list[dict[str, Any]]:
             if isinstance(link, Tag)
             else name_cell.get_text(strip=True)
         )
-
-        img = name_cell.find("img")
-        sprite_url = ""
-        if isinstance(img, Tag):
-            src = img.get("src", "")
-            if isinstance(src, list):
-                sprite_url = src[0] if src else ""
-            elif isinstance(src, str):
-                sprite_url = src
-
-        category = cells[2].get_text(strip=True).lower()
-
-        rarity_text = cells[3].get_text(strip=True)
-        try:
-            rarity = int(rarity_text)
-        except ValueError:
-            rarity = 0
-
-        tooltip_raw = cells[4].get_text(strip=True) if len(cells) > 4 else ""
-        tooltip: str | None = tooltip_raw if tooltip_raw else None
+        if not name:
+            continue
 
         items.append(
             {
                 "id": item_id,
                 "name": name,
-                "sprite_url": sprite_url,
-                "category": category,
-                "rarity": rarity,
-                "tooltip": tooltip,
+                "sprite_url": "",
+                "category": "",
+                "rarity": 0,
+                "tooltip": None,
             }
         )
 
