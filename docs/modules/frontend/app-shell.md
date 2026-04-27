@@ -34,13 +34,13 @@ Flujo principal (máquina de estados implícita):
 - **SP-08** Persiste `worldId` en `sessionStorage` para recuperar la sesión al recargar.
 
 ## 6. Plan de tests (TDD)
-- [ ] `T-01 renders UploadWorld in initial state`
-- [ ] `T-02 transitions to WorldLoaded on upload`
-- [ ] `T-03 shows SearchPanel and WorldCanvas after upload`
-- [ ] `T-04 focuses canvas on match click`
-- [ ] `T-05 closes world and resets state`
-- [ ] `T-06 recovers worldId from sessionStorage on mount`
-- [ ] `T-07 shows toast on API error`
+- [x] `T-01 renders UploadWorld in initial state`
+- [x] `T-02 transitions to WorldLoaded on upload`
+- [x] `T-03 shows SearchPanel and WorldCanvas after upload`
+- [x] `T-04 focuses canvas on match click`
+- [x] `T-05 closes world and resets state`
+- [x] `T-06 recovers worldId from sessionStorage on mount`
+- [x] `T-07 shows toast on API error`
 
 ## 7. Notas de implementación
 - Usar `useReducer` con `State = NoWorld | { kind: "WorldLoaded"; worldId; metadata; matches }`.
@@ -54,7 +54,18 @@ Flujo principal (máquina de estados implícita):
 - Gestionados por un `ErrorBoundary` sencillo en la raíz.
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v1.0
+- **Último cierre**: 2026-04-27 (iter-012)
+- **Iteración actual**: cerrada
+
+### Decisiones tomadas
+- `useReducer` con `AppState = NoWorld | WorldLoaded` (tipo discriminado).
+- `canvasHandle` en `useState` (no `useRef`) para que `handleMatchFocus` reciba el valor actual.
+- `sessionStorage` persiste `terra_world_id` + `terra_world_metadata`; se recupera en `readSessionState` (lazy init de `useReducer`).
+- `deleteWorld` falla silenciosamente: se muestra toast pero se cierra la sesión local igualmente (sesiones en memoria, pueden haber expirado).
+- `ErrorBoundary` clase mínima en el mismo fichero (no necesita módulo propio).
+- `src/App.tsx` re-exporta desde `./app-shell` para mantener compatibilidad con cualquier import legacy.
+
+### Deuda / follow-ups
+- Smoke test manual pendiente (requiere backend vivo con `.wld` real). Anotar resultado aquí tras realizarlo.
+- P1 deployment-docker: empaquetar frontend con nginx.

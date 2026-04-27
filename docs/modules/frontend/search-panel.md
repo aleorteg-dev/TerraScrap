@@ -17,6 +17,9 @@ export interface SearchPanelProps {
 export const SearchPanel: React.FC<SearchPanelProps>;
 ```
 
+Tipos importados desde `api-client` (solo vía `index.ts`):
+- `ApiClient`, `SearchResult`, `SearchMatch`, `ItemSummary`, `ApiError`
+
 ## 3. Dependencias
 - `F1 api-client`.
 - React 18.
@@ -36,15 +39,15 @@ export const SearchPanel: React.FC<SearchPanelProps>;
 - **SP-08** Accesibilidad: combobox ARIA para autocomplete, lista con roles correctos.
 
 ## 6. Plan de tests (TDD)
-- [ ] `T-01 renders search input and empty state`
-- [ ] `T-02 debounces autocomplete calls`
-- [ ] `T-03 selecting an item triggers searchInWorld`
-- [ ] `T-04 displays matches list with count`
-- [ ] `T-05 clicking a match calls onMatchFocus`
-- [ ] `T-06 toggling include_containers re-triggers search`
-- [ ] `T-07 shows empty result message`
-- [ ] `T-08 clear button resets state and calls onResults(null)`
-- [ ] `T-09 keyboard navigation through autocomplete list`
+- [x] `T-01 renders search input and empty state`
+- [x] `T-02 debounces autocomplete calls`
+- [x] `T-03 selecting an item triggers searchInWorld`
+- [x] `T-04 displays matches list with count`
+- [x] `T-05 clicking a match calls onMatchFocus`
+- [x] `T-06 toggling include_containers re-triggers search`
+- [x] `T-07 shows empty result message`
+- [x] `T-08 clear button resets state and calls onResults(null)`
+- [x] `T-09 keyboard navigation through autocomplete list`
 
 ## 7. Notas de implementación
 - Debounce sencillo con `useEffect` + `setTimeout`, o util interna (no lodash).
@@ -57,7 +60,13 @@ export const SearchPanel: React.FC<SearchPanelProps>;
 - Errores de API muestran una banda de error en el panel, reintentables.
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v1
+- **Último cierre**: 2026-04-27
+- **Iteración actual**: iter-010
+- **Decisiones**:
+  - `UiState` no incluye `loading-suggest`; la sugerencia es un estado efímero del dropdown sin reflejo en UiState para evitar `setState` síncrono en el efecto (regla `react-hooks/set-state-in-effect`). La limpieza de sugerencias cuando el input se vacía se delega al handler `handleInputChange`.
+  - Debounce implementado con `useEffect` + `setTimeout` + ref `isUserTypingRef` para evitar que cambios programáticos del query (selección de ítem, clear) disparen `searchItems`.
+  - Resultados > 5000 filas: pendiente de virtualización (react-window). Actualmente sin límite.
+- **Deuda / follow-ups**:
+  - Virtualización de lista de matches para mundos Large con miles de coincidencias (SP-08 performance). Añadir `react-window` si el benchmarking con > 5000 filas muestra drops de framerate.
+  - Tests de accesibilidad con herramientas AT (axe-core) no incluidos en este ciclo.

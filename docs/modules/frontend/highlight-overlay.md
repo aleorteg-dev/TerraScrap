@@ -36,15 +36,15 @@ export const HighlightOverlay: React.FC<HighlightOverlayProps>;
 
 ## 6. Plan de tests (TDD)
 Funciones puras (extraíbles):
-- [ ] `T-01 computeHaloRadius scales with zoom`
-- [ ] `T-02 pulsePhase wraps over time period`
+- [x] `T-01 computeHaloRadius scales with zoom`
+- [x] `T-02 pulsePhase wraps over time period`
 
 Componente:
-- [ ] `T-03 renders no strokes when matches is empty`
-- [ ] `T-04 draws one halo per match at correct screen coords` (mock canvas context)
-- [ ] `T-05 degrades to outline style when matches > 500`
-- [ ] `T-06 unmounts and stops animation frame`
-- [ ] `T-07 pointer-events is none`
+- [x] `T-03 renders no strokes when matches is empty`
+- [x] `T-04 draws one halo per match at correct screen coords` (mock canvas context)
+- [x] `T-05 degrades to outline style when matches > 500`
+- [x] `T-06 unmounts and stops animation frame`
+- [x] `T-07 pointer-events is none`
 
 ## 7. Notas de implementación
 - El overlay mantiene un `ref` al canvas y usa `useEffect` para registrar el loop de rAF. Limpiar al desmontar.
@@ -58,7 +58,16 @@ Componente:
 - Ninguno esperado.
 
 ## 10. Estado
-- **Versión del contrato**: v0
-- **Último cierre**: —
-- **Iteración actual**: —
-- **Deuda / follow-ups**: —
+- **Versión del contrato**: v1
+- **Último cierre**: 2026-04-27 (iter-011)
+- **Iteración actual**: cerrada
+- **Decisiones tomadas**:
+  - Zoom derivado de `worldToScreen(1,0).px − worldToScreen(0,0).px` (no se expone `zoom` en `WorldCanvasHandle`).
+  - `computeHaloRadius(zoom)` clampea a [6, 24] px via `8 * log2(zoom+1)`.
+  - Degradación a outline automática si `matches.length > 500` (SP-06), independientemente del `style` prop.
+  - `chest` source añade marcador interno (segundo `arc` al 40 % del radio).
+  - rAF loop dispara una sola vez por frame; cleanup cancela la última ID pendiente.
+- **Deuda / follow-ups**:
+  - `WorldCanvasHandle` no expone `zoom` directamente; derivación actual es O(1) y correcta pero requiere dos llamadas a `worldToScreen`. Si F3 expone `zoom` en su handle, simplificar.
+  - Paleta de colores por `source` (block/wall/chest/object) pendiente de diseño; actualmente solo se distingue el `chest` con marcador interno y `lineWidth` mayor.
+  - Tests de integración con `WorldCanvas` real (pan/zoom + overlay) aplazados a iter de `app-shell` (F6).

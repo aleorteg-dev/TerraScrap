@@ -1,0 +1,68 @@
+.upload-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  border: 2px dashed #888;
+  border-radius: 8px;
+  padding: 3rem 2rem;
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+  user-select: none;
+}
+
+.upload-dropzone:focus-visible {
+  border-color: #4a9eff;
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.35);
+}
+
+.upload-dropzone--dragging {
+  border-color: #4a9eff;
+  background-color: rgba(74, 158, 255, 0.06);
+}
+
+.upload-hint {
+  margin: 0;
+  color: #ccc;
+  font-size: 0.95rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.upload-progress {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent 0%, #4a9eff 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: upload-sweep 1.2s linear infinite;
+}
+
+@keyframes upload-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.upload-error {
+  margin: 0;
+  color: #f66;
+  font-size: 0.875rem;
+}
