@@ -105,14 +105,15 @@ def test_search_finds_block_matches() -> None:
 
 
 def test_search_finds_wall_matches() -> None:
-    # item_id=7 matches wall_id=7 directly (no block mapping needed)
     world = _world(
         tile_overrides={
             (1, 2): Tile(tile_id=None, wall_id=7, liquid=0, flags=0),
             (4, 0): Tile(tile_id=None, wall_id=7, liquid=0, flags=0),
         }
     )
-    engine = create_tile_search_engine(item_to_tile_mapping={})
+    engine = create_tile_search_engine(
+        item_to_tile_mapping={}, item_to_wall_mapping={7: 7}
+    )
     result = engine.search(world, item_id=7)
 
     assert result.total == 2
@@ -271,3 +272,94 @@ def test_search_large_world_completes_within_budget() -> None:
 
     assert result.total == 2
     assert elapsed < 3.5, f"search took {elapsed:.3f}s — exceeds 3.5 s CI budget"
+
+
+# ---------------------------------------------------------------------------
+# Regression: wrong mapping (9→1) caused Wood to match Stone tiles
+# ---------------------------------------------------------------------------
+
+
+def test_wood_without_mapping_does_not_return_stone_tiles() -> None:
+    world = _world(
+        tile_overrides={(3, 3): Tile(tile_id=1, wall_id=None, liquid=0, flags=0)}
+    )
+    engine = create_tile_search_engine(item_to_tile_mapping={}, item_to_wall_mapping={})
+    result = engine.search(world, item_id=9)
+    assert result.total == 0
+
+
+# ---------------------------------------------------------------------------
+# Separate tile mapping: mapped item matches, unmapped item does not
+# ---------------------------------------------------------------------------
+
+
+def test_search_blocks_with_separate_mappings_ignores_unmapped_item() -> None:
+    world = _world(
+        tile_overrides={(2, 2): Tile(tile_id=1, wall_id=None, liquid=0, flags=0)}
+    )
+    engine = create_tile_search_engine(
+        item_to_tile_mapping={3: 1}, item_to_wall_mapping={}
+    )
+    result_mapped = engine.search(world, item_id=3)
+    result_unmapped = engine.search(world, item_id=9)
+    assert result_mapped.total == 1
+    assert result_mapped.matches[0].source == "block"
+    assert result_unmapped.total == 0
+
+
+# ---------------------------------------------------------------------------
+# Wall mapping: item_to_wall_mapping drives wall search
+# ---------------------------------------------------------------------------
+
+
+def test_search_walls_with_item_to_wall_mapping() -> None:
+    world = _world(
+        tile_overrides={
+            (2, 1): Tile(tile_id=None, wall_id=2, liquid=0, flags=0),
+            (5, 3): Tile(tile_id=None, wall_id=2, liquid=0, flags=0),
+        }
+    )
+    engine = create_tile_search_engine(
+        item_to_tile_mapping={}, item_to_wall_mapping={30: 2}
+    )
+    result = engine.search(world, item_id=30)
+    assert result.total == 2
+    assert all(m.source == "wall" for m in result.matches)
+    assert {(m.x, m.y) for m in result.matches} == {(2, 1), (5, 3)}
+
+
+def test_search_wall_item_without_mapping_returns_empty() -> None:
+    world = _world(
+        tile_overrides={(1, 1): Tile(tile_id=None, wall_id=2, liquid=0, flags=0)}
+    )
+    engine = create_tile_search_engine(item_to_tile_mapping={}, item_to_wall_mapping={})
+    result = engine.search(world, item_id=30)
+    assert result.total == 0
+
+
+# ---------------------------------------------------------------------------
+# No cross-contamination between tile and wall mappings
+# ---------------------------------------------------------------------------
+
+
+def test_search_block_and_wall_mapping_no_cross_contamination() -> None:
+    world = _world(
+        tile_overrides={
+            (0, 0): Tile(tile_id=1, wall_id=None, liquid=0, flags=0),
+            (1, 0): Tile(tile_id=None, wall_id=2, liquid=0, flags=0),
+        }
+    )
+    tile_engine = create_tile_search_engine(
+        item_to_tile_mapping={10: 1}, item_to_wall_mapping={}
+    )
+    wall_engine = create_tile_search_engine(
+        item_to_tile_mapping={}, item_to_wall_mapping={20: 2}
+    )
+
+    tile_result = tile_engine.search(world, item_id=10)
+    wall_result = wall_engine.search(world, item_id=20)
+
+    assert tile_result.total == 1
+    assert all(m.source == "block" for m in tile_result.matches)
+    assert wall_result.total == 1
+    assert all(m.source == "wall" for m in wall_result.matches)

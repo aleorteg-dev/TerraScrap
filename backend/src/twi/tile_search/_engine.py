@@ -25,8 +25,13 @@ class TileSearchEngine(Protocol):
 class _Engine:
     """Concrete search engine.  Stateless between calls (SP-07)."""
 
-    def __init__(self, item_to_tile_mapping: Mapping[int, int]) -> None:
-        self._mapping: dict[int, int] = dict(item_to_tile_mapping)
+    def __init__(
+        self,
+        item_to_tile_mapping: Mapping[int, int],
+        item_to_wall_mapping: Mapping[int, int],
+    ) -> None:
+        self._tile_map: dict[int, int] = dict(item_to_tile_mapping)
+        self._wall_map: dict[int, int] = dict(item_to_wall_mapping)
 
     def search(
         self,
@@ -36,31 +41,20 @@ class _Engine:
     ) -> SearchResult:
         matches: list[SearchMatch] = []
 
-        tile_id_target = self._mapping.get(item_id)
+        tile_id_target = self._tile_map.get(item_id)
+        wall_id_target = self._wall_map.get(item_id)
         width = world.tiles.width
 
-        # Single O(W·H) pass — collect block and wall matches simultaneously.
-        # Cache matches.append to avoid repeated attribute lookup in inner loop.
         _append = matches.append
 
-        if tile_id_target is not None:
-            # SP-01 + SP-02: check both block and wall in one pass.
-            for x in range(width):
-                col = world.tiles[x]
-                for y, tile in enumerate(col):
-                    if tile.tile_id == tile_id_target:
-                        _append(SearchMatch(x=x, y=y, source="block"))
-                    if tile.wall_id == item_id:
-                        _append(SearchMatch(x=x, y=y, source="wall"))
-        else:
-            # SP-02 only: no block mapping for this item_id.
-            for x in range(width):
-                col = world.tiles[x]
-                for y, tile in enumerate(col):
-                    if tile.wall_id == item_id:
-                        _append(SearchMatch(x=x, y=y, source="wall"))
+        for x in range(width):
+            col = world.tiles[x]
+            for y, tile in enumerate(col):
+                if tile_id_target is not None and tile.tile_id == tile_id_target:
+                    _append(SearchMatch(x=x, y=y, source="block"))
+                if wall_id_target is not None and tile.wall_id == wall_id_target:
+                    _append(SearchMatch(x=x, y=y, source="wall"))
 
-        # SP-03 / SP-04: chest / container matches.
         if include_containers:
             for chest in world.chests:
                 for ci in chest.items:
@@ -75,7 +69,6 @@ class _Engine:
                             )
                         )
 
-        # Consistent ordering (y, x) so the frontend receives a stable list.
         matches.sort(key=lambda m: (m.y, m.x))
         result_tuple = tuple(matches)
         return SearchResult(
@@ -85,27 +78,38 @@ class _Engine:
         )
 
 
-def _load_default_mapping() -> dict[int, int]:
-    path = _DATA_DIR / "item_tile_map.json"
-    if not path.exists():
-        return {}
-    with path.open() as f:
-        raw = json.load(f)
-    if not isinstance(raw, dict):
+def _parse_int_map(section: object) -> dict[int, int]:
+    if not isinstance(section, dict):
         return {}
     result: dict[int, int] = {}
-    for k, v in raw.items():
+    for k, v in section.items():
         if isinstance(k, str) and isinstance(v, int):
             result[int(k)] = v
     return result
 
 
+def _load_default_mappings() -> tuple[dict[int, int], dict[int, int]]:
+    path = _DATA_DIR / "item_world_map.json"
+    if not path.exists():
+        return {}, {}
+    with path.open() as f:
+        raw = json.load(f)
+    if not isinstance(raw, dict):
+        return {}, {}
+    return _parse_int_map(raw.get("tiles")), _parse_int_map(raw.get("walls"))
+
+
 def create_tile_search_engine(
     item_to_tile_mapping: Mapping[int, int] | None = None,
+    item_to_wall_mapping: Mapping[int, int] | None = None,
 ) -> TileSearchEngine:
-    mapping = (
-        item_to_tile_mapping
-        if item_to_tile_mapping is not None
-        else _load_default_mapping()
-    )
-    return _Engine(mapping)
+    if item_to_tile_mapping is None and item_to_wall_mapping is None:
+        tile_map, wall_map = _load_default_mappings()
+    else:
+        tile_map: dict[int, int] = (
+            dict(item_to_tile_mapping) if item_to_tile_mapping is not None else {}
+        )
+        wall_map: dict[int, int] = (
+            dict(item_to_wall_mapping) if item_to_wall_mapping is not None else {}
+        )
+    return _Engine(tile_map, wall_map)

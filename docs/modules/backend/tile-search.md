@@ -30,6 +30,7 @@ class TileSearchEngine(Protocol):
 
 def create_tile_search_engine(
     item_to_tile_mapping: Mapping[int, int] | None = None,
+    item_to_wall_mapping: Mapping[int, int] | None = None,
 ) -> TileSearchEngine: ...
 ```
 
@@ -43,8 +44,8 @@ def create_tile_search_engine(
 - No contempla "ítems equivalentes" (ej. distintos tipos de madera), solo coincidencia exacta por id.
 
 ## 5. Especificación (SDD)
-- **SP-01** Si el `item_id` se corresponde con un `tile_id` (a través de `item_to_tile_mapping`), todas las celdas del grid con ese `tile_id` aparecen como `source="block"`.
-- **SP-02** Si el `item_id` se corresponde con un `wall_id`, aparecen como `source="wall"`.
+- **SP-01** Si el `item_id` tiene entrada en `item_to_tile_mapping`, todas las celdas del grid cuyo `tile_id` coincida con `item_to_tile_mapping[item_id]` aparecen como `source="block"`. Sin entrada → sin matches de bloque.
+- **SP-02** Si el `item_id` tiene entrada en `item_to_wall_mapping`, todas las celdas cuyo `wall_id` coincida con `item_to_wall_mapping[item_id]` aparecen como `source="wall"`. Sin entrada → sin matches de pared. (La comparación directa `item_id == wall_id` fue eliminada en iter-005: ítem y pared viven en espacios de ID distintos en Terraria.)
 - **SP-03** Cada slot de cada `Chest` con `item_id` coincidente produce un `SearchMatch` en la posición `(chest.x, chest.y)` con `source="chest"`, `chest_id` y `stack`.
 - **SP-04** Con `include_containers=False`, se omiten los matches de contenedores.
 - **SP-05** `total == len(matches)`.
@@ -64,9 +65,11 @@ def create_tile_search_engine(
 - [x] `test_search_stacked_chests_produce_distinct_matches` (SP-08, extra)
 
 ## 7. Notas de implementación
-- El mapping item→tile no es 1:1 en Terraria; un ítem "Dirt Block" corresponde a `tile_id=0`. Este mapping vivirá en un JSON dentro del módulo (`data/item_tile_map.json`) y se inyecta al factory.
-- Iteración del grid: recorrer una sola vez (O(W·H)) recolectando coincidencias de block y wall simultáneamente.
-- Los matches se devuelven ordenados por `(y, x)` para que el frontend los muestre en orden consistente.
+- Dos mappings separados: `item_to_tile_mapping: dict[int, int]` e `item_to_wall_mapping: dict[int, int]`. Ambos se inyectan al factory. Ítem y `tile_id`/`wall_id` viven en espacios distintos en Terraria; no se puede asumir identidad directa.
+- Carga por defecto desde `data/item_world_map.json` (sección `"tiles"` y `"walls"`). Solo si ambos parámetros son `None` se carga el JSON; si alguno se pasa explícitamente, no se toca el fichero. El fichero `item_tile_map.json` queda obsoleto y puede eliminarse en una limpieza futura.
+- Mappings verificados en `item_world_map.json`: Dirt Block (2→0), Stone Block (3→1), Torch (8→4). Sección `"walls"` vacía hasta confirmar IDs con fuente documentada.
+- Iteración del grid: un solo paso O(W·H) con short-circuit por `None`; block y wall se computan en el mismo bucle.
+- Los matches se devuelven ordenados por `(y, x)` para orden consistente en el frontend.
 
 ## 8. Performance
 - Target: world large (8400×2400 ≈ 20M tiles) + 1000 chests < 500 ms.
@@ -76,8 +79,8 @@ def create_tile_search_engine(
 - Ninguna excepción específica. Item id inexistente → resultado vacío (no es error del motor).
 
 ## 10. Estado
-- **Versión del contrato**: v1
-- **Último cierre**: 2026-04-26 (iter-004)
+- **Versión del contrato**: v2
+- **Último cierre**: 2026-04-28 (iter-005)
 - **Iteración actual**: cerrada
 - **Deuda / follow-ups**:
   - **PERF-01** — El loop O(W·H) sobre `list[list[Tile]]` alcanza ~2.3 s en CPython 3.14 para un
@@ -85,13 +88,17 @@ def create_tile_search_engine(
     exponer en B1 (`TileGrid`) arrays numpy cacheados (`tile_ids: np.ndarray`, `wall_ids: np.ndarray`)
     o agregar una utilidad `to_arrays() -> tuple[NDArray, NDArray]`; el motor usaría `np.where` en
     lugar del loop Python. No se toca en esta iteración (cambio de contrato en B1).
-  - **SP-wall-mapping** — Actualmente el wall match usa comparación directa `item_id == wall_id`.
-    Si en Terraria la relación ítem→pared NO es 1:1 (similar a bloques), habrá que añadir un
-    `item_to_wall_mapping` al factory y al JSON. Pendiente de validar con datos reales.
+  - **WALL-IDS** — Sección `"walls"` de `item_world_map.json` está vacía. Añadir mappings
+    `item_id → wall_id` verificados con fuente documentada (wiki.gg u offset en `.wld`).
+    Stone Wall (item 26) y Dirt Wall (item 30) son los candidatos inmediatos.
+  - **STALE-JSON** — `data/item_tile_map.json` queda sin uso. Puede eliminarse en limpieza futura.
 
-## 11. Decisiones tomadas en iter-004
-- **Wall search = comparación directa** (`item_id == wall_id`): SP-02 no menciona "a través de
-  mapping", a diferencia de SP-01. Se asume identidad ítem-pared como primera aproximación.
+## 11. Decisiones tomadas en iter-004 y iter-005
+- **Wall search via `item_to_wall_mapping`** (iter-005): la comparación directa `item_id == wall_id`
+  producía resultados incorrectos porque ítem y pared viven en espacios de ID distintos en Terraria.
+  Se sustituyó por lookup explícito en `item_to_wall_mapping`, igual que bloques con `item_to_tile_mapping`.
+- **`item_world_map.json`** (iter-005): nuevo fichero unificado con secciones `"tiles"` y `"walls"`.
+  Solo mappings verificados: 2→0, 3→1, 8→4. Mappings erróneos `9→1` y `30→7` eliminados.
 - **Budget de T-08 = 3.5 s**: el loop Python mide ~2.3 s; se usa margen 1.5× para varianza de CI.
   El test sirve como guardia de regresión, no como gate estricto de RNF-03.
 - **Módulo de dominio puro**: cero imports de FastAPI/pydantic; todos los modelos son `dataclass`.
