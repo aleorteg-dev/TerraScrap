@@ -129,11 +129,11 @@ Detalle de un ítem.
 
 ## 4. Evolución propuesta TerraMap-like (borrador, no contrato vigente)
 
-Esta sección no modifica `v0.1.0`; sirve para planificar la siguiente versión de contrato.
+Esta sección no modifica `v0.1.0`; planifica la siguiente versión de contrato (`v0.2.0`). Cualquier endpoint o DTO descrito aquí está sujeto al ciclo SDD: actualizar primero el doc y los tests del módulo afectado antes de implementar.
 
-### 4.1. Metadata enriquecida
+### 4.1. `WorldMetadataDto` extendido
 
-`WorldMetadataDto` candidato:
+Campos nuevos requeridos para paridad TerraMap (centrar viewport, render por capas, panel propiedades):
 
 ```json
 {
@@ -152,19 +152,77 @@ Esta sección no modifica `v0.1.0`; sirve para planificar la siguiente versión 
 }
 ```
 
-### 4.2. Tiles para render
+`spawn_*` son enteros (coordenadas tile). `*_y` son float (Terraria los almacena como `double`).
 
-Opciones a evaluar:
-- mantener `base64-rle-v1` para compatibilidad y crear `encoding="base64-map-v2"` con datos enriquecidos.
-- transmitir `tile_id`, `wall_id`, `liquid_type`, `liquid_amount`, `flags`, `frame_x`, `frame_y`.
-- alternativa de menor payload: transmitir `map_color` ya calculado por backend y reservar el endpoint de inspección para detalles.
+### 4.2. Tiles enriquecidos: encoding `base64-rle-v2` (8 bytes/tile)
 
-### 4.3. Inspección y entidades
+Reemplaza `base64-rle-v1` (4 bytes/run, solo `tile_id`). Cada tile decodificado ocupa **8 bytes** little-endian:
 
-Endpoints candidatos:
-- `GET /api/worlds/{world_id}/tiles/{x}/{y}`: detalle del tile, wall, líquido, frame, chest/sign/tileEntity asociado.
-- `GET /api/worlds/{world_id}/npcs`: lista de NPCs con nombre, tipo y coordenadas.
+| offset | bytes | campo | tipo |
+|--------|-------|-------|------|
+| 0 | 2 | `tile_id` (`-1` = aire) | int16 |
+| 2 | 2 | `wall_id` (`0` = sin pared) | uint16 |
+| 4 | 1 | `liquid_type` (`0..3` = none/water/lava/honey/shimmer) | uint8 |
+| 5 | 1 | `liquid_amount` (`0..255`) | uint8 |
+| 6 | 1 | `frame_x_packed` (alto byte de frame_x; bajo viaja en flags si aplica) | uint8 |
+| 7 | 1 | `flags` (bit0: has_frame, bit1: actuator, bit2: wire_red, bit3..7: reservado) | uint8 |
 
-### 4.4. Búsqueda
+Variante `frame_x/frame_y` completas (`int16 + int16`) si el tile es frame-important: se serializa como bloque secundario alineado al final del chunk para no inflar tiles vacíos. Spec exacto vivirá en `wld-parser.md` y `world-canvas.md` cuando se implemente.
 
-`SearchMatchDto.source` ya permite `"object"`, pero el backend aún no lo produce. La siguiente versión debe documentar cómo se representan tile entities que contienen items.
+Compatibilidad: `base64-rle-v1` se mantiene durante `v0.2.0`; `TilesChunkDto.encoding` es discriminador.
+
+### 4.3. Endpoints nuevos
+
+#### `GET /api/worlds/{world_id}/tile?x=<int>&y=<int>`
+
+Detalle de un único tile. Sirve al panel "tile-info" de F6.
+
+- **200**:
+  ```json
+  {
+    "x": 1234,
+    "y": 405,
+    "tile_id": 213,
+    "wall_id": 2,
+    "liquid_type": "water",
+    "liquid_amount": 128,
+    "frame_x": 18,
+    "frame_y": 0,
+    "chest_id": null,
+    "sign_id": null,
+    "tile_entity_id": 7
+  }
+  ```
+- **400**: `code:"invalid_coordinates"`.
+- **404**: `code:"world_not_found"` o coordenadas fuera del grid.
+
+#### `GET /api/worlds/{world_id}/npcs`
+
+Lista de NPCs town/banner del mundo cargado.
+
+- **200**:
+  ```json
+  {
+    "npcs": [
+      { "id": 17, "name": "Guide", "type": "town", "x": 4200, "y": 348 },
+      { "id": 18, "name": "Merchant", "type": "town", "x": 4205, "y": 348 }
+    ]
+  }
+  ```
+- **404**: `code:"world_not_found"`.
+
+### 4.4. Búsqueda con `frame_x/frame_y`
+
+`GET /api/worlds/{world_id}/search` admite parámetros opcionales para distinguir variantes de tile que comparten `tile_id`:
+
+- **Query**: `item_id=<int>` (obligatorio), `include_containers=true|false` (default `true`), `frame_x=<int>` (opcional), `frame_y=<int>` (opcional).
+- Si se proveen `frame_x/frame_y`, los matches `source="block"` solo incluyen tiles cuyo `(frame_x, frame_y)` coincida exactamente.
+- `SearchMatchDto.source` admite `"object"` (tile entity con inventario: item frame, weapon rack, mannequin, hat rack). Cuando `include_containers=false`, se omiten tanto `chest` como `object`.
+
+`SearchMatchDto` extendido:
+
+```json
+{ "x": 1250, "y": 402, "source": "object", "tile_entity_id": 7, "stack": 1 }
+```
+
+Estado: planificado, no implementado.

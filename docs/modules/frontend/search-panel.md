@@ -80,11 +80,32 @@ Brechas actuales:
 
 Cambios candidatos:
 - cambiar el valor inicial de `includeContainers` a `true`.
-- exponer callbacks opcionales `onNextMatch`, `onPreviousMatch` o delegar esos botones a F6 si la navegación depende del canvas.
+- añadir botones "anterior" / "siguiente" + callback `onMatchFocus` cíclico (wrap-around). Estado interno `focusedIndex: number | null` en F4; el reducer global de F6 puede observarlo si lo necesita.
+- atajos de teclado activos cuando el panel está montado:
+  - `n` / `ArrowDown`: siguiente match.
+  - `p` / `ArrowUp`: anterior match.
+  - `Enter` sobre fila: equivale a click → `onMatchFocus`.
+  - `Escape`: limpia búsqueda (equivale a "Limpiar").
+  - los listeners se registran en `window` con guardas para no atrapar teclas mientras el input de autocomplete tiene foco (excepto `Escape`).
 - mostrar filtros por `source` (`block`, `wall`, `chest`, `object`) cuando B4 produzca `object`.
 - virtualizar resultados antes de activar búsquedas con miles de coincidencias.
 
+Contrato propuesto v2:
+```ts
+export interface SearchPanelProps {
+  worldId: string;
+  apiClient: ApiClient;
+  onResults: (r: SearchResult | null) => void;
+  onMatchFocus: (match: SearchMatch, index: number) => void;
+}
+```
+
 Tests mínimos futuros:
 - la primera búsqueda se lanza con `includeContainers=true`.
-- botones siguiente/anterior enfocan el match correcto y hacen wrap-around.
+- click en "siguiente" llama `onMatchFocus(matches[1], 1)`; en el último, wrap a 0.
+- click en "anterior" en index 0 wrap al último.
+- `n` con focus fuera del input dispara siguiente; con focus en input, no.
+- `Escape` con focus en cualquier sitio limpia búsqueda y emite `onResults(null)`.
 - filtro por source no muta el resultado original y actualiza `onResults`.
+
+Estado: planificado, no implementado.

@@ -77,12 +77,36 @@ Componente:
 TerraMap usa una capa oscura y píxeles blancos para "highlight all", además de una selección roja para el punto actual. TerraScrap actualmente usa halos animados.
 
 Cambios candidatos:
-- soportar modo `mask` para oscurecer el mapa y pintar matches como píxeles/rectángulos claros, similar a TerraMap.
-- soportar marcador de selección actual independiente de los matches.
-- aplicar color por `source`: bloque/pared/cofre/objeto.
-- degradar automáticamente a `mask` o `outline` para resultados masivos.
+
+**Modo `mask`** (paridad TerraMap):
+- ampliar `style` con `"mask"`. Implementación: pintar el canvas completo con `rgba(0,0,0,0.65)` (oscurecimiento) y luego para cada match usar `globalCompositeOperation = "destination-out"` para "agujerear" un rectángulo de 1 tile (en world-coords, escalado al zoom actual).
+- finalmente, dibujar borde claro alrededor de cada agujero para realzarlo.
+- recomendado como default cuando `matches.length > 200`; sustituye la degradación a `outline` en ese rango.
+
+**Marcador de selección**:
+- añadir prop `selectedTile?: { x: number; y: number } | null`. Se dibuja siempre (incluso con `matches=[]`) como rectángulo rojo `rgba(255,0,0,0.8)` con borde blanco de 2 px.
+
+**Color por `source`**:
+- `block` → amarillo, `wall` → naranja, `chest` → cian, `object` → magenta. Override vía prop `colorBySource?: Record<Source, string>`.
+
+Contrato propuesto v2:
+```ts
+export interface HighlightOverlayProps {
+  canvasHandle: WorldCanvasHandle | null;
+  matches: SearchMatch[];
+  style?: "pulse" | "outline" | "ping" | "mask";
+  color?: string;
+  colorBySource?: Partial<Record<"block"|"wall"|"chest"|"object", string>>;
+  selectedTile?: { x: number; y: number } | null;
+}
+```
 
 Tests mínimos futuros:
-- `style="mask"` oscurece el canvas y pinta cada match.
-- el marcador de selección se dibuja aunque no haya matches.
-- color por source se aplica de forma determinista.
+- `style="mask"` con 0 matches deja el canvas oscurecido sin agujeros.
+- `style="mask"` con N matches dibuja N agujeros en `worldToScreen` correcto.
+- `style="mask"` mantiene oscurecimiento estable tras pan/zoom (sin flicker).
+- el marcador de selección se dibuja aunque `matches=[]`.
+- `colorBySource.chest = "#0f0"` aplica verde solo a matches `source="chest"`.
+- degradación automática a `mask` cuando `matches.length > 200` (override-able vía `style` explícito).
+
+Estado: planificado, no implementado.

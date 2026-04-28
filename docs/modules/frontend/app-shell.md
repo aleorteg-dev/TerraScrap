@@ -75,19 +75,40 @@ Flujo principal (máquina de estados implícita):
 F6 debe coordinar los controles globales, porque es el único módulo que conoce canvas, búsqueda y API.
 
 Controles candidatos:
-- barra de herramientas con cerrar mundo, zoom-to-fit, limpiar resaltado, exportar PNG, resultado anterior/siguiente.
-- panel de propiedades del mundo usando metadata enriquecida.
-- panel/lista de NPCs cuando B5 exponga endpoint.
-- panel de información del tile seleccionado usando un endpoint de inspección o datos del chunk enriquecido.
-- estado `selectedTile` y `focusedMatchIndex` en el reducer.
+- **Toolbar global**: cerrar mundo, `zoom-to-fit`, limpiar resaltado, exportar PNG, anterior/siguiente match.
+- **Panel "Propiedades del mundo"** (toggleable): usa `WorldMetadataDto` extendido (`spawn_x/y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`, `version`, `seed`, `size`, `hardmode`).
+- **Panel "NPCs"** (toggleable): lista NPCs vía `apiClient.getNpcs(worldId)`. Click en un NPC → `canvasHandle.centerOn(npc.x, npc.y)`. Carga lazy al primer despliegue del panel; cache en estado del reducer.
+- **Panel "Tile seleccionado"** (visible cuando `selectedTile != null`): muestra `TileDetailDto` recibido vía `apiClient.getTileDetail(worldId, x, y)` tras `onTileSelect` de F3. Limpiar selección oculta el panel.
+- **Estado en reducer**: añadir `selectedTile: {x,y} | null`, `focusedMatchIndex: number | null`, `npcs: NpcSummary[] | null`, `tileDetail: TileDetail | null`, `panels: { properties, npcs, tile }: { open: boolean }`.
+
+Reducer extendido (esquema):
+```ts
+type WorldLoaded = {
+  kind: "WorldLoaded";
+  worldId: string;
+  metadata: WorldMetadata;
+  matches: SearchMatch[] | null;
+  focusedMatchIndex: number | null;
+  selectedTile: { x: number; y: number } | null;
+  tileDetail: TileDetail | null;
+  npcs: NpcSummary[] | null;
+  panels: { properties: boolean; npcs: boolean; tile: boolean };
+};
+```
 
 Restricciones:
 - no meter lógica de parsing/render en F6.
 - no abrir endpoints nuevos hasta que `api-contract.md`, B5 y F1 estén actualizados.
 - mantener controles como composición de contratos públicos de F3/F4/F5.
+- export PNG: F6 obtiene canvas base de `canvasHandle.exportImage({ includeOverlay: true })`; F5 expone `getCanvas()` consumido internamente por F3.
 
 Tests mínimos futuros:
-- next/previous match llama `centerOn` con wrap-around.
-- zoom-to-fit invoca el handle de F3.
-- export PNG invoca la API del canvas/overlay sin romper si no hay matches.
-- seleccionar tile muestra detalle recibido del cliente API.
+- next/previous match llama `centerOn` con wrap-around y actualiza `focusedMatchIndex`.
+- `zoom-to-fit` invoca `canvasHandle.zoomToFit()`.
+- export PNG produce un Blob descargable y no rompe si `matches=null`.
+- click en tile dispara `getTileDetail`; muestra panel; limpiarlo cierra panel y nulifica `selectedTile`.
+- abrir panel NPCs por primera vez llama `getNpcs` una sola vez (cache).
+- panel propiedades muestra `world_surface_y` formateado.
+- error de `getTileDetail` muestra toast y deja `selectedTile` sin cambiar.
+
+Estado: planificado, no implementado.

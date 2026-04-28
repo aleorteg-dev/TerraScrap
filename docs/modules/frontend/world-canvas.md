@@ -144,14 +144,33 @@ Brechas actuales:
 - no hay zoom-to-fit ni export PNG.
 
 Cambios candidatos:
-- corregir doc/implementación de `base64-rle-v1`: usar `Int16Array`, no `Uint16Array`.
-- si B5 expone `map_color`, renderizar por color directo para alcanzar paridad visual rápido.
-- si B5 expone datos enriquecidos, mover la lógica `getTileColor` a una función pura testeada.
-- ampliar `WorldCanvasHandle` con `zoomToFit()`, `getViewport()` y/o `exportImage()` solo si F6 lo necesita.
-- emitir `onTileHover`/`onTileSelect` para que F6 muestre panel de información sin acoplar F3 a API REST.
+
+**Render por capas** (depende del encoding `base64-rle-v2` de B5):
+- decoder `decodeBase64RleV2(payload) → DecodedChunk` con arrays paralelos `tile_id`, `wall_id`, `liquid_type`, `liquid_amount`, `frame_x_packed`, `flags`.
+- pintar en orden: capa de fondo (sky/surface/rock/hell según `world_surface_y`/`rock_layer_y`/`hell_layer_y` de metadata) → walls → tiles → liquids (alpha sobre tiles).
+- `tileColors.ts` se divide en `tileColors`, `wallColors`, `liquidColors`, `layerColors`. `getTileColor()` extraído a función pura testeada.
+- corregir doc preexistente: `base64-rle-v1` usa `Int16Array`, no `Uint16Array`.
+
+**Selección visual**:
+- `WorldCanvasHandle.setSelectedTile(x: number, y: number | null): void` y emisión `onTileSelect?: (tile)=>void`.
+- F3 dibuja un marcador de selección (rectángulo rojo 1 tile) independiente de matches. Persiste tras pan/zoom hasta que F6 lo limpie.
+
+**Zoom-to-fit**:
+- `WorldCanvasHandle.zoomToFit(): void` calcula `zoom = min(viewportW / worldW, viewportH / worldH)` clamped a `[minZoom, maxZoom]` y centra `(worldW/2, worldH/2)`.
+- `WorldCanvasHandle.getViewport(): { x, y, width, height, zoom }` para que F6 pueda persistir o exportar.
+
+**Export PNG**:
+- `WorldCanvasHandle.exportImage(opts?: { includeOverlay?: boolean }): Promise<Blob>` compone canvas base; si `includeOverlay`, F6 pasará un canvas adicional vía un nuevo handle (`HighlightOverlayHandle.getCanvas()`).
+- Implementación: `OffscreenCanvas` si disponible, fallback `HTMLCanvasElement.toBlob('image/png')`.
 
 Tests mínimos futuros:
-- renderiza wall/liquid/map_color según encoding elegido.
-- `zoomToFit` deja el mundo visible dentro del viewport.
-- click/hover emite coordenadas estables tras pan/zoom.
-- export PNG compone canvas base + overlay cuando F6 lo conecte.
+- `decodeBase64RleV2` produce arrays paralelos con longitudes coherentes y tipos correctos.
+- `getTileColor` (puro): tile_id conocido → color; desconocido → fallback gris.
+- render pinta walls antes que tiles antes que liquids (orden verificable con spy de `fillRect`).
+- `zoomToFit` deja el mundo entero dentro del viewport (≤1 tile de margen).
+- `setSelectedTile(x, y)` dibuja marcador en `worldToScreen(x, y)` tras pan.
+- `setSelectedTile(null)` limpia marcador.
+- `exportImage()` resuelve un Blob `image/png` no vacío.
+- click emite `onTileSelect` con coordenadas estables tras pan/zoom.
+
+Estado: planificado, no implementado.

@@ -292,15 +292,22 @@ El detalle vive en `docs/contracts/api-contract.md`. Resumen:
 
 Referencia local revisada: `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io`.
 
-TerraMap ofrece una funcionalidad más amplia que el MVP actual de TerraScrap. Para aproximarse a esa experiencia sin perder la arquitectura modular, las mejoras deben planificarse en este orden:
+Brechas planificadas (iteraciones B1.1..F6.2). Cada bullet se materializa en una iteración SDD/TDD aislada por módulo, con cambio de contrato documentado:
 
-1. **B1 `wld-parser`**: ampliar el modelo de dominio antes de tocar UI. El parser debe conservar `frame_x/frame_y`, tipo de líquido, coordenadas de spawn, NPCs y tile entities con inventarios (item frames, weapon racks, mannequins, hat racks, plates y similares). También debe revisar el soporte de versiones más recientes de Terraria 1.4.5+ usando offsets de sección para saltar datos no modelados.
-2. **B5/F1 contrato API**: decidir si `/tiles` devuelve solo ids o un payload de render enriquecido. Para igualar TerraMap, el renderer necesita paredes, líquidos y colores/capas, no solo `tile_id`.
-3. **B4 `tile-search`**: completar mappings `item_id -> tile/wall/frame` y buscar dentro de tile entities, devolviendo `source="object"` cuando aplique.
-4. **F3 `world-canvas`**: reemplazar la paleta mínima por una paleta completa estilo TerraMap y renderizar paredes, líquidos, cielo/suelo/roca/infierno.
-5. **F4/F5/F6 UI de exploración**: añadir controles tipo TerraMap: include containers por defecto, siguiente/anterior coincidencia, limpiar/highlight all, zoom to fit, exportar PNG, propiedades del mundo, NPCs y panel de información del tile seleccionado.
+- **Frames de tile**: `frame_x/frame_y` en `Tile` para distinguir variantes (muebles, statues, frame-important).
+- **Tipo de líquido**: `liquid_type ∈ {water, lava, honey, shimmer}` en `Tile`, no solo cantidad.
+- **NPCs**: parser de sección NPCs en B1, endpoint `GET /worlds/{id}/npcs` en B5, panel NPCs en F6.
+- **Tile entities**: item frames, weapon racks, mannequins, hat racks, plates con sus inventarios; visibles desde B4 search como `source="object"`.
+- **Encoding `/tiles` enriquecido**: `base64-rle-v2` (8 bytes/tile: tile_id, wall_id, liquid_type+amount, frame_x, frame_y, flags) en B5/F3.
+- **Render por capas**: paredes, líquidos y bandas cielo/superficie/roca/infierno con paleta completa estilo TerraMap en F3.
+- **Selección visual + panel tile-info**: marcador del tile seleccionado en F5 y panel de detalle del tile en F6 alimentado por endpoint de inspección.
+- **Zoom-to-fit**: `WorldCanvasHandle.zoomToFit()` en F3 + control global en F6.
+- **Export PNG**: composición canvas base + overlay desde F6.
+- **Highlight `style="mask"` + panel propiedades del mundo**: F5 admite modo mask (oscurece mapa, pinta matches claros) y F6 muestra panel con metadata enriquecida (`spawn_x/y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`).
 
-No se debe abordar como un refactor transversal único. Cada punto debe convertirse en iteraciones SDD/TDD pequeñas y con cambios de contrato documentados.
+No se aborda como refactor transversal. Una brecha → una iteración. El orden recomendado sigue las dependencias: B1 dominio → B5/F1 API → B4 búsqueda → F3 render → F4/F5/F6 UI.
+
+Estado: planificado, no implementado.
 
 ---
 
@@ -335,3 +342,4 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | 2026-04-27 | B3 item-catalog | Contrato v1.1: añadidos `ItemCatalogUnavailableError`, `load_catalog(cache, seed)`. Seed bundled en `item_catalog/data/items.seed.json` (schema v1). B6 `app.py`: `Settings.item_seed_path`, `load_catalog` en startup. T-10..T-14 + IT-01..IT-02. Fix: volumen `items-cache` vacío en primer arranque ya no deja catálogo vacío. | iter-014 |
 | 2026-04-28 | B3 item-catalog | Scraper fix: tabla wiki cambió de `wikitable` a `terraria lined sortable`; `_find_items_table` con detección tolerante. Seed reemplazado: 12 → 6146 ítems. Añadido `refresh.py` (`python -m twi.item_catalog.refresh`). Fixture + T-09 actualizados. Sin cambio de contrato público. | iter-018 |
 | 2026-04-28 | Plan TerraMap parity | Documentada brecha funcional frente a TerraMap y orden recomendado de iteraciones: B1 dominio, B5/F1 API, B4 búsqueda, F3 render, F4/F5/F6 UI. Sin cambio de código ni contrato vigente. | planning |
+| 2026-04-28 | Doc TerraMap parity SDD | Formalizada §11.1 (10 brechas en bullets), §4 api-contract (`WorldMetadataDto` extendido, `base64-rle-v2` 8 bytes/tile, `GET /tile`, `GET /npcs`, `frame_x/frame_y` en `/search`) y secciones "Evolución propuesta" en B1, B4, B5, F1, F3, F4, F5, F6. Cero cambios de código. Cada sección marcada `Estado: planificado, no implementado`. | iter-DOC-0 |

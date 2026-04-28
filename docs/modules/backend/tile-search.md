@@ -109,17 +109,25 @@ Brechas actuales:
 
 Contrato propuesto v3 (depende de B1 v2):
 - permitir mappings con condiciones opcionales de frame: `item_id -> [{ kind:"tile", tile_id, frame_x?, frame_y? }, { kind:"wall", wall_id }]`.
-- buscar en `World.tile_entities` y devolver `SearchMatch(source="object")` con coordenadas de la entidad.
-- mantener `include_containers` para chests y evaluar si necesita dividirse en `include_chests` e `include_objects`.
+- buscar en `World.tile_entities` y devolver `SearchMatch(source="object", tile_entity_id=...)` con coordenadas de la entidad.
+- ampliar firma: `search(world, item_id, include_containers=True, frame_x=None, frame_y=None)`. Si `frame_x/frame_y` se pasan, filtrar matches `source="block"` por igualdad exacta del frame.
 - generar o versionar `item_world_map.json` desde una fuente verificable, no mantenerlo manualmente con tres entradas.
+
+Semántica de `include_containers` (v3):
+- `True` (default): incluye `source="chest"` **y** `source="object"` (tile entities con inventario: item frames, weapon racks, mannequins, hat racks).
+- `False`: excluye `chest` **y** `object`. Bloque y pared nunca se ven afectados.
+- Razón: para el caso de uso "¿dónde dejé X?" ambos son contenedores semánticamente equivalentes. Si en el futuro se necesita granularidad, añadir `include_chests`/`include_objects` como flags adicionales sin romper el default.
 
 Tests mínimos futuros:
 - item con mapping por `tile_id` simple.
 - item con mapping por `tile_id + frame_x/frame_y` que no confunda variantes.
 - item con mapping de pared.
-- item dentro de item frame/weapon rack produce `source="object"`.
+- item dentro de item frame/weapon rack produce `source="object"` con `tile_entity_id`.
 - item dentro de mannequin/hat rack produce `source="object"` y respeta stacks/prefix cuando existan.
-- `include_containers=False` no debe ocultar matches de bloque/pared; decidir y testear si oculta también `object`.
+- `include_containers=False` oculta `chest` y `object`, conserva `block` y `wall`.
+- `frame_x=18, frame_y=0` filtra correctamente un mapping `tile_id` ambiguo (variantes de muebles).
+
+Estado: planificado, no implementado.
 
 ## 11. Decisiones tomadas en iter-004 y iter-005
 - **Wall search via `item_to_wall_mapping`** (iter-005): la comparación directa `item_id == wall_id`

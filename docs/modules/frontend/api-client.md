@@ -90,11 +90,29 @@ Usar `msw` (Mock Service Worker) o un `fetch` mockeado.
 ### Evolución propuesta para paridad con TerraMap
 
 Cuando `api-contract.md` evolucione a v0.2, F1 debe exponer los métodos nuevos antes de tocar F6:
-- `getTileDetail(worldId: string, x: number, y: number): Promise<TileDetail>`
-- `listNpcs(worldId: string): Promise<NpcSummary[]>`
-- `getTilesChunk` debe soportar el nuevo encoding elegido (`base64-map-v2` o equivalente) sin romper `base64-rle-v1`.
+- `getTileDetail(worldId: string, x: number, y: number): Promise<TileDetail>` → `GET /worlds/{id}/tile?x=&y=`. Mapea 404 a `ApiError("world_not_found")` y 400 a `ApiError("invalid_coordinates")`.
+- `getNpcs(worldId: string): Promise<NpcSummary[]>` → `GET /worlds/{id}/npcs`. Desenvuelve `NpcListDto.npcs`.
+- `searchInWorld` extendido con `frameX?: number`, `frameY?: number`:
+  ```ts
+  searchInWorld(
+    worldId: string,
+    itemId: number,
+    includeContainers?: boolean,
+    frameX?: number,
+    frameY?: number,
+  ): Promise<SearchResult>;
+  ```
+  Si ambos están definidos, viajan como query `frame_x=&frame_y=`. `undefined` → no se serializan.
+- `getTilesChunk` debe soportar el nuevo encoding `base64-rle-v2` sin romper `base64-rle-v1`. El campo `encoding` del DTO es discriminador; los consumidores (F3) eligen decoder.
+
+Tipos nuevos generados desde OpenAPI:
+- `TileDetail = components["schemas"]["TileDetailDto"]`.
+- `NpcSummary = components["schemas"]["NpcSummaryDto"]`.
 
 Tests mínimos futuros:
-- `getTileDetail` construye `/worlds/{id}/tiles/{x}/{y}` y parsea errores 404/400.
-- `listNpcs` devuelve array tipado.
+- `getTileDetail` construye `/worlds/{id}/tile?x=1&y=2` (no path-segment) y parsea 404/400.
+- `getNpcs` devuelve array tipado y trata 404 como `ApiError`.
+- `searchInWorld` con `frameX/frameY` añade ambos query params; sin ellos, no aparecen en la URL.
 - `getTilesChunk` preserva compatibilidad con chunks v0.1 y acepta el nuevo DTO generado por OpenAPI.
+
+Estado: planificado, no implementado.

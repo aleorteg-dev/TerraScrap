@@ -175,3 +175,5 @@ Tests mínimos futuros:
 - parsear tile entity con item simple (item frame o weapon rack).
 - parsear tile entity con inventario múltiple (mannequin o hat rack).
 - aceptar una versión reciente soportada o devolver error explícito con versión y motivo.
+
+Estado: planificado, no implementado.

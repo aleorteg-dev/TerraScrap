@@ -122,11 +122,32 @@ Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`
 
 El contrato HTTP actual es suficiente para el MVP, pero no para render tipo TerraMap ni para inspección de tiles.
 
-Cambios candidatos para `api-contract.md` v0.2:
-- ampliar `WorldMetadataDto` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.
-- extender `GET /api/worlds/{world_id}/tiles` o crear un encoding nuevo (`base64-map-v2`) que transmita color/render data además de `tile_id`.
-- añadir endpoint de inspección puntual: `GET /api/worlds/{world_id}/tiles/{x}/{y}` para devolver bloque, pared, líquido, frame, chest/sign/tileEntity si existen.
-- añadir endpoint de NPCs: `GET /api/worlds/{world_id}/npcs`.
-- decidir si exportar PNG se hace en frontend (componiendo canvases) o backend. Para paridad TerraMap basta frontend.
+DTOs nuevos para `v0.2.0` (ver `docs/contracts/api-contract.md` §4):
+- `WorldMetadataDto` extendido: `spawn_x`, `spawn_y` (int), `world_surface_y`, `rock_layer_y`, `hell_layer_y` (float).
+- `TilesChunkDto.encoding = "base64-rle-v2"` (8 bytes/tile: tile_id, wall_id, liquid_type, liquid_amount, frame_x_packed, flags). Mantener `base64-rle-v1` durante la transición.
+- `TileDetailDto`: `{ x, y, tile_id, wall_id, liquid_type, liquid_amount, frame_x, frame_y, chest_id?, sign_id?, tile_entity_id? }`.
+- `NpcSummaryDto`: `{ id, name, type, x, y }`. `NpcListDto`: `{ npcs: NpcSummaryDto[] }`.
+- `SearchMatchDto` admite `tile_entity_id?: int` cuando `source="object"`.
 
-Restricción: no cambiar API sin actualizar `docs/contracts/api-contract.md`, `docs/contracts/openapi.json`, `F1 api-client` y los tests snapshot.
+Endpoints nuevos:
+- `GET /api/worlds/{world_id}/tile?x=<int>&y=<int>` → `TileDetailDto`. 400 si coords inválidas, 404 si mundo no existe o fuera de grid.
+- `GET /api/worlds/{world_id}/npcs` → `NpcListDto`. 404 si mundo no existe.
+
+Cambios en endpoints existentes:
+- `GET /api/worlds/{world_id}/search` admite `frame_x`, `frame_y` opcionales. Si presentes, filtra `source="block"` por igualdad exacta de frame. `include_containers=false` excluye **tanto `chest` como `object`**.
+
+No objetivos de v0.2:
+- Export PNG: se compone en frontend (F6) a partir de F3+F5; backend no lo expone.
+
+Restricción: no cambiar API sin actualizar `docs/contracts/api-contract.md`, `docs/contracts/openapi.json`, `F1 api-client` y los tests snapshot. Mapeo de excepciones extendido:
+- `TileEntityNotFoundError` (futuro) → 404 `code:"tile_entity_not_found"`.
+- coordenadas fuera del grid → 400 `code:"invalid_coordinates"`.
+
+Tests mínimos futuros:
+- `T-13 GET /tile devuelve TileDetailDto con frame y tile_entity_id`.
+- `T-14 GET /npcs devuelve lista vacía si el mundo no tiene NPCs`.
+- `T-15 search con frame_x/frame_y filtra variantes`.
+- `T-16 search con include_containers=false oculta chest y object`.
+- `T-17 OpenAPI snapshot v0.2 actualizado`.
+
+Estado: planificado, no implementado.
