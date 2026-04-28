@@ -23,6 +23,8 @@ class Tile:
     wall_id: int | None
     liquid: int                 # 0..255
     flags: int                  # bits de flags2 | (flags3 << 8): cables, slope, actuator
+    frame_x: int | None = None  # U: solo presente si tfi[tile_id] == True; None en tiles unframed/aire
+    frame_y: int | None = None  # V: idem; forzado a 0 cuando tile_id == 144 (Timers)
 
 @dataclass(frozen=True)
 class ChestItem:
@@ -101,6 +103,10 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-06 test_parse_rejects_unsupported_version_{below,above}_range`
 - [x] `T-07 test_parse_is_deterministic_same_bytes_equal_world`
 - [x] `T-08 test_parse_large_synthetic_world_completes_within_budget` (`@pytest.mark.perf`)
+- [x] `T-09 test_parse_framed_tile_reads_frame_x_y` (iter-019)
+- [x] `T-10 test_parse_unframed_tile_has_none_frames` (iter-019)
+- [x] `T-11 test_parse_tile_id_144_forces_frame_y_zero` (iter-019)
+- [x] `T-12 test_round_trip_builder_parser_preserves_frames` (iter-019)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -117,10 +123,10 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `UnsupportedWorldVersionError`: fuera de rango soportado. `version: int` como atributo.
 
 ## 10. Estado
-- **Versión del contrato**: v1
-- **Último cierre**: 2026-04-24
-- **Iteración actual**: iter-002
-- **Tests**: 10/10 ✓ — mypy --strict ✓ — ruff ✓ — perf budget (large world) ✓
+- **Versión del contrato**: v1.1
+- **Último cierre**: 2026-04-28
+- **Iteración actual**: iter-019
+- **Tests**: 14/14 ✓ — mypy --strict ✓ (módulo B1; ver Deuda) — ruff ✓ — perf budget (large world) ✓
 
 ### Decisiones tomadas
 - `Sign` se añadió al contrato (referenciado en `World` pero sin definir en v0).
@@ -133,8 +139,21 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   (100, 300) se rechazan inmediatamente tras leer la firma `relogic`.
 - `wld_builder.py` vive en `tests/fixtures/` (no en `src/`); es infraestructura de test,
   no parte del dominio.
+- **iter-019 (2026-04-28)**: `Tile.frame_x` y `Tile.frame_y` añadidos como `int | None`
+  con default `None`. Solo se pueblan cuando `tfi[tile_id]` es true en el header del
+  `.wld`; en tiles unframed o aire quedan `None`. Para `tile_id == 144` (Timers) se
+  fuerza `frame_y = 0` replicando el comportamiento de `WorldFile.LoadTiles` de
+  Terraria. Se añadieron a `wld_builder.build_world` los parámetros
+  `tile_frame_at` y `frame_important_ids` para escribir TFI bits y los pares (U, V)
+  vía `struct.pack("<hh", ...)`. Defaults `None` mantienen retrocompatibilidad con
+  todos los `Tile(...)` ya construidos en otros módulos (B2/B4/B5).
 
 ### Deuda / follow-ups
+- **mypy `no-redef` en `tile_search/_engine.py:109,112`**: pre-existente al iter-019,
+  no causado por los cambios de B1; reasignación de `tile_map`/`wall_map` con anotación
+  en la rama `else` tras un binding sin anotación en el `if`. Pertenece a B4
+  tile-search, no se toca aquí. Anotado para que la próxima iteración de B4 lo limpie
+  (basta con anotar la rama `if` o reestructurar el binding).
 - **Compatibilidad con mundos reales**: el parser fue validado contra fixtures sintéticas.
   Una iteración de integración debería probarse con un `.wld` real de Terraria 1.4.4 para
   verificar que el orden de campos en el header sección 0 coincide exactamente.
