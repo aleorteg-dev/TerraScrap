@@ -124,3 +124,47 @@ Detalle de un ítem.
 - [ ] Regenerar tipos del frontend con `openapi-typescript`.
 - [ ] Actualizar `Estado` del módulo `api-rest` y `api-client`.
 - [ ] Añadir entrada en el changelog del `PROJECT.md`.
+
+---
+
+## 4. Evolución propuesta TerraMap-like (borrador, no contrato vigente)
+
+Esta sección no modifica `v0.1.0`; sirve para planificar la siguiente versión de contrato.
+
+### 4.1. Metadata enriquecida
+
+`WorldMetadataDto` candidato:
+
+```json
+{
+  "name": "string",
+  "width": 8400,
+  "height": 2400,
+  "version": 279,
+  "seed": "string",
+  "size": "small|medium|large",
+  "hardmode": true,
+  "spawn_x": 4200,
+  "spawn_y": 350,
+  "world_surface_y": 320.0,
+  "rock_layer_y": 900.0,
+  "hell_layer_y": 2100.0
+}
+```
+
+### 4.2. Tiles para render
+
+Opciones a evaluar:
+- mantener `base64-rle-v1` para compatibilidad y crear `encoding="base64-map-v2"` con datos enriquecidos.
+- transmitir `tile_id`, `wall_id`, `liquid_type`, `liquid_amount`, `flags`, `frame_x`, `frame_y`.
+- alternativa de menor payload: transmitir `map_color` ya calculado por backend y reservar el endpoint de inspección para detalles.
+
+### 4.3. Inspección y entidades
+
+Endpoints candidatos:
+- `GET /api/worlds/{world_id}/tiles/{x}/{y}`: detalle del tile, wall, líquido, frame, chest/sign/tileEntity asociado.
+- `GET /api/worlds/{world_id}/npcs`: lista de NPCs con nombre, tipo y coordenadas.
+
+### 4.4. Búsqueda
+
+`SearchMatchDto.source` ya permite `"object"`, pero el backend aún no lo produce. La siguiente versión debe documentar cómo se representan tile entities que contienen items.

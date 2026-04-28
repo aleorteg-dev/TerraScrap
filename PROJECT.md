@@ -288,6 +288,20 @@ El detalle vive en `docs/contracts/api-contract.md`. Resumen:
 - **Tamaño del payload de tiles**. Puede exigir codificación binaria o tiling por chunks. Decisión aplazada al módulo `api-rest` / `world-canvas`.
 - **Licencia de sprites**. Si se sirven imágenes, revisar términos de la wiki. Alternativa: solo nombres y rectángulo de resaltado.
 
+### 11.1. Brecha funcional frente a TerraMap
+
+Referencia local revisada: `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io`.
+
+TerraMap ofrece una funcionalidad más amplia que el MVP actual de TerraScrap. Para aproximarse a esa experiencia sin perder la arquitectura modular, las mejoras deben planificarse en este orden:
+
+1. **B1 `wld-parser`**: ampliar el modelo de dominio antes de tocar UI. El parser debe conservar `frame_x/frame_y`, tipo de líquido, coordenadas de spawn, NPCs y tile entities con inventarios (item frames, weapon racks, mannequins, hat racks, plates y similares). También debe revisar el soporte de versiones más recientes de Terraria 1.4.5+ usando offsets de sección para saltar datos no modelados.
+2. **B5/F1 contrato API**: decidir si `/tiles` devuelve solo ids o un payload de render enriquecido. Para igualar TerraMap, el renderer necesita paredes, líquidos y colores/capas, no solo `tile_id`.
+3. **B4 `tile-search`**: completar mappings `item_id -> tile/wall/frame` y buscar dentro de tile entities, devolviendo `source="object"` cuando aplique.
+4. **F3 `world-canvas`**: reemplazar la paleta mínima por una paleta completa estilo TerraMap y renderizar paredes, líquidos, cielo/suelo/roca/infierno.
+5. **F4/F5/F6 UI de exploración**: añadir controles tipo TerraMap: include containers por defecto, siguiente/anterior coincidencia, limpiar/highlight all, zoom to fit, exportar PNG, propiedades del mundo, NPCs y panel de información del tile seleccionado.
+
+No se debe abordar como un refactor transversal único. Cada punto debe convertirse en iteraciones SDD/TDD pequeñas y con cambios de contrato documentados.
+
 ---
 
 ## 12. Glosario
@@ -320,3 +334,4 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | 2026-04-27 | P1 deployment-docker | Contrato v0.1.0: `docker/backend.Dockerfile` (multi-stage, python:3.12-slim, user twi), `docker/frontend.Dockerfile` (node:20-alpine + nginx:1.27-alpine, gen:api), `docker/nginx.conf` (/healthz proxy añadido), `docker/docker-compose.yml` (context:.., items-cache volume, env defaults), `.dockerignore`, `docker/smoke.sh`, `.env.example`. T-01..T-03 pasan. T-04 (trivy) diferido a CI. | iter-013 |
 | 2026-04-27 | B3 item-catalog | Contrato v1.1: añadidos `ItemCatalogUnavailableError`, `load_catalog(cache, seed)`. Seed bundled en `item_catalog/data/items.seed.json` (schema v1). B6 `app.py`: `Settings.item_seed_path`, `load_catalog` en startup. T-10..T-14 + IT-01..IT-02. Fix: volumen `items-cache` vacío en primer arranque ya no deja catálogo vacío. | iter-014 |
 | 2026-04-28 | B3 item-catalog | Scraper fix: tabla wiki cambió de `wikitable` a `terraria lined sortable`; `_find_items_table` con detección tolerante. Seed reemplazado: 12 → 6146 ítems. Añadido `refresh.py` (`python -m twi.item_catalog.refresh`). Fixture + T-09 actualizados. Sin cambio de contrato público. | iter-018 |
+| 2026-04-28 | Plan TerraMap parity | Documentada brecha funcional frente a TerraMap y orden recomendado de iteraciones: B1 dominio, B5/F1 API, B4 búsqueda, F3 render, F4/F5/F6 UI. Sin cambio de código ni contrato vigente. | planning |

@@ -146,3 +146,32 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   contrato actual pero podrían ser útiles para B2 o future work.
 - **Walls > 255**: la lógica del byte alto de wall (flags3 bit 2) está implementada
   pero no cubierta por tests; añadir un test específico en una iteración futura.
+
+### Evolución propuesta para paridad con TerraMap
+
+Referencia local acotada:
+- `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\WorldLoader.js`
+  - leer solo `readFileFormatHeader`, `readHeader`, `readTiles`, `readChests`, `readSigns`, `readNpcs`, `readTileEntity`, `readTileEntities`.
+- `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\main.js`
+  - leer solo `isTileMatch`, `getTileText`, `getItemText`, `onWorldLoaderWorkerMessage`.
+
+Brechas actuales:
+- `Tile` no conserva `frame_x/frame_y` (`TextureU/TextureV` en TerraMap). Sin esos campos, varios muebles/objetos colocados no se pueden distinguir solo por `tile_id`.
+- `Tile` conserva `liquid` como cantidad pero no tipo de líquido (`water/lava/honey/shimmer`), lo que limita el render.
+- `WorldMetadata` no expone `spawn_x/spawn_y`, `world_surface_y`, `rock_layer_y` ni `hell_layer_y`, necesarios para centrar y pintar capas como TerraMap.
+- `World` no modela NPCs ni tile entities. TerraMap los usa para lista de NPCs, tile info y búsqueda de items en frames/racks/mannequins/hat racks.
+- El rango actual v230-v279 rechaza mundos recientes. TerraMap contiene ramas para versiones posteriores (por ejemplo `>=287`, `>=299`, `>=304`). Revisar soporte 1.4.5+ usando offsets de sección para saltar datos no modelados.
+
+Contrato propuesto v2 (no implementado todavía):
+- ampliar `Tile` con `frame_x: int | None`, `frame_y: int | None`, `liquid_type: Literal["water","lava","honey","shimmer"] | None`.
+- ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.
+- añadir `Npc`, `TileEntityItem`, `TileEntity` y `World.tile_entities`.
+- mantener compatibilidad de lectura para chests/signs y no hacer que B2/B4 dependan de detalles internos no documentados.
+
+Tests mínimos futuros:
+- parsear un tile frame-important y comprobar `frame_x/frame_y`.
+- parsear cada tipo de líquido soportado.
+- parsear un NPC town simple.
+- parsear tile entity con item simple (item frame o weapon rack).
+- parsear tile entity con inventario múltiple (mannequin o hat rack).
+- aceptar una versión reciente soportada o devolver error explícito con versión y motivo.

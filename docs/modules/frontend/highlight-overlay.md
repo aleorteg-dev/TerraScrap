@@ -71,3 +71,18 @@ Componente:
   - `WorldCanvasHandle` no expone `zoom` directamente; derivación actual es O(1) y correcta pero requiere dos llamadas a `worldToScreen`. Si F3 expone `zoom` en su handle, simplificar.
   - Paleta de colores por `source` (block/wall/chest/object) pendiente de diseño; actualmente solo se distingue el `chest` con marcador interno y `lineWidth` mayor.
   - Tests de integración con `WorldCanvas` real (pan/zoom + overlay) aplazados a iter de `app-shell` (F6).
+
+### Evolución propuesta para paridad con TerraMap
+
+TerraMap usa una capa oscura y píxeles blancos para "highlight all", además de una selección roja para el punto actual. TerraScrap actualmente usa halos animados.
+
+Cambios candidatos:
+- soportar modo `mask` para oscurecer el mapa y pintar matches como píxeles/rectángulos claros, similar a TerraMap.
+- soportar marcador de selección actual independiente de los matches.
+- aplicar color por `source`: bloque/pared/cofre/objeto.
+- degradar automáticamente a `mask` o `outline` para resultados masivos.
+
+Tests mínimos futuros:
+- `style="mask"` oscurece el canvas y pinta cada match.
+- el marcador de selección se dibuja aunque no haya matches.
+- color por source se aplica de forma determinista.

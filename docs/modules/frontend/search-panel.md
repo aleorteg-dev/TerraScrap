@@ -70,3 +70,21 @@ Tipos importados desde `api-client` (solo vía `index.ts`):
 - **Deuda / follow-ups**:
   - Virtualización de lista de matches para mundos Large con miles de coincidencias (SP-08 performance). Añadir `react-window` si el benchmarking con > 5000 filas muestra drops de framerate.
   - Tests de accesibilidad con herramientas AT (axe-core) no incluidos en este ciclo.
+
+### Evolución propuesta para paridad con TerraMap
+
+Brechas actuales:
+- `includeContainers` empieza en `false`, aunque el contrato backend por defecto es `true` y uno de los casos de uso principales es encontrar items en cofres.
+- no hay controles de resultado anterior/siguiente como TerraMap (`previousBlock`/`nextBlock`).
+- no hay acción separada de "highlight all" porque actualmente todos los resultados se resaltan siempre.
+
+Cambios candidatos:
+- cambiar el valor inicial de `includeContainers` a `true`.
+- exponer callbacks opcionales `onNextMatch`, `onPreviousMatch` o delegar esos botones a F6 si la navegación depende del canvas.
+- mostrar filtros por `source` (`block`, `wall`, `chest`, `object`) cuando B4 produzca `object`.
+- virtualizar resultados antes de activar búsquedas con miles de coincidencias.
+
+Tests mínimos futuros:
+- la primera búsqueda se lanza con `includeContainers=true`.
+- botones siguiente/anterior enfocan el match correcto y hacen wrap-around.
+- filtro por source no muta el resultado original y actualiza `onResults`.

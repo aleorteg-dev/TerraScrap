@@ -86,3 +86,15 @@ Usar `msw` (Mock Service Worker) o un `fetch` mockeado.
 - `getItem(itemId: number): Promise<ItemDetail>` no está en el contrato `ApiClient` del doc pero el endpoint `GET /api/items/{item_id}` existe en el backend. Añadir en iteración futura cuando F4 (search-panel) lo necesite.
 - `uploadWorld` no reporta progreso (SP-05 marcado como "v2"). Añadir cuando ui-upload lo requiera.
 - `npm install --legacy-peer-deps`: actualizar `openapi-typescript` cuando publique soporte oficial para TypeScript 6.
+
+### Evolución propuesta para paridad con TerraMap
+
+Cuando `api-contract.md` evolucione a v0.2, F1 debe exponer los métodos nuevos antes de tocar F6:
+- `getTileDetail(worldId: string, x: number, y: number): Promise<TileDetail>`
+- `listNpcs(worldId: string): Promise<NpcSummary[]>`
+- `getTilesChunk` debe soportar el nuevo encoding elegido (`base64-map-v2` o equivalente) sin romper `base64-rle-v1`.
+
+Tests mínimos futuros:
+- `getTileDetail` construye `/worlds/{id}/tiles/{x}/{y}` y parsea errores 404/400.
+- `listNpcs` devuelve array tipado.
+- `getTilesChunk` preserva compatibilidad con chunks v0.1 y acepta el nuevo DTO generado por OpenAPI.

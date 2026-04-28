@@ -93,6 +93,34 @@ def create_tile_search_engine(
     Stone Wall (item 26) y Dirt Wall (item 30) son los candidatos inmediatos.
   - **STALE-JSON** — `data/item_tile_map.json` queda sin uso. Puede eliminarse en limpieza futura.
 
+### Evolución propuesta para paridad con TerraMap
+
+Referencia local acotada:
+- `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\main.js`
+  - leer solo `addTileSelectOptions`, `addItemSelectOptions`, `addWallSelectOptions`, `isTileMatch`, `highlightInfos`, `getTileInfoFrom`, `getSelectedInfos`.
+- `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\settings.js`
+  - leer solo las estructuras `Tiles`, `Items`, `Walls` necesarias para entender ids, frames y nombres.
+
+Brechas actuales:
+- `item_world_map.json` contiene solo tres mappings de bloque y ningún mapping de pared.
+- El motor solo soporta un `tile_id` o `wall_id` por item; TerraMap distingue frames/variantes mediante `U/V`.
+- `source="object"` existe en el tipo pero no se produce porque B1 no expone tile entities.
+- La búsqueda en contenedores cubre chests, pero no objetos con inventario fuera de chests.
+
+Contrato propuesto v3 (depende de B1 v2):
+- permitir mappings con condiciones opcionales de frame: `item_id -> [{ kind:"tile", tile_id, frame_x?, frame_y? }, { kind:"wall", wall_id }]`.
+- buscar en `World.tile_entities` y devolver `SearchMatch(source="object")` con coordenadas de la entidad.
+- mantener `include_containers` para chests y evaluar si necesita dividirse en `include_chests` e `include_objects`.
+- generar o versionar `item_world_map.json` desde una fuente verificable, no mantenerlo manualmente con tres entradas.
+
+Tests mínimos futuros:
+- item con mapping por `tile_id` simple.
+- item con mapping por `tile_id + frame_x/frame_y` que no confunda variantes.
+- item con mapping de pared.
+- item dentro de item frame/weapon rack produce `source="object"`.
+- item dentro de mannequin/hat rack produce `source="object"` y respeta stacks/prefix cuando existan.
+- `include_containers=False` no debe ocultar matches de bloque/pared; decidir y testear si oculta también `object`.
+
 ## 11. Decisiones tomadas en iter-004 y iter-005
 - **Wall search via `item_to_wall_mapping`** (iter-005): la comparación directa `item_id == wall_id`
   producía resultados incorrectos porque ítem y pared viven en espacios de ID distintos en Terraria.

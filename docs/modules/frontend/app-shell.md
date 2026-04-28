@@ -69,3 +69,25 @@ Flujo principal (máquina de estados implícita):
 ### Deuda / follow-ups
 - Smoke test manual pendiente (requiere backend vivo con `.wld` real). Anotar resultado aquí tras realizarlo.
 - P1 deployment-docker: empaquetar frontend con nginx.
+
+### Evolución propuesta para paridad con TerraMap
+
+F6 debe coordinar los controles globales, porque es el único módulo que conoce canvas, búsqueda y API.
+
+Controles candidatos:
+- barra de herramientas con cerrar mundo, zoom-to-fit, limpiar resaltado, exportar PNG, resultado anterior/siguiente.
+- panel de propiedades del mundo usando metadata enriquecida.
+- panel/lista de NPCs cuando B5 exponga endpoint.
+- panel de información del tile seleccionado usando un endpoint de inspección o datos del chunk enriquecido.
+- estado `selectedTile` y `focusedMatchIndex` en el reducer.
+
+Restricciones:
+- no meter lógica de parsing/render en F6.
+- no abrir endpoints nuevos hasta que `api-contract.md`, B5 y F1 estén actualizados.
+- mantener controles como composición de contratos públicos de F3/F4/F5.
+
+Tests mínimos futuros:
+- next/previous match llama `centerOn` con wrap-around.
+- zoom-to-fit invoca el handle de F3.
+- export PNG invoca la API del canvas/overlay sin romper si no hay matches.
+- seleccionar tile muestra detalle recibido del cliente API.

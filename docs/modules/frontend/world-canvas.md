@@ -128,3 +128,30 @@ Caché de bitmaps (unitarias):
 - **Animación en centerOn**: SP-07 menciona animación opcional. v1 hace jump instantáneo.
 - **worldId change**: Si el padre cambia `worldId` sin desmontar (raro, pero posible), `chunkCacheRef`, `bitmapCacheRef` y `pendingRef` quedan obsoletos. Añadir `useEffect([worldId])` que llame `bitmapCacheRef.current.clearWorld(prevWorldId)` y limpie los otros caches.
 - **Centrar en spawn real**: Si B5/B1 exponen `spawnX`/`spawnY` en `WorldMetadata`, reemplazar la heurística `height/5` por las coordenadas de spawn reales. Anotar en B5 deuda.
+
+### Evolución propuesta para paridad con TerraMap
+
+Referencia local acotada:
+- `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\main.js`
+  - leer solo `getTileColor`, `resizeCanvases`, `getMousePos`, `drawSelectionIndicator`, `saveMapImage`.
+- `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\MapHelper.js`
+  - leer solo tablas `tileColors`, `wallColors`, `liquidColors` y la lógica de capas de cielo/tierra/roca/infierno.
+
+Brechas actuales:
+- `tileColors.ts` es una paleta mínima; TerraMap cubre cientos de tiles, walls y líquidos.
+- el chunk actual solo contiene `tile_id`; no se pueden pintar paredes, líquidos ni capas de fondo con fidelidad.
+- no hay selección visual de tile ni información de hover/click.
+- no hay zoom-to-fit ni export PNG.
+
+Cambios candidatos:
+- corregir doc/implementación de `base64-rle-v1`: usar `Int16Array`, no `Uint16Array`.
+- si B5 expone `map_color`, renderizar por color directo para alcanzar paridad visual rápido.
+- si B5 expone datos enriquecidos, mover la lógica `getTileColor` a una función pura testeada.
+- ampliar `WorldCanvasHandle` con `zoomToFit()`, `getViewport()` y/o `exportImage()` solo si F6 lo necesita.
+- emitir `onTileHover`/`onTileSelect` para que F6 muestre panel de información sin acoplar F3 a API REST.
+
+Tests mínimos futuros:
+- renderiza wall/liquid/map_color según encoding elegido.
+- `zoomToFit` deja el mundo visible dentro del viewport.
+- click/hover emite coordenadas estables tras pan/zoom.
+- export PNG compone canvas base + overlay cuando F6 lo conecte.

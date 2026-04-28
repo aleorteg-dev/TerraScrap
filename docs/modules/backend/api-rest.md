@@ -117,3 +117,16 @@ Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`
   usa `Int16Array` (correcto para el chequeo `tileId < 0`). Actualizar en iteración F3.
 - **wall_id / liquid / flags ausentes del payload**: encoding simplificado solo transmite
   tile_id. Si F3 necesita paredes o líquidos, revisar encoding en iteración futura.
+
+### Evolución propuesta para paridad con TerraMap
+
+El contrato HTTP actual es suficiente para el MVP, pero no para render tipo TerraMap ni para inspección de tiles.
+
+Cambios candidatos para `api-contract.md` v0.2:
+- ampliar `WorldMetadataDto` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.
+- extender `GET /api/worlds/{world_id}/tiles` o crear un encoding nuevo (`base64-map-v2`) que transmita color/render data además de `tile_id`.
+- añadir endpoint de inspección puntual: `GET /api/worlds/{world_id}/tiles/{x}/{y}` para devolver bloque, pared, líquido, frame, chest/sign/tileEntity si existen.
+- añadir endpoint de NPCs: `GET /api/worlds/{world_id}/npcs`.
+- decidir si exportar PNG se hace en frontend (componiendo canvases) o backend. Para paridad TerraMap basta frontend.
+
+Restricción: no cambiar API sin actualizar `docs/contracts/api-contract.md`, `docs/contracts/openapi.json`, `F1 api-client` y los tests snapshot.
