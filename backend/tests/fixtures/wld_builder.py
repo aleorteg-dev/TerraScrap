@@ -44,6 +44,15 @@ def _encode_air_column(height: int) -> bytes:
     return bytes([0x80, lo, hi])  # int16 RLE
 
 
+_LIQUID_BITS: dict[str, int] = {
+    "none": 0,
+    "water": 1,
+    "shimmer": 1,  # same bits as water; shimmer flag lives in flags3 bit 7
+    "lava": 2,
+    "honey": 3,
+}
+
+
 def _encode_block_tile(
     tile_id: int,
     wall_id: int | None = None,
@@ -68,6 +77,31 @@ def _encode_block_tile(
     if wall_id is not None:
         out += bytes([wall_id & 0xFF])
     return out
+
+
+def _encode_liquid_tile(liquid_type: str, amount: int) -> bytes:
+    """Encode an air tile that contains liquid (no active block, no wall).
+
+    Layout: [flags1] [flags2?] [flags3?] [amount_byte]
+
+    Shimmer needs flags3 bit 7 set, which requires flags2 bit 0 and flags1 bit 0.
+    Water/lava/honey only need flags1 bits 3-4.
+    """
+    lbits = _LIQUID_BITS.get(liquid_type, 0)
+    if lbits == 0:
+        return bytes([0x00])  # plain air
+
+    flags1 = lbits << 3  # bits 3-4
+
+    if liquid_type == "shimmer":
+        # Need flags2 + flags3 to carry the shimmer flag (bit 7 of flags3).
+        # flags1 bit 0 = has_flags2; flags2 bit 0 = has_flags3.
+        flags1 |= 0x01  # has_flags2
+        flags2 = 0x01  # has_flags3
+        flags3 = 0x80  # shimmer bit
+        return bytes([flags1, flags2, flags3, amount])
+    else:
+        return bytes([flags1, amount])
 
 
 # ── chest / sign specs ────────────────────────────────────────────────────────
@@ -160,10 +194,14 @@ def _build_section1(
     tile_id_at: dict[tuple[int, int], int] | None = None,
     tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
     frame_important_ids: set[int] | None = None,
+    liquid_at: dict[tuple[int, int], tuple[str, int]] | None = None,
 ) -> bytes:
     overrides = tile_id_at or {}
     frames = tile_frame_at or {}
     tfi = frame_important_ids or set()
+    liquids = liquid_at or {}
+    # All positions that are non-air (block override or liquid)
+    special: set[tuple[int, int]] = set(overrides) | set(liquids)
     buf = bytearray()
     for x in range(width):
         y = 0
@@ -174,10 +212,14 @@ def _build_section1(
                 frame = frames.get(pos) if tile_id in tfi else None
                 buf += _encode_block_tile(tile_id, frame=frame)
                 y += 1
+            elif pos in liquids:
+                ltype, lamount = liquids[pos]
+                buf += _encode_liquid_tile(ltype, lamount)
+                y += 1
             else:
-                # Find run of consecutive air in this column
+                # Find run of consecutive plain-air in this column
                 run_end = y + 1
-                while run_end < height and (x, run_end) not in overrides:
+                while run_end < height and (x, run_end) not in special:
                     run_end += 1
                 run_len = run_end - y
                 buf += _encode_air_column(run_len)
@@ -246,6 +288,7 @@ def build_world(
     tile_id_at: dict[tuple[int, int], int] | None = None,
     tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
     frame_important_ids: set[int] | None = None,
+    liquid_at: dict[tuple[int, int], tuple[str, int]] | None = None,
 ) -> bytes:
     """Return bytes of a valid synthetic .wld file."""
     s0 = _build_section0(
@@ -262,6 +305,7 @@ def build_world(
         tile_id_at=tile_id_at,
         tile_frame_at=tile_frame_at,
         frame_important_ids=frame_important_ids,
+        liquid_at=liquid_at,
     )
     s2 = _build_section2(chests)
     s3 = _build_section3(signs)

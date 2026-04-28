@@ -26,7 +26,9 @@ def _make_world(name: str = "TestWorld") -> World:
         size="small",
         hardmode=False,
     )
-    tile = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+    tile = Tile(
+        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+    )
     grid = TileGrid([[tile]])
     return World(metadata=meta, tiles=grid, chests=(), signs=())
 

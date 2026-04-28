@@ -97,7 +97,9 @@ class _FakeSearch:
 
 
 def _make_world(name: str = "Test") -> World:
-    tile = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+    tile = Tile(
+        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+    )
     grid = TileGrid([[tile]])
     meta = WorldMetadata(
         name=name,
@@ -466,9 +468,11 @@ def test_get_tiles_payload_encodes_row_major_int16_rle() -> None:
 
     Expected flat row-major sequence: [5, 7, -1, -1]
     """
-    t5 = Tile(tile_id=5, wall_id=None, liquid=0, flags=0)
-    t7 = Tile(tile_id=7, wall_id=None, liquid=0, flags=0)
-    air = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+    t5 = Tile(tile_id=5, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    t7 = Tile(tile_id=7, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    air = Tile(
+        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+    )
     grid = TileGrid([[t5, air], [t7, air]])
     meta = WorldMetadata(
         name="T",
@@ -515,9 +519,11 @@ def test_get_tiles_payload_encodes_row_major_int16_rle() -> None:
 
 def test_tiles_endpoint_chunk_index_maps_to_correct_tiles() -> None:
     """chunk_x/chunk_y are indices: (1,0) size=2 → tiles x=2..3, y=0..1."""
-    air = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
-    t5 = Tile(tile_id=5, wall_id=None, liquid=0, flags=0)
-    t7 = Tile(tile_id=7, wall_id=None, liquid=0, flags=0)
+    air = Tile(
+        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+    )
+    t5 = Tile(tile_id=5, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    t7 = Tile(tile_id=7, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
     # 4-wide × 2-high grid: only x=2,3 carry real tiles
     grid = TileGrid(
         [
@@ -567,7 +573,9 @@ def test_tiles_endpoint_chunk_index_maps_to_correct_tiles() -> None:
 
 
 def test_tiles_endpoint_out_of_bounds_chunk_returns_empty() -> None:
-    air = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+    air = Tile(
+        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+    )
     grid = TileGrid([[air, air], [air, air]])  # 2×2
     meta = WorldMetadata(
         name="T15",

@@ -13,7 +13,7 @@ from twi.wld_parser import Chest, ChestItem, Tile, TileGrid, World, WorldMetadat
 # Shared sentinel for air tiles
 # ---------------------------------------------------------------------------
 
-AIR = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+AIR = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -82,8 +82,12 @@ def _chest_with_item(
 def test_search_finds_block_matches() -> None:
     world = _world(
         tile_overrides={
-            (2, 3): Tile(tile_id=5, wall_id=None, liquid=0, flags=0),
-            (7, 1): Tile(tile_id=5, wall_id=None, liquid=0, flags=0),
+            (2, 3): Tile(
+                tile_id=5, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+            ),
+            (7, 1): Tile(
+                tile_id=5, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+            ),
         }
     )
     engine = create_tile_search_engine(item_to_tile_mapping={10: 5})
@@ -107,8 +111,12 @@ def test_search_finds_block_matches() -> None:
 def test_search_finds_wall_matches() -> None:
     world = _world(
         tile_overrides={
-            (1, 2): Tile(tile_id=None, wall_id=7, liquid=0, flags=0),
-            (4, 0): Tile(tile_id=None, wall_id=7, liquid=0, flags=0),
+            (1, 2): Tile(
+                tile_id=None, wall_id=7, liquid_type="none", liquid_amount=0, flags=0
+            ),
+            (4, 0): Tile(
+                tile_id=None, wall_id=7, liquid_type="none", liquid_amount=0, flags=0
+            ),
         }
     )
     engine = create_tile_search_engine(
@@ -201,9 +209,15 @@ def test_search_returns_empty_when_no_matches() -> None:
 def test_search_total_matches_len_matches() -> None:
     world = _world(
         tile_overrides={
-            (0, 0): Tile(tile_id=1, wall_id=None, liquid=0, flags=0),
-            (2, 2): Tile(tile_id=1, wall_id=None, liquid=0, flags=0),
-            (4, 1): Tile(tile_id=1, wall_id=None, liquid=0, flags=0),
+            (0, 0): Tile(
+                tile_id=1, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+            ),
+            (2, 2): Tile(
+                tile_id=1, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+            ),
+            (4, 1): Tile(
+                tile_id=1, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+            ),
         }
     )
     engine = create_tile_search_engine(item_to_tile_mapping={10: 1})
@@ -221,7 +235,9 @@ def test_search_total_matches_len_matches() -> None:
 def test_search_is_pure_and_deterministic() -> None:
     world = _world(
         tile_overrides={
-            (1, 1): Tile(tile_id=5, wall_id=None, liquid=0, flags=0),
+            (1, 1): Tile(
+                tile_id=5, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+            ),
         }
     )
     engine = create_tile_search_engine(item_to_tile_mapping={10: 5})
@@ -250,8 +266,20 @@ def test_search_large_world_completes_within_budget() -> None:
     columns: list[list[Tile]] = [[AIR] * height for _ in range(width)]
     # Plant two target tiles at known positions
     target_tile_id = 1
-    columns[100][100] = Tile(tile_id=target_tile_id, wall_id=None, liquid=0, flags=0)
-    columns[4200][1200] = Tile(tile_id=target_tile_id, wall_id=None, liquid=0, flags=0)
+    columns[100][100] = Tile(
+        tile_id=target_tile_id,
+        wall_id=None,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+    )
+    columns[4200][1200] = Tile(
+        tile_id=target_tile_id,
+        wall_id=None,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+    )
 
     grid = TileGrid(columns)
     meta = WorldMetadata(
@@ -281,7 +309,15 @@ def test_search_large_world_completes_within_budget() -> None:
 
 def test_wood_without_mapping_does_not_return_stone_tiles() -> None:
     world = _world(
-        tile_overrides={(3, 3): Tile(tile_id=1, wall_id=None, liquid=0, flags=0)}
+        tile_overrides={
+            (3, 3): Tile(
+                tile_id=1,
+                wall_id=None,
+                liquid_type="none",
+                liquid_amount=0,
+                flags=0,
+            )
+        }
     )
     engine = create_tile_search_engine(item_to_tile_mapping={}, item_to_wall_mapping={})
     result = engine.search(world, item_id=9)
@@ -295,7 +331,15 @@ def test_wood_without_mapping_does_not_return_stone_tiles() -> None:
 
 def test_search_blocks_with_separate_mappings_ignores_unmapped_item() -> None:
     world = _world(
-        tile_overrides={(2, 2): Tile(tile_id=1, wall_id=None, liquid=0, flags=0)}
+        tile_overrides={
+            (2, 2): Tile(
+                tile_id=1,
+                wall_id=None,
+                liquid_type="none",
+                liquid_amount=0,
+                flags=0,
+            )
+        }
     )
     engine = create_tile_search_engine(
         item_to_tile_mapping={3: 1}, item_to_wall_mapping={}
@@ -315,8 +359,12 @@ def test_search_blocks_with_separate_mappings_ignores_unmapped_item() -> None:
 def test_search_walls_with_item_to_wall_mapping() -> None:
     world = _world(
         tile_overrides={
-            (2, 1): Tile(tile_id=None, wall_id=2, liquid=0, flags=0),
-            (5, 3): Tile(tile_id=None, wall_id=2, liquid=0, flags=0),
+            (2, 1): Tile(
+                tile_id=None, wall_id=2, liquid_type="none", liquid_amount=0, flags=0
+            ),
+            (5, 3): Tile(
+                tile_id=None, wall_id=2, liquid_type="none", liquid_amount=0, flags=0
+            ),
         }
     )
     engine = create_tile_search_engine(
@@ -330,7 +378,15 @@ def test_search_walls_with_item_to_wall_mapping() -> None:
 
 def test_search_wall_item_without_mapping_returns_empty() -> None:
     world = _world(
-        tile_overrides={(1, 1): Tile(tile_id=None, wall_id=2, liquid=0, flags=0)}
+        tile_overrides={
+            (1, 1): Tile(
+                tile_id=None,
+                wall_id=2,
+                liquid_type="none",
+                liquid_amount=0,
+                flags=0,
+            )
+        }
     )
     engine = create_tile_search_engine(item_to_tile_mapping={}, item_to_wall_mapping={})
     result = engine.search(world, item_id=30)
@@ -345,8 +401,12 @@ def test_search_wall_item_without_mapping_returns_empty() -> None:
 def test_search_block_and_wall_mapping_no_cross_contamination() -> None:
     world = _world(
         tile_overrides={
-            (0, 0): Tile(tile_id=1, wall_id=None, liquid=0, flags=0),
-            (1, 0): Tile(tile_id=None, wall_id=2, liquid=0, flags=0),
+            (0, 0): Tile(
+                tile_id=1, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+            ),
+            (1, 0): Tile(
+                tile_id=None, wall_id=2, liquid_type="none", liquid_amount=0, flags=0
+            ),
         }
     )
     tile_engine = create_tile_search_engine(

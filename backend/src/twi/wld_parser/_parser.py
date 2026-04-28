@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import BinaryIO
+from typing import BinaryIO, Literal
 
 from twi.wld_parser._exceptions import UnsupportedWorldVersionError, WldParseError
 from twi.wld_parser._reader import Reader
@@ -162,7 +162,9 @@ def _read_world_info(r: Reader, version: int) -> WorldMetadata:
 
 # ── section 1: tiles ─────────────────────────────────────────────────────────
 
-_AIR_TILE = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+_AIR_TILE = Tile(
+    tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+)
 
 
 def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid:
@@ -203,15 +205,23 @@ def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid
                     _wall_color = r.read_byte()
 
             # Liquid
-            liquid_type = (flags1 >> 3) & 0x03
+            liquid_bits = (flags1 >> 3) & 0x03
             liquid_amount = 0
-            if liquid_type:
+            liquid_type: Literal["none", "water", "lava", "honey", "shimmer"] = "none"
+            if liquid_bits:
                 liquid_amount = r.read_byte()
+                if liquid_bits == 1:
+                    liquid_type = "shimmer" if (flags3 & 0x80) else "water"
+                elif liquid_bits == 2:
+                    liquid_type = "lava"
+                else:
+                    liquid_type = "honey"
 
             tile = Tile(
                 tile_id=tile_id,
                 wall_id=wall_id,
-                liquid=liquid_amount,
+                liquid_type=liquid_type,
+                liquid_amount=liquid_amount,
                 flags=flags2 | (flags3 << 8),
                 frame_x=frame_x,
                 frame_y=frame_y,
