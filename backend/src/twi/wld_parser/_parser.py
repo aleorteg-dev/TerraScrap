@@ -177,14 +177,19 @@ def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid
 
             # Block
             tile_id: int | None = None
+            frame_x: int | None = None
+            frame_y: int | None = None
             if flags1 & 0x02:
                 if flags1 & 0x20:
                     tile_id = r.read_uint16()
                 else:
                     tile_id = r.read_byte()
                 if tile_id < len(tfi) and tfi[tile_id]:
-                    _frame_x = r.read_int16()
-                    _frame_y = r.read_int16()
+                    frame_x = r.read_int16()
+                    frame_y = r.read_int16()
+                    # Terraria forces frameY=0 for tile 144 (Timers).
+                    if tile_id == 144:
+                        frame_y = 0
                 if flags3 & 0x08:
                     _tile_color = r.read_byte()
 
@@ -208,6 +213,8 @@ def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid
                 wall_id=wall_id,
                 liquid=liquid_amount,
                 flags=flags2 | (flags3 << 8),
+                frame_x=frame_x,
+                frame_y=frame_y,
             )
 
             # RLE

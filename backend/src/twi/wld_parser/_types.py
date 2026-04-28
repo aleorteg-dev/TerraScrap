@@ -24,6 +24,8 @@ class Tile:
     wall_id: int | None
     liquid: int  # 0..255
     flags: int  # raw bitmask for wires / slope / actuator
+    frame_x: int | None = None  # U; only set when tfi[tile_id] is true
+    frame_y: int | None = None  # V; forced to 0 when tile_id == 144 (Timers)
 
 
 @dataclass(frozen=True)

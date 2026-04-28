@@ -44,8 +44,18 @@ def _encode_air_column(height: int) -> bytes:
     return bytes([0x80, lo, hi])  # int16 RLE
 
 
-def _encode_block_tile(tile_id: int, wall_id: int | None = None) -> bytes:
-    """Encode a single active tile (no RLE, no frame data)."""
+def _encode_block_tile(
+    tile_id: int,
+    wall_id: int | None = None,
+    *,
+    frame: tuple[int, int] | None = None,
+) -> bytes:
+    """Encode a single active tile (no RLE).
+
+    If ``frame`` is provided, two int16 little-endian values (U, V) are
+    appended after the tile_id, matching the layout the parser expects when
+    ``tfi[tile_id]`` is true.
+    """
     flags1 = 0x02  # isActive
     if wall_id is not None:
         flags1 |= 0x04
@@ -53,6 +63,8 @@ def _encode_block_tile(tile_id: int, wall_id: int | None = None) -> bytes:
         flags1 |= 0x20
     out = bytes([flags1])
     out += struct.pack("<H", tile_id) if tile_id > 255 else bytes([tile_id])
+    if frame is not None:
+        out += struct.pack("<hh", frame[0], frame[1])
     if wall_id is not None:
         out += bytes([wall_id & 0xFF])
     return out
@@ -146,15 +158,21 @@ def _build_section1(
     width: int,
     height: int,
     tile_id_at: dict[tuple[int, int], int] | None = None,
+    tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
+    frame_important_ids: set[int] | None = None,
 ) -> bytes:
     overrides = tile_id_at or {}
+    frames = tile_frame_at or {}
+    tfi = frame_important_ids or set()
     buf = bytearray()
     for x in range(width):
         y = 0
         while y < height:
             pos = (x, y)
             if pos in overrides:
-                buf += _encode_block_tile(overrides[pos])
+                tile_id = overrides[pos]
+                frame = frames.get(pos) if tile_id in tfi else None
+                buf += _encode_block_tile(tile_id, frame=frame)
                 y += 1
             else:
                 # Find run of consecutive air in this column
@@ -205,6 +223,16 @@ def _build_section3(signs: Sequence[SignSpec] | None) -> bytes:
 _NUM_TILE_TYPES = 623  # cover all Terraria 1.4.x tile IDs
 
 
+def _encode_tfi(num_tile_types: int, frame_important_ids: set[int] | None) -> bytes:
+    ids = frame_important_ids or set()
+    num_bytes = (num_tile_types + 7) // 8
+    out = bytearray(num_bytes)
+    for tid in ids:
+        if 0 <= tid < num_tile_types:
+            out[tid // 8] |= 1 << (tid % 8)
+    return bytes(out)
+
+
 def build_world(
     *,
     name: str = "TestWorld",
@@ -216,6 +244,8 @@ def build_world(
     chests: Sequence[ChestSpec] | None = None,
     signs: Sequence[SignSpec] | None = None,
     tile_id_at: dict[tuple[int, int], int] | None = None,
+    tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
+    frame_important_ids: set[int] | None = None,
 ) -> bytes:
     """Return bytes of a valid synthetic .wld file."""
     s0 = _build_section0(
@@ -226,7 +256,13 @@ def build_world(
         height=height,
         hardmode=hardmode,
     )
-    s1 = _build_section1(width=width, height=height, tile_id_at=tile_id_at)
+    s1 = _build_section1(
+        width=width,
+        height=height,
+        tile_id_at=tile_id_at,
+        tile_frame_at=tile_frame_at,
+        frame_important_ids=frame_important_ids,
+    )
     s2 = _build_section2(chests)
     s3 = _build_section3(signs)
 
@@ -237,7 +273,7 @@ def build_world(
     favorites = struct.pack("<Q", 0)
     num_sections = struct.pack("<h", 4)
     num_tile_types = struct.pack("<h", _NUM_TILE_TYPES)
-    tfi_bytes = b"\x00" * ((_NUM_TILE_TYPES + 7) // 8)  # all non-frame-important
+    tfi_bytes = _encode_tfi(_NUM_TILE_TYPES, frame_important_ids)
 
     header_size = (
         4  # version int32
