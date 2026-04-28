@@ -21,7 +21,8 @@ class WorldMetadata:
 class Tile:
     tile_id: int | None        # bloque colocado (None = aire)
     wall_id: int | None
-    liquid: int                 # 0..255
+    liquid_type: Literal["none", "water", "lava", "honey", "shimmer"]  # tipo de líquido
+    liquid_amount: int          # 0..255; 0 cuando liquid_type == "none"
     flags: int                  # bits de flags2 | (flags3 << 8): cables, slope, actuator
     frame_x: int | None = None  # U: solo presente si tfi[tile_id] == True; None en tiles unframed/aire
     frame_y: int | None = None  # V: idem; forzado a 0 cuando tile_id == 144 (Timers)
@@ -107,6 +108,11 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-10 test_parse_unframed_tile_has_none_frames` (iter-019)
 - [x] `T-11 test_parse_tile_id_144_forces_frame_y_zero` (iter-019)
 - [x] `T-12 test_round_trip_builder_parser_preserves_frames` (iter-019)
+- [x] `T-13 test_parse_water_tile_amount_and_type` (iter-020)
+- [x] `T-14 test_parse_lava_tile` (iter-020)
+- [x] `T-15 test_parse_honey_tile` (iter-020)
+- [x] `T-16 test_parse_shimmer_tile` (iter-020)
+- [x] `T-17 test_parse_dry_tile` (iter-020)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -123,12 +129,18 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `UnsupportedWorldVersionError`: fuera de rango soportado. `version: int` como atributo.
 
 ## 10. Estado
-- **Versión del contrato**: v1.1
+- **Versión del contrato**: v2.0
 - **Último cierre**: 2026-04-28
-- **Iteración actual**: iter-019
-- **Tests**: 14/14 ✓ — mypy --strict ✓ (módulo B1; ver Deuda) — ruff ✓ — perf budget (large world) ✓
+- **Iteración actual**: iter-020
+- **Tests**: 19/19 ✓ — mypy --strict ✓ (módulo B1; ver Deuda) — ruff ✓ — perf budget (large world) ✓
 
-### Decisiones tomadas
+### Decisiones tomadas (iter-020)
+- `Tile.liquid` (int) reemplazado por `liquid_type: Literal["none","water","lava","honey","shimmer"]` y `liquid_amount: int`. Cambio breaking de contrato → v2.0.
+- Shimmer detectado cuando `liquid_bits == 1` y `flags3 & 0x80`. Flags3 se lee solo cuando `flags2 & 0x01`; para shimmer, `_encode_liquid_tile` en el builder escribe `flags2=0x01, flags3=0x80`.
+- `_encode_liquid_tile` añadido al builder para tiles aéreos con líquido. Water/lava/honey: 2 bytes `[flags1, amount]`. Shimmer: 4 bytes `[flags1|0x01, 0x01, 0x80, amount]`.
+- Módulos dependientes (B2, B4, B5): ninguno accedía a `tile.liquid` → sin impacto. La deuda de actualizar `base64-rle-v2` para incluir `liquid_type+amount` queda registrada abajo.
+
+### Decisiones tomadas (pre-iter-020)
 - `Sign` se añadió al contrato (referenciado en `World` pero sin definir en v0).
 - `TileGrid` implementada como lista de listas (`list[list[Tile]]`) sin numpy; rendimiento
   adecuado para el presupuesto de 10 s (el test T-08 pasa holgadamente).
@@ -149,6 +161,7 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   todos los `Tile(...)` ya construidos en otros módulos (B2/B4/B5).
 
 ### Deuda / follow-ups
+- **Encoding `base64-rle-v2`**: el endpoint `GET /tiles` usa `base64-rle-v1` (solo `tile_id`). Para exponer `liquid_type`/`liquid_amount` al frontend, el encoding debe actualizarse a `base64-rle-v2` (8 bytes/tile). Esta deuda se resolverá en **iter API.1** (B5 + F3). Anotar allí que `liquid_type` se codifica como 3 bits (`none=0, water=1, lava=2, honey=3, shimmer=4`) + `liquid_amount` (1 byte).
 - **mypy `no-redef` en `tile_search/_engine.py:109,112`**: pre-existente al iter-019,
   no causado por los cambios de B1; reasignación de `tile_map`/`wall_map` con anotación
   en la rama `else` tras un binding sin anotación en el `if`. Pertenece a B4
@@ -181,8 +194,10 @@ Brechas actuales:
 - `World` no modela NPCs ni tile entities. TerraMap los usa para lista de NPCs, tile info y búsqueda de items en frames/racks/mannequins/hat racks.
 - El rango actual v230-v279 rechaza mundos recientes. TerraMap contiene ramas para versiones posteriores (por ejemplo `>=287`, `>=299`, `>=304`). Revisar soporte 1.4.5+ usando offsets de sección para saltar datos no modelados.
 
-Contrato propuesto v2 (no implementado todavía):
-- ampliar `Tile` con `frame_x: int | None`, `frame_y: int | None`, `liquid_type: Literal["water","lava","honey","shimmer"] | None`.
+Contrato v2 (parcialmente implementado — iter-020):
+- `Tile.frame_x/frame_y`: implementado en iter-019.
+- `Tile.liquid_type/liquid_amount`: implementado en iter-020 (este iter).
+- Pendiente: ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.
 - ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.
 - añadir `Npc`, `TileEntityItem`, `TileEntity` y `World.tile_entities`.
 - mantener compatibilidad de lectura para chests/signs y no hacer que B2/B4 dependan de detalles internos no documentados.
