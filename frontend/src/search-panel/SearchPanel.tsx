@@ -2,6 +2,21 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ApiClient, ItemSummary, SearchMatch, SearchResult } from '../api-client';
 import { ApiError } from '../api-client';
 
+const SOURCE_LABEL: Record<string, string> = {
+  block: 'Bloque',
+  wall: 'Pared',
+  chest: 'Cofre',
+  object: 'Objeto',
+};
+
+function formatMatchLabel(match: SearchMatch): string {
+  const src = SOURCE_LABEL[match.source] ?? match.source;
+  let label = `${src} en (${match.x}, ${match.y})`;
+  if (match.chest_id != null) label += ` #${match.chest_id}`;
+  if (match.stack != null) label += ` ×${match.stack}`;
+  return label;
+}
+
 type UiState = 'idle' | 'loading-search' | 'empty' | 'error';
 
 export interface SearchPanelProps {
@@ -191,12 +206,12 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             {results.total} {results.total === 1 ? 'coincidencia' : 'coincidencias'}
           </p>
           <ul>
-            {results.matches.map((match, idx) => (
-              <li key={`${match.x}-${match.y}-${idx}`}>
-                ({match.x}, {match.y}) — {match.source}
+            {results.matches.map((match) => (
+              <li key={`${match.source}-${match.x}-${match.y}`}>
+                {formatMatchLabel(match)}
                 <button
                   onClick={() => onMatchFocus(match)}
-                  aria-label={`Centrar en (${match.x}, ${match.y})`}
+                  aria-label={`Centrar: ${formatMatchLabel(match)}`}
                 >
                   Centrar
                 </button>
