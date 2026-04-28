@@ -120,3 +120,5 @@ Desktop.ini
 # ─── Gemini / Antigravity (contexto IA local) ───────────
 .gemini/
 .claude/
+.agents/
+skills-lock.json
