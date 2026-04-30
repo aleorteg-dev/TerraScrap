@@ -67,12 +67,15 @@ def parse_wld_bytes(data: bytes) -> World: ...
 
 class WldParseError(Exception):
     code: str | None  # "invalid_header" | "truncated" | "corrupt" | "unsupported_version"
+    details: dict[str, object]
 
 class UnsupportedWorldVersionError(WldParseError):
     version: int
+    detected_version: int
+    supported_range: tuple[int, int]
 ```
 
-Rango de versiones soportado v1: **>= 230 y <= 279** (ajustar tras pruebas). Fuera de rango → `UnsupportedWorldVersionError`.
+Rango de versiones soportado: **>= 230 y <= 279**. Fuera de rango -> `UnsupportedWorldVersionError` con `code="unsupported_version"` y `details={"detected_version": version, "supported_range": (230, 279)}`. Los mundos v319 se rechazan explicitamente hasta mapear el formato binario real.
 
 ## 3. Dependencias
 - Ninguna interna.
@@ -91,6 +94,7 @@ Rango de versiones soportado v1: **>= 230 y <= 279** (ajustar tras pruebas). Fue
 - **SP-03** Los chests se devuelven con su posición *(x, y)* y un array de 40 slots; los slots vacíos tienen `item_id=0`.
 - **SP-04** Un fichero con cabecera distinta a la firma Terraria lanza `WldParseError`.
 - **SP-05** Un fichero con versión fuera de rango lanza `UnsupportedWorldVersionError(version=...)`.
+- **SP-05b** Un fichero v319 lanza `UnsupportedWorldVersionError` con `detected_version=319`, `supported_range=(230, 279)` y detalles legibles para la API/UX.
 - **SP-06** El parser es **determinista**: el mismo input produce el mismo `World` (igualdad estructural).
 
 ## 6. Plan de tests (TDD)
@@ -113,6 +117,7 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-15 test_parse_honey_tile` (iter-020)
 - [x] `T-16 test_parse_shimmer_tile` (iter-020)
 - [x] `T-17 test_parse_dry_tile` (iter-020)
+- [x] `T-18 test_parse_rejects_version_319_with_user_facing_details` (iter-021)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -125,14 +130,21 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - Evitar listas de dicts; usar arrays homogéneos / `numpy` si se necesita.
 
 ## 9. Errores
-- `WldParseError`: cabecera inválida, EOF inesperado, sección corrupta.
-- `UnsupportedWorldVersionError`: fuera de rango soportado. `version: int` como atributo.
+- `WldParseError`: cabecera inválida, EOF inesperado, sección corrupta. Expone `code` y `details`.
+- `UnsupportedWorldVersionError`: fuera de rango soportado. Expone `version`, `detected_version`, `supported_range` y `details`.
 
 ## 10. Estado
-- **Versión del contrato**: v2.0
-- **Último cierre**: 2026-04-28
-- **Iteración actual**: iter-020
-- **Tests**: 19/19 ✓ — mypy --strict ✓ (módulo B1; ver Deuda) — ruff ✓ — perf budget (large world) ✓
+- **Versión del contrato**: v2.1
+- **Último cierre**: 2026-04-30
+- **Iteración actual**: iter-021
+- **Tests**: 20/20 unitarios B1 verdes. Verificacion global ejecutada; bloqueos fuera del cambio B1 quedan registrados en Deuda / follow-ups.
+
+### Decisiones tomadas (iter-021)
+- Via elegida: **B**, mantener soporte real acotado a v230-v279 y mejorar la UX del rechazo.
+- `_MAX_VERSION` sigue en 279. Los mundos v319 lanzan `UnsupportedWorldVersionError` sin intentar parsear secciones desconocidas.
+- `WldParseError` expone `details: dict[str, object]`.
+- `UnsupportedWorldVersionError` expone `detected_version` y `supported_range`, ademas de conservar `version`.
+- Fixture usada: `.wld` sintetico generado con `build_world(version=319)`, sin mundos reales.
 
 ### Decisiones tomadas (iter-020)
 - `Tile.liquid` (int) reemplazado por `liquid_type: Literal["none","water","lava","honey","shimmer"]` y `liquid_amount: int`. Cambio breaking de contrato → v2.0.
@@ -161,6 +173,8 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   todos los `Tile(...)` ya construidos en otros módulos (B2/B4/B5).
 
 ### Deuda / follow-ups
+- **Soporte real v319**: diferido por decision SDD (Via B). Antes de aceptar v319 hay que mapear los deltas binarios v279-v319 y cubrir con fixtures sinteticas por version/campo nuevo; no basta con subir `_MAX_VERSION`.
+- **Integracion con corpus real v319**: `tests/integration/test_real_wld_parser.py` espera parseo real de un `.wld` v319. Tras la Via B debe ajustarse en una iteracion de integracion para esperar `unsupported_version` o separarse de la suite completa hasta implementar la Via A.
 - **Encoding `base64-rle-v2`**: el endpoint `GET /tiles` usa `base64-rle-v1` (solo `tile_id`). Para exponer `liquid_type`/`liquid_amount` al frontend, el encoding debe actualizarse a `base64-rle-v2` (8 bytes/tile). Esta deuda se resolverá en **iter API.1** (B5 + F3). Anotar allí que `liquid_type` se codifica como 3 bits (`none=0, water=1, lava=2, honey=3, shimmer=4`) + `liquid_amount` (1 byte).
 - **mypy `no-redef` en `tile_search/_engine.py:109,112`**: pre-existente al iter-019,
   no causado por los cambios de B1; reasignación de `tile_map`/`wall_map` con anotación
