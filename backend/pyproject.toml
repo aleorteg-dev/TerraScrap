@@ -33,7 +33,10 @@ packages = ["src/twi"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
-markers = ["perf: performance / budget tests"]
+markers = [
+    "perf: performance / budget tests",
+    "real_wld: tests that require real .wld files in the corpus",
+]
 
 [tool.mypy]
 strict = true

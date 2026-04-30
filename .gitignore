@@ -78,6 +78,9 @@ frontend/src/api-client/__generated__/
 # Ignorar dumps grandes que se generen localmente.
 backend/tests/fixtures/*.wld
 
+# Corpus de mundos reales para tests de integración
+backend/tests/wld_corpus/**/*.wld
+
 # ─── Docker ──────────────────────────────────────────────
 # Los Dockerfiles y docker-compose.yml SÍ se suben.
 # Ignorar volúmenes y datos locales.
