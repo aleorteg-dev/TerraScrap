@@ -116,6 +116,26 @@ def test_parse_rejects_unsupported_version_above_range() -> None:
     assert exc_info.value.version == 300
 
 
+def test_parse_rejects_version_319_with_user_facing_details() -> None:
+    data = build_world(version=319)
+    with pytest.raises(UnsupportedWorldVersionError) as exc_info:
+        parse_wld_bytes(data)
+
+    exc = exc_info.value
+    assert exc.code == "unsupported_version"
+    assert exc.version == 319
+    assert exc.detected_version == 319
+    assert exc.supported_range == (230, 279)
+    assert exc.details == {
+        "detected_version": 319,
+        "supported_range": (230, 279),
+    }
+    message = str(exc)
+    assert "319" in message
+    assert "230-279" in message
+    assert "not supported" in message.lower()
+
+
 # ── T-07 ──────────────────────────────────────────────────────────────────────
 
 

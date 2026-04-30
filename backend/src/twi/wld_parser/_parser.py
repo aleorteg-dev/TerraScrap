@@ -52,7 +52,9 @@ def _read_file_header(r: Reader) -> tuple[int, list[int], list[bool]]:
         )
 
     if version < _MIN_VERSION or version > _MAX_VERSION:
-        raise UnsupportedWorldVersionError(version)
+        raise UnsupportedWorldVersionError(
+            version, supported_range=(_MIN_VERSION, _MAX_VERSION)
+        )
 
     _revision = r.read_uint32()
     _favorites = r.read_uint64()
