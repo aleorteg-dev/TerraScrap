@@ -13,7 +13,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from twi.api_rest.router import create_router
+from twi.api_rest.router import _encode_chunk, create_router
 from twi.item_catalog import ItemCatalog, ItemDetail, ItemNotFoundError, ItemSummary
 from twi.tile_search import SearchMatch, SearchResult, TileSearchEngine
 from twi.wld_parser import (
@@ -188,6 +188,18 @@ def _make_client(
     )
     app.include_router(router)
     return TestClient(app, raise_server_exceptions=False)
+
+
+def _decode_base64_rle_v1(payload: str) -> list[int]:
+    raw = base64.b64decode(payload)
+    assert len(raw) % 4 == 0
+
+    flat: list[int] = []
+    for i in range(0, len(raw), 4):
+        tid = _struct.unpack_from("<h", raw, i)[0]
+        cnt = _struct.unpack_from("<H", raw, i + 2)[0]
+        flat.extend([tid] * cnt)
+    return flat
 
 
 @pytest.fixture()
@@ -458,6 +470,36 @@ def test_openapi_schema_snapshot(
 # ---------------------------------------------------------------------------
 
 
+def test_get_tiles_endpoint_returns_canonical_encoding_base64_rle_v1() -> None:
+    repo = _FakeRepo()
+    world_id = repo.store(_make_world())
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    response = client.get(f"/api/worlds/{world_id}/tiles")
+
+    assert response.status_code == 200
+    assert response.json()["encoding"] == "base64-rle-v1"
+
+
+def test_encode_chunk_round_trips_known_tiles_as_base64_rle_v1() -> None:
+    t5 = Tile(tile_id=5, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    t7 = Tile(tile_id=7, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid(
+        [
+            [t5, t7],
+            [t5, t7],
+            [air, t7],
+        ]
+    )
+
+    width, height, payload = _encode_chunk(grid, chunk_x=0, chunk_y=0, chunk_size=3)
+
+    assert width == 3
+    assert height == 2
+    assert _decode_base64_rle_v1(payload) == [5, 5, -1, 7, 7, 7]
+
+
 def test_get_tiles_payload_encodes_row_major_int16_rle() -> None:
     """Payload must be base64( runs of (tileId:int16LE, count:uint16LE) ),
     in row-major order (y outer, x inner), with -1 for air (None tile_id).
@@ -470,9 +512,7 @@ def test_get_tiles_payload_encodes_row_major_int16_rle() -> None:
     """
     t5 = Tile(tile_id=5, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
     t7 = Tile(tile_id=7, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
-    air = Tile(
-        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
-    )
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
     grid = TileGrid([[t5, air], [t7, air]])
     meta = WorldMetadata(
         name="T",
@@ -499,16 +539,7 @@ def test_get_tiles_payload_encodes_row_major_int16_rle() -> None:
     assert body["width"] == 2
     assert body["height"] == 2
 
-    raw = base64.b64decode(body["payload"])
-    # Each run is 4 bytes: int16LE tileId + uint16LE count.
-    assert len(raw) % 4 == 0
-
-    flat: list[int] = []
-    for i in range(0, len(raw), 4):
-        tid = _struct.unpack_from("<h", raw, i)[0]
-        cnt = _struct.unpack_from("<H", raw, i + 2)[0]
-        flat.extend([tid] * cnt)
-
+    flat = _decode_base64_rle_v1(body["payload"])
     assert flat == [5, 7, -1, -1], f"got {flat}"
 
 
@@ -519,9 +550,7 @@ def test_get_tiles_payload_encodes_row_major_int16_rle() -> None:
 
 def test_tiles_endpoint_chunk_index_maps_to_correct_tiles() -> None:
     """chunk_x/chunk_y are indices: (1,0) size=2 → tiles x=2..3, y=0..1."""
-    air = Tile(
-        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
-    )
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
     t5 = Tile(tile_id=5, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
     t7 = Tile(tile_id=7, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
     # 4-wide × 2-high grid: only x=2,3 carry real tiles
@@ -557,13 +586,7 @@ def test_tiles_endpoint_chunk_index_maps_to_correct_tiles() -> None:
     assert body["width"] == 2
     assert body["height"] == 2
 
-    raw = base64.b64decode(body["payload"])
-    flat: list[int] = []
-    for i in range(0, len(raw), 4):
-        tid = _struct.unpack_from("<h", raw, i)[0]
-        cnt = _struct.unpack_from("<H", raw, i + 2)[0]
-        flat.extend([tid] * cnt)
-
+    flat = _decode_base64_rle_v1(body["payload"])
     assert flat == [5, 7, -1, -1], f"got {flat}"
 
 
@@ -573,9 +596,7 @@ def test_tiles_endpoint_chunk_index_maps_to_correct_tiles() -> None:
 
 
 def test_tiles_endpoint_out_of_bounds_chunk_returns_empty() -> None:
-    air = Tile(
-        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
-    )
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
     grid = TileGrid([[air, air], [air, air]])  # 2×2
     meta = WorldMetadata(
         name="T15",
