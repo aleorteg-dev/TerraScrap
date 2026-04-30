@@ -19,6 +19,13 @@ def create_router(
 DTOs (pydantic v2) definidos en `src/twi/api_rest/schemas.py`:
 - `WorldCreatedDto`, `WorldMetadataDto`, `TilesChunkDto`, `SearchResultDto`, `SearchMatchDto`, `ItemSummaryDto`, `ItemDetailDto`, `ErrorDto`.
 
+Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
+- `TilesChunkDto.encoding` es siempre `"base64-rle-v1"`.
+- `payload` es `base64` de runs `(tileId:int16LE, count:uint16LE)`.
+- Orden fila-mayor: `y` externo, `x` interno.
+- Aire se serializa como `tileId = -1`.
+- `chunk_x` y `chunk_y` son indices de chunk; `start = index * chunk_size`.
+
 ## 3. Dependencias
 - `B2 world-repository`
 - `B3 item-catalog`
@@ -60,6 +67,12 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 - [x] `T-10 test_delete_world_unknown_id_returns_404`
 - [x] `T-11 test_every_response_includes_api_version_header`
 - [x] `T-12 test_openapi_schema_snapshot` (compara contra fichero checked-in)
+- [x] `T-13 test_get_tiles_payload_encodes_row_major_int16_rle`
+- [x] `T-14 test_tiles_endpoint_chunk_index_maps_to_correct_tiles`
+- [x] `T-15 test_tiles_endpoint_out_of_bounds_chunk_returns_empty`
+- [x] `T-16 test_chunk_bounds_returns_correct_tile_range`
+- [x] `T-17 test_get_tiles_endpoint_returns_canonical_encoding_base64_rle_v1`
+- [x] `T-18 test_encode_chunk_round_trips_known_tiles_as_base64_rle_v1`
 
 ## 7. Notas de implementación
 - Usa un `APIRouter` con prefijo `/api`. El montaje ocurre en `app-bootstrap`.
@@ -79,7 +92,7 @@ Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`
 
 ## 10. Estado
 - **Versión del contrato**: v0.1.0
-- **Último cierre**: 2026-04-27 (iter-005) — reabierto y cerrado 2026-04-27 (bugfix) — reabierto y cerrado 2026-04-27 (bugfix chunk-index)
+- **Último cierre**: 2026-04-30 (realineacion encoding tiles Via A)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -107,6 +120,18 @@ Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`
 - Añadidos tests T-14 (index→tiles), T-15 (out-of-bounds→empty), T-16 (unit de `_chunk_bounds`).
 - El test T-13 preexistente usaba `chunk_x=0, chunk_y=0`, lo que enmascaraba el bug (`0 × size = 0`).
 - Deuda registrada en F3: viewport inicial arranca en (0,0) = cielo puro; fix en iteración F3.
+
+## 14. Decisiones tomadas (realineacion encoding 2026-04-30)
+
+- Via A confirmada: el encoding canonico vigente sigue siendo `base64-rle-v1`.
+- `base64-rle-v2` queda solo como evolucion propuesta de `v0.2.0`; no se promueve
+  al contrato activo en esta iteracion.
+- `api-rest` ya serializaba el endpoint `/tiles` como `base64-rle-v1`; se anadieron
+  tests de regresion para fijar el campo `encoding` y el round-trip RLE.
+- Se regenero `docs/contracts/openapi.json` desde `twi.app.create_app().openapi()`
+  y `frontend/src/api-client/__generated__/schema.d.ts` con `openapi-typescript`.
+- No queda deuda nueva de consumidores frontend para esta via: el consumidor vigente
+  espera `base64-rle-v1`.
 
 ## 12. Deuda / follow-ups
 

@@ -64,7 +64,10 @@ Devuelve los tiles empaquetados para el renderer.
     "payload": "…"
   }
   ```
-- Nota: la codificación `base64-rle-v1` está especificada en `wld-parser` / `world-canvas`.
+- Encoding canonico vigente: `base64-rle-v1`.
+- `payload` es `base64` de runs `(tileId:int16LE, count:uint16LE)`.
+- El array plano se recorre en orden fila-mayor (`y` externo, `x` interno).
+- Aire se serializa como `tileId = -1`; el maximo `count` de un run es `65535`.
 
 #### `GET /api/worlds/{world_id}/search`
 Busca un ítem en el mundo cargado.
