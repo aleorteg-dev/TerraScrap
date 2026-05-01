@@ -352,3 +352,4 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | 2026-05-01 | F4 search-panel | Fix P1 UX/contrato: la UI envía `include_containers=true` por defecto y documenta el checkbox "Incluir contenedores" para excluir cofres/contenedores durante la sesión del componente. | iter-025 |
 | 2026-05-01 | housekeeping frontend | housekeeping: frontend lint formato Prettier auto-fix sobre 8 archivos. | iter-housekeeping-P2 |
 | 2026-05-01 | docs | docs: alineación de stack a React 19 en PROJECT.md, README.md, CLAUDE.md. | iter-docs-P2 |
+| 2026-05-01 | housekeeping backend | housekeeping: eliminados 4 directorios pytest temporales en backend/ y añadidas reglas específicas/genéricas en .gitignore para prevenir variantes Codex pytest tmp. | iter-housekeeping-P2 |

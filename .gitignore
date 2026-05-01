@@ -34,6 +34,13 @@ backend/src/*.egg-info/
 
 # ─── pytest ──────────────────────────────────────────────
 .pytest_cache/
+# Codex pytest tmp dirs: known historical names plus future variants.
+backend/.codex_pytest_tmp/
+backend/codex_pytest_tmp/
+backend/codex-review-pytest-tmp/
+backend/codex-review-pytest-tmp2/
+backend/codex*pytest*tmp*/
+backend/.codex*pytest*tmp*/
 backend/htmlcov/
 backend/coverage.xml
 backend/.coverage
