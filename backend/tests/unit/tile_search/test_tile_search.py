@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -423,3 +426,39 @@ def test_search_block_and_wall_mapping_no_cross_contamination() -> None:
     assert all(m.source == "block" for m in tile_result.matches)
     assert wall_result.total == 1
     assert all(m.source == "wall" for m in wall_result.matches)
+
+
+def test_create_tile_search_engine_uses_default_tile_mapping() -> None:
+    world = _world(
+        tile_overrides={
+            (2, 2): Tile(
+                tile_id=1,
+                wall_id=None,
+                liquid_type="none",
+                liquid_amount=0,
+                flags=0,
+            )
+        }
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=3)
+
+    assert result == SearchResult(
+        item_id=3,
+        total=1,
+        matches=(SearchMatch(x=2, y=2, source="block"),),
+    )
+
+
+def test_tile_search_module_passes_mypy_strict() -> None:
+    backend_root = Path(__file__).resolve().parents[3]
+    completed = subprocess.run(
+        [sys.executable, "-m", "mypy", "src/twi/tile_search", "--strict"],
+        cwd=backend_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
