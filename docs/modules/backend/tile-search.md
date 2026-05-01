@@ -80,9 +80,15 @@ def create_tile_search_engine(
 
 ## 10. Estado
 - **Versión del contrato**: v2
-- **Último cierre**: 2026-04-28 (iter-005)
+- **Último cierre**: 2026-05-01
 - **Iteración actual**: cerrada
+- **Nota de cierre**: fix tipado redefinición en `create_tile_search_engine`.
 - **Deuda / follow-ups**:
+  - **VERIFY-EXT-01** — La suite completa `pytest` sigue fallando fuera de B4:
+    permisos de `tmp_path` en tests de `item_catalog`/integración y tests reales de `wld-parser`
+    sobre un mundo v319 no soportado (B1 soporta v230-v279). No se toca en esta iteración.
+  - **FORMAT-EXT-01** — `ruff format src/ tests/ --check` detecta formato pendiente en
+    `tests/unit/world_repository/test_world_repository.py`. No se toca en esta iteración por pertenecer a B2.
   - **PERF-01** — El loop O(W·H) sobre `list[list[Tile]]` alcanza ~2.3 s en CPython 3.14 para un
     mundo Large (20 M tiles). RNF-03 (< 500 ms) requiere vectorización numpy. Solución propuesta:
     exponer en B1 (`TileGrid`) arrays numpy cacheados (`tile_ids: np.ndarray`, `wall_ids: np.ndarray`)
