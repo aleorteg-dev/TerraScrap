@@ -350,3 +350,4 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | 2026-05-01 | B4 tile-search | Fix tipado: eliminada redefinición de `tile_map` y `wall_map` en `create_tile_search_engine`. Sin cambio de contrato público. | iter-023 |
 | 2026-05-01 | F3 world-canvas | Fix P1 render: chunks parciales en bordes derecho/inferior usan `computeChunkDimensions`; bitmaps y `drawImage` se recortan a dimensiones reales. Sin cambio de contrato publico. | iter-024 |
 | 2026-05-01 | F4 search-panel | Fix P1 UX/contrato: la UI envía `include_containers=true` por defecto y documenta el checkbox "Incluir contenedores" para excluir cofres/contenedores durante la sesión del componente. | iter-025 |
+| 2026-05-01 | housekeeping frontend | housekeeping: frontend lint formato Prettier auto-fix sobre 8 archivos. | iter-housekeeping-P2 |
