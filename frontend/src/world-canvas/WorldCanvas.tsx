@@ -14,6 +14,7 @@ import {
   renderChunkBitmap,
   type ChunkBitmapCache,
 } from './chunkBitmapCache';
+import { computeChunkDimensions } from './chunkDimensions';
 
 const CHUNK_SIZE = 128;
 const MIN_ZOOM = 0.1;
@@ -98,10 +99,12 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       for (const { cx, cy } of chunks) {
         const rendered = bitmapCacheRef.current.get(worldIdRef.current, cx, cy);
         if (!rendered) continue;
+        const dimensions = computeChunkDimensions(cx, cy, CHUNK_SIZE, meta.width, meta.height);
         const pixelX = Math.round((cx * CHUNK_SIZE - view.panX) * view.zoom);
         const pixelY = Math.round((cy * CHUNK_SIZE - view.panY) * view.zoom);
-        const pixelSize = Math.ceil(CHUNK_SIZE * view.zoom);
-        ctx.drawImage(rendered.canvas, pixelX, pixelY, pixelSize, pixelSize);
+        const pixelWidth = Math.ceil(dimensions.w * view.zoom);
+        const pixelHeight = Math.ceil(dimensions.h * view.zoom);
+        ctx.drawImage(rendered.canvas, pixelX, pixelY, pixelWidth, pixelHeight);
       }
     });
   }, []); // stable: all deps are refs
@@ -118,7 +121,16 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         .then((chunk: TilesChunk) => {
           const tiles = decodeBase64RleV1(chunk.payload, chunk.width, chunk.height);
           chunkCacheRef.current.set(key, tiles);
-          const rendered = renderChunkBitmap(worldIdRef.current, cx, cy, tiles, CHUNK_SIZE);
+          const meta = metadataRef.current;
+          const rendered = renderChunkBitmap(
+            worldIdRef.current,
+            cx,
+            cy,
+            tiles,
+            CHUNK_SIZE,
+            meta.width,
+            meta.height
+          );
           bitmapCacheRef.current.set(rendered);
           pendingRef.current.delete(key);
           scheduleRedraw();

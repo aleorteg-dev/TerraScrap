@@ -1,4 +1,5 @@
 import { getTileColor } from './tileColors';
+import { computeChunkDimensions } from './chunkDimensions';
 
 export interface RenderedChunk {
   canvas: HTMLCanvasElement;
@@ -40,16 +41,19 @@ export function renderChunkBitmap(
   cx: number,
   cy: number,
   tiles: Int16Array,
-  chunkSize: number
+  chunkSize: number,
+  worldW: number,
+  worldH: number
 ): RenderedChunk {
+  const dimensions = computeChunkDimensions(cx, cy, chunkSize, worldW, worldH);
   const canvas = document.createElement('canvas');
-  canvas.width = chunkSize;
-  canvas.height = chunkSize;
+  canvas.width = dimensions.w;
+  canvas.height = dimensions.h;
   const ctx = canvas.getContext('2d');
   if (ctx !== null) {
-    for (let ty = 0; ty < chunkSize; ty++) {
-      for (let tx = 0; tx < chunkSize; tx++) {
-        const tileId = tiles[ty * chunkSize + tx] ?? -1;
+    for (let ty = 0; ty < dimensions.h; ty++) {
+      for (let tx = 0; tx < dimensions.w; tx++) {
+        const tileId = tiles[ty * dimensions.w + tx] ?? -1;
         if (tileId < 0) continue;
         ctx.fillStyle = getTileColor(tileId);
         ctx.fillRect(tx, ty, 1, 1);

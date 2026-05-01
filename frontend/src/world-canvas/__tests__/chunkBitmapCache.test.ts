@@ -1,14 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createChunkBitmapCache, renderChunkBitmap } from '../chunkBitmapCache';
 
+const REALISTIC_WORLD_WIDTH = 8400;
+const REALISTIC_WORLD_HEIGHT = 2400;
+const REALISTIC_CHUNK_SIZE = 256;
+const RIGHT_EDGE_CX = Math.ceil(REALISTIC_WORLD_WIDTH / REALISTIC_CHUNK_SIZE) - 1;
+const BOTTOM_EDGE_CY = Math.ceil(REALISTIC_WORLD_HEIGHT / REALISTIC_CHUNK_SIZE) - 1;
+const RIGHT_EDGE_WIDTH = REALISTIC_WORLD_WIDTH - RIGHT_EDGE_CX * REALISTIC_CHUNK_SIZE;
+const BOTTOM_EDGE_HEIGHT = REALISTIC_WORLD_HEIGHT - BOTTOM_EDGE_CY * REALISTIC_CHUNK_SIZE;
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe('renderChunkBitmap', () => {
-  it('T-C1 should return HTMLCanvasElement sized chunkSize×chunkSize', () => {
+  it('T-C1 should return HTMLCanvasElement sized chunkSize by chunkSize for full chunks', () => {
     const tiles = new Int16Array(4 * 4).fill(-1);
-    const result = renderChunkBitmap('w1', 0, 0, tiles, 4);
+    const result = renderChunkBitmap('w1', 0, 0, tiles, 4, 8, 8);
     expect(result.canvas).toBeInstanceOf(HTMLCanvasElement);
     expect(result.canvas.width).toBe(4);
     expect(result.canvas.height).toBe(4);
@@ -18,13 +26,13 @@ describe('renderChunkBitmap', () => {
   });
 
   it('T-C2 should call fillRect for non-air tiles', () => {
-    // 2×2 chunk: tiles at (0,0) and (0,1) are non-air; (1,0) and (1,1) are air
+    // 2 by 2 chunk: tiles at (0,0) and (0,1) are non-air; the others are air.
     const tiles = new Int16Array(4);
-    tiles[0] = 1; // tx=0, ty=0 — Stone
-    tiles[1] = -1; // tx=1, ty=0 — air
-    tiles[2] = 2; // tx=0, ty=1 — Grass
-    tiles[3] = -1; // tx=1, ty=1 — air
-    renderChunkBitmap('w1', 0, 0, tiles, 2);
+    tiles[0] = 1; // tx=0, ty=0, Stone
+    tiles[1] = -1; // tx=1, ty=0, air
+    tiles[2] = 2; // tx=0, ty=1, Grass
+    tiles[3] = -1; // tx=1, ty=1, air
+    renderChunkBitmap('w1', 0, 0, tiles, 2, 4, 4);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
     expect(ctx.fillRect).toHaveBeenCalledTimes(2);
@@ -32,21 +40,92 @@ describe('renderChunkBitmap', () => {
 
   it('T-C3 should not call fillRect for air tiles (tileId < 0)', () => {
     const tiles = new Int16Array(2 * 2).fill(-1);
-    renderChunkBitmap('w1', 0, 0, tiles, 2);
+    renderChunkBitmap('w1', 0, 0, tiles, 2, 4, 4);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
     expect(ctx.fillRect).not.toHaveBeenCalled();
   });
 
   it('T-C4 should use correct pixel coordinates (tx, ty, 1, 1) for each tile', () => {
-    const tiles = new Int16Array(2 * 2).fill(1); // all Stone
-    renderChunkBitmap('w1', 3, 7, tiles, 2);
+    const tiles = new Int16Array(2 * 2).fill(1);
+    renderChunkBitmap('w1', 3, 7, tiles, 2, 8, 16);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
     expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, 1, 1);
     expect(ctx.fillRect).toHaveBeenCalledWith(1, 0, 1, 1);
     expect(ctx.fillRect).toHaveBeenCalledWith(0, 1, 1, 1);
     expect(ctx.fillRect).toHaveBeenCalledWith(1, 1, 1, 1);
+  });
+
+  it('T-C9 should size right-edge chunk bitmap to clipped world width', () => {
+    const tiles = new Int16Array(RIGHT_EDGE_WIDTH * REALISTIC_CHUNK_SIZE).fill(-1);
+    const result = renderChunkBitmap(
+      'w1',
+      RIGHT_EDGE_CX,
+      0,
+      tiles,
+      REALISTIC_CHUNK_SIZE,
+      REALISTIC_WORLD_WIDTH,
+      REALISTIC_WORLD_HEIGHT
+    );
+    expect(result.canvas.width).toBe(RIGHT_EDGE_WIDTH);
+    expect(result.canvas.height).toBe(REALISTIC_CHUNK_SIZE);
+  });
+
+  it('T-C10 should size bottom-edge chunk bitmap to clipped world height', () => {
+    const tiles = new Int16Array(REALISTIC_CHUNK_SIZE * BOTTOM_EDGE_HEIGHT).fill(-1);
+    const result = renderChunkBitmap(
+      'w1',
+      0,
+      BOTTOM_EDGE_CY,
+      tiles,
+      REALISTIC_CHUNK_SIZE,
+      REALISTIC_WORLD_WIDTH,
+      REALISTIC_WORLD_HEIGHT
+    );
+    expect(result.canvas.width).toBe(REALISTIC_CHUNK_SIZE);
+    expect(result.canvas.height).toBe(BOTTOM_EDGE_HEIGHT);
+  });
+
+  it('T-C11 should size bottom-right chunk bitmap to both clipped dimensions', () => {
+    const tiles = new Int16Array(RIGHT_EDGE_WIDTH * BOTTOM_EDGE_HEIGHT).fill(-1);
+    const result = renderChunkBitmap(
+      'w1',
+      RIGHT_EDGE_CX,
+      BOTTOM_EDGE_CY,
+      tiles,
+      REALISTIC_CHUNK_SIZE,
+      REALISTIC_WORLD_WIDTH,
+      REALISTIC_WORLD_HEIGHT
+    );
+    expect(result.canvas.width).toBe(RIGHT_EDGE_WIDTH);
+    expect(result.canvas.height).toBe(BOTTOM_EDGE_HEIGHT);
+  });
+
+  it('T-C12 should keep full chunk dimensions when world dimensions are multiples of chunkSize', () => {
+    const tiles = new Int16Array(REALISTIC_CHUNK_SIZE * REALISTIC_CHUNK_SIZE).fill(-1);
+    const result = renderChunkBitmap('w1', 31, 8, tiles, REALISTIC_CHUNK_SIZE, 8192, 2304);
+    expect(result.canvas.width).toBe(REALISTIC_CHUNK_SIZE);
+    expect(result.canvas.height).toBe(REALISTIC_CHUNK_SIZE);
+  });
+
+  it('T-C13 should use clipped width as row stride for partial chunks', () => {
+    const clippedHeight = 2;
+    const tiles = new Int16Array(RIGHT_EDGE_WIDTH * clippedHeight).fill(-1);
+    tiles[RIGHT_EDGE_WIDTH] = 1;
+    renderChunkBitmap(
+      'w1',
+      RIGHT_EDGE_CX,
+      0,
+      tiles,
+      REALISTIC_CHUNK_SIZE,
+      REALISTIC_WORLD_WIDTH,
+      clippedHeight
+    );
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
+    expect(ctx.fillRect).toHaveBeenCalledTimes(1);
+    expect(ctx.fillRect).toHaveBeenCalledWith(0, 1, 1, 1);
   });
 });
 

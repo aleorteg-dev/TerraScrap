@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { WorldCanvas } from '../WorldCanvas';
+import { WorldCanvas, type WorldCanvasHandle } from '../WorldCanvas';
 import type { WorldMetadata, ApiClient, TilesChunk } from '../types';
 
 const mockMeta: WorldMetadata = {
@@ -13,14 +13,22 @@ const mockMeta: WorldMetadata = {
   hardmode: false,
 };
 
-function makeEmptyChunk(cx = 0, cy = 0): TilesChunk {
+function encodeSingleRun(tileId: number, count: number): string {
+  const bytes = new Uint8Array(4);
+  const view = new DataView(bytes.buffer);
+  view.setInt16(0, tileId, true);
+  view.setUint16(2, count, true);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+function makeEmptyChunk(cx = 0, cy = 0, width = 128, height = 128): TilesChunk {
   return {
     chunk_x: cx,
     chunk_y: cy,
-    width: 128,
-    height: 128,
+    width,
+    height,
     encoding: 'base64-rle-v1',
-    payload: '',
+    payload: encodeSingleRun(-1, width * height),
   };
 }
 
@@ -28,6 +36,47 @@ function makeApiClient(): ApiClient {
   return {
     getTilesChunk: vi.fn().mockResolvedValue(makeEmptyChunk()),
   };
+}
+
+function makeApiClientForMetadata(metadata: WorldMetadata): ApiClient {
+  return {
+    getTilesChunk: vi.fn(
+      (_worldId: string, cx: number, cy: number, chunkSize = 128): Promise<TilesChunk> => {
+        const width = Math.max(0, Math.min(chunkSize, metadata.width - cx * chunkSize));
+        const height = Math.max(0, Math.min(chunkSize, metadata.height - cy * chunkSize));
+        return Promise.resolve(makeEmptyChunk(cx, cy, width, height));
+      }
+    ),
+  };
+}
+
+function getDrawImageContexts(): Array<{ drawImage: ReturnType<typeof vi.fn> }> {
+  const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+  return mockCtxGet.mock.results.map(
+    (result) => result.value as { drawImage: ReturnType<typeof vi.fn> }
+  );
+}
+
+function hasDrawImageCall(
+  ctx: { drawImage: ReturnType<typeof vi.fn> },
+  sourceWidth: number,
+  sourceHeight: number,
+  destinationWidth: number,
+  destinationHeight: number
+): boolean {
+  const calls = ctx.drawImage.mock.calls as ReadonlyArray<readonly unknown[]>;
+  return calls.some((call) => {
+    const source = call[0];
+    const actualDestinationWidth = call[3];
+    const actualDestinationHeight = call[4];
+    return (
+      source instanceof HTMLCanvasElement &&
+      source.width === sourceWidth &&
+      source.height === sourceHeight &&
+      actualDestinationWidth === destinationWidth &&
+      actualDestinationHeight === destinationHeight
+    );
+  });
 }
 
 beforeEach(() => {
@@ -74,16 +123,15 @@ describe('WorldCanvas', () => {
   it('T-07 calls apiClient.getTilesChunk for initial viewport near world center', async () => {
     const apiClient = makeApiClient();
     render(<WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} />);
-    // world: 4200×1200, canvas: 800×600, zoom: 2
-    // center: (2100, 240), pan: (1900, 165)
-    // first visible chunk: cx=floor(1900/128)=14, cy=floor(165/128)=1
+    // world: 4200 by 1200, canvas: 800 by 600, zoom: 2
+    // center: (2100, 240), pan: (1900, 90)
+    // first visible chunk: cx=floor(1900/128)=14, cy=floor(90/128)=0
     await waitFor(() => {
-      expect(apiClient.getTilesChunk).toHaveBeenCalledWith('w1', 14, 1, 128);
+      expect(apiClient.getTilesChunk).toHaveBeenCalledWith('w1', 14, 0, 128);
     });
   });
 
   it('T-08 panning updates state and triggers redraw', () => {
-    // The mock context's clearRect acts as proxy for "redraw happened"
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     render(<WorldCanvas worldId="w1" metadata={mockMeta} apiClient={makeApiClient()} />);
     const ctx = mockCtxGet.mock.results[0]?.value as {
@@ -109,18 +157,16 @@ describe('WorldCanvas', () => {
       />
     );
     const canvas = screen.getByTestId('world-canvas');
-    // world: 4200×1200, canvas: 800×600, zoom: 2
+    // world: 4200 by 1200, canvas: 800 by 600, zoom: 2
     // panX = 2100 - 800/(2*2) = 1900, panY = 240 - 600/(2*2) = 90
-    // getBoundingClientRect returns zeros in jsdom → click at screen (100,200)
-    // screenToWorld(100, 200, {panX:1900, panY:90, zoom:2}) → {x:1950, y:190}
+    // screenToWorld(100, 200, {panX:1900, panY:90, zoom:2}) = {x:1950, y:190}
     fireEvent.click(canvas, { clientX: 100, clientY: 200 });
     expect(onTileClick).toHaveBeenCalledWith({ x: 1950, y: 190 });
   });
 
   it('T-11 WorldCanvas should center viewport on world midpoint at first resize', () => {
-    // world: 4200×1200, canvas: 800×600, zoom: 2
+    // world: 4200 by 1200, canvas: 800 by 600, zoom: 2
     // expected center: (2100, floor(1200/5)=240)
-    // expected pan: (1900, 90)
     const onReady = vi.fn();
     render(
       <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={makeApiClient()} onReady={onReady} />
@@ -128,7 +174,6 @@ describe('WorldCanvas', () => {
     const handle = onReady.mock.calls[0]?.[0] as {
       worldToScreen: (x: number, y: number) => { px: number; py: number };
     };
-    // World center (2100, 240) should appear near screen centre (400, 300)
     const { px, py } = handle.worldToScreen(2100, 240);
     expect(px).toBeCloseTo(400, 0);
     expect(py).toBeCloseTo(300, 0);
@@ -147,6 +192,29 @@ describe('WorldCanvas', () => {
         expect.any(Number),
         expect.any(Number)
       );
+    });
+  });
+
+  it('T-13 WorldCanvas should draw clipped dimensions for edge chunks in a non-multiple world', async () => {
+    const edgeMeta: WorldMetadata = {
+      ...mockMeta,
+      width: 8400,
+      height: 2400,
+    };
+    const apiClient = makeApiClientForMetadata(edgeMeta);
+    const onReady = vi.fn();
+    render(
+      <WorldCanvas worldId="w1" metadata={edgeMeta} apiClient={apiClient} onReady={onReady} />
+    );
+    const handle = onReady.mock.calls[0]?.[0] as WorldCanvasHandle;
+
+    handle.centerOn(edgeMeta.width - 1, edgeMeta.height - 1);
+
+    await waitFor(() => {
+      const contexts = getDrawImageContexts();
+      expect(contexts.some((ctx) => hasDrawImageCall(ctx, 80, 128, 160, 256))).toBe(true);
+      expect(contexts.some((ctx) => hasDrawImageCall(ctx, 128, 96, 256, 192))).toBe(true);
+      expect(contexts.some((ctx) => hasDrawImageCall(ctx, 80, 96, 160, 192))).toBe(true);
     });
   });
 
