@@ -69,7 +69,7 @@ Casos de uso principales:
 | Tests backend | pytest + pytest-asyncio + hypothesis (opcional) | TDD idiomático en Python. |
 | Lint/type backend | ruff + mypy (strict) | Calidad sin negociación. |
 | Catálogo de ítems | Terraria Wiki (wiki.gg) vía scraping + caché local | Fuente rica y mantenida. |
-| Frontend | React 18 + TypeScript + Vite | Ecosistema y tipado compartidos. |
+| Frontend | React 19 + TypeScript + Vite | Ecosistema y tipado compartidos. |
 | Render | Canvas 2D API nativa | Suficiente para tiles; sin dependencia 3D. |
 | Tests frontend | Vitest + React Testing Library | TDD rápido en Vite. |
 | HTTP | fetch nativo + tipos generados desde OpenAPI | Cliente tipado sin runtime pesado. |
@@ -351,3 +351,4 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | 2026-05-01 | F3 world-canvas | Fix P1 render: chunks parciales en bordes derecho/inferior usan `computeChunkDimensions`; bitmaps y `drawImage` se recortan a dimensiones reales. Sin cambio de contrato publico. | iter-024 |
 | 2026-05-01 | F4 search-panel | Fix P1 UX/contrato: la UI envía `include_containers=true` por defecto y documenta el checkbox "Incluir contenedores" para excluir cofres/contenedores durante la sesión del componente. | iter-025 |
 | 2026-05-01 | housekeeping frontend | housekeeping: frontend lint formato Prettier auto-fix sobre 8 archivos. | iter-housekeeping-P2 |
+| 2026-05-01 | docs | docs: alineación de stack a React 19 en PROJECT.md, README.md, CLAUDE.md. | iter-docs-P2 |

@@ -28,7 +28,7 @@ Contrato de búsqueda:
 
 ## 3. Dependencias
 - `F1 api-client`.
-- React 18.
+- React 19.
 
 ## 4. No objetivos
 - No pinta sobre el canvas.

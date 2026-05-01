@@ -28,7 +28,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps>;
 
 ## 3. Dependencias
 - `F1 api-client`.
-- React 18.
+- React 19.
 - No usar WebGL en v1 (Canvas 2D es suficiente con chunking).
 
 ## 4. No objetivos

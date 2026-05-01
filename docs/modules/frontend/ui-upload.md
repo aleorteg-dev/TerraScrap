@@ -24,7 +24,7 @@ export const UploadWorld: React.FC<UploadProps>;
 
 ## 3. Dependencias
 - `F1 api-client` (tipos + cliente).
-- React 18.
+- React 19.
 - No depende de librerías pesadas de UI; CSS propio del módulo.
 
 ## 4. No objetivos

@@ -19,7 +19,7 @@ export const HighlightOverlay: React.FC<HighlightOverlayProps>;
 
 ## 3. Dependencias
 - `F3 world-canvas` (usa su `WorldCanvasHandle` para `worldToScreen`).
-- React 18.
+- React 19.
 
 ## 4. No objetivos
 - No realiza la búsqueda.

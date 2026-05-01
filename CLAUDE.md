@@ -98,7 +98,7 @@ docker compose -f docker/docker-compose.yml up --build
 | Backend | Python 3.12, FastAPI, Uvicorn |
 | Tests backend | pytest, pytest-asyncio, hypothesis (property-based) |
 | Lint/tipo backend | ruff, mypy --strict |
-| Frontend | React 18, TypeScript, Vite |
+| Frontend | React 19, TypeScript, Vite |
 | Tests frontend | Vitest, React Testing Library |
 | Lint frontend | ESLint, Prettier |
 | Contenedores | Docker, docker-compose, nginx |
