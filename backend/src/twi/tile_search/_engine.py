@@ -103,13 +103,15 @@ def create_tile_search_engine(
     item_to_tile_mapping: Mapping[int, int] | None = None,
     item_to_wall_mapping: Mapping[int, int] | None = None,
 ) -> TileSearchEngine:
+    tile_map: dict[int, int]
+    wall_map: dict[int, int]
     if item_to_tile_mapping is None and item_to_wall_mapping is None:
         tile_map, wall_map = _load_default_mappings()
     else:
-        tile_map: dict[int, int] = (
+        tile_map = (
             dict(item_to_tile_mapping) if item_to_tile_mapping is not None else {}
         )
-        wall_map: dict[int, int] = (
+        wall_map = (
             dict(item_to_wall_mapping) if item_to_wall_mapping is not None else {}
         )
     return _Engine(tile_map, wall_map)
