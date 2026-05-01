@@ -20,6 +20,12 @@ export const SearchPanel: React.FC<SearchPanelProps>;
 Tipos importados desde `api-client` (solo vía `index.ts`):
 - `ApiClient`, `SearchResult`, `SearchMatch`, `ItemSummary`, `ApiError`
 
+Contrato de búsqueda:
+- `SearchPanel` llama a `apiClient.searchInWorld(worldId, item.id, includeContainers)` al seleccionar un ítem.
+- El default UI de `includeContainers` es `true`, alineado con `GET /api/worlds/{world_id}/search`.
+- El componente expone un checkbox accesible con label "Incluir contenedores". Mientras el componente está montado, el estado del checkbox persiste entre búsquedas.
+- Si el usuario desmarca el checkbox y hay un ítem seleccionado, la siguiente búsqueda se relanza con `includeContainers=false`; al volver a marcarlo, se relanza con `includeContainers=true`.
+
 ## 3. Dependencias
 - `F1 api-client`.
 - React 18.
@@ -30,10 +36,10 @@ Tipos importados desde `api-client` (solo vía `index.ts`):
 
 ## 5. Especificación (SDD)
 - **SP-01** Input de búsqueda con autocompletado llamando `apiClient.searchItems(q)` con debounce de 200 ms.
-- **SP-02** El usuario selecciona un ítem del autocompletado → se ejecuta `apiClient.searchInWorld(worldId, item.id)`.
+- **SP-02** El usuario selecciona un ítem del autocompletado → se ejecuta `apiClient.searchInWorld(worldId, item.id, includeContainers)`.
 - **SP-03** Mientras busca, estado visual "loading".
 - **SP-04** Al recibir `SearchResult`, se muestra: contador total + lista con *(x, y, source)*; al hacer click en una fila, llama `onMatchFocus(match)`.
-- **SP-05** Checkbox "Incluir contenedores" controlado, pasa `include_containers`.
+- **SP-05** Checkbox "Incluir contenedores" controlado, activo por defecto, pasa `include_containers` y permite excluir contenedores.
 - **SP-06** Botón "Limpiar" resetea resultados y llama `onResults(null)`.
 - **SP-07** Si `searchInWorld` devuelve 0 matches, mensaje explícito "Sin coincidencias".
 - **SP-08** Accesibilidad: combobox ARIA para autocomplete, lista con roles correctos.
@@ -45,6 +51,8 @@ Tipos importados desde `api-client` (solo vía `index.ts`):
 - [x] `T-04 displays matches list with count`
 - [x] `T-05 clicking a match calls onMatchFocus`
 - [x] `T-06 toggling include_containers re-triggers search`
+- [x] `T-06b checking include_containers again sends true on the next search`
+- [x] `T-06c keeps the selected search parameters when toggling include_containers`
 - [x] `T-07 shows empty result message`
 - [x] `T-08 clear button resets state and calls onResults(null)`
 - [x] `T-09 keyboard navigation through autocomplete list`
@@ -60,26 +68,26 @@ Tipos importados desde `api-client` (solo vía `index.ts`):
 - Errores de API muestran una banda de error en el panel, reintentables.
 
 ## 10. Estado
-- **Versión del contrato**: v1
-- **Último cierre**: 2026-04-27
-- **Iteración actual**: iter-010
+- **Versión del contrato**: v1.1
+- **Último cierre**: 2026-05-01
+- **Iteración actual**: iter-025
 - **Decisiones**:
   - `UiState` no incluye `loading-suggest`; la sugerencia es un estado efímero del dropdown sin reflejo en UiState para evitar `setState` síncrono en el efecto (regla `react-hooks/set-state-in-effect`). La limpieza de sugerencias cuando el input se vacía se delega al handler `handleInputChange`.
   - Debounce implementado con `useEffect` + `setTimeout` + ref `isUserTypingRef` para evitar que cambios programáticos del query (selección de ítem, clear) disparen `searchItems`.
+  - `includeContainers` se inicializa a `true` para respetar el default semántico del contrato API y el caso de uso principal de búsqueda en cofres.
   - Resultados > 5000 filas: pendiente de virtualización (react-window). Actualmente sin límite.
 - **Deuda / follow-ups**:
   - Virtualización de lista de matches para mundos Large con miles de coincidencias (SP-08 performance). Añadir `react-window` si el benchmarking con > 5000 filas muestra drops de framerate.
   - Tests de accesibilidad con herramientas AT (axe-core) no incluidos en este ciclo.
+  - `npm run lint` sigue fallando por formato Prettier en ficheros fuera de `search-panel` (`api-client`, `app-shell`, `highlight-overlay`, `setupTests`). No se corrige en esta iteración por la restricción de no tocar otros módulos frontend.
 
 ### Evolución propuesta para paridad con TerraMap
 
 Brechas actuales:
-- `includeContainers` empieza en `false`, aunque el contrato backend por defecto es `true` y uno de los casos de uso principales es encontrar items en cofres.
 - no hay controles de resultado anterior/siguiente como TerraMap (`previousBlock`/`nextBlock`).
 - no hay acción separada de "highlight all" porque actualmente todos los resultados se resaltan siempre.
 
 Cambios candidatos:
-- cambiar el valor inicial de `includeContainers` a `true`.
 - añadir botones "anterior" / "siguiente" + callback `onMatchFocus` cíclico (wrap-around). Estado interno `focusedIndex: number | null` en F4; el reducer global de F6 puede observarlo si lo necesita.
 - atajos de teclado activos cuando el panel está montado:
   - `n` / `ArrowDown`: siguiente match.
@@ -101,7 +109,6 @@ export interface SearchPanelProps {
 ```
 
 Tests mínimos futuros:
-- la primera búsqueda se lanza con `includeContainers=true`.
 - click en "siguiente" llama `onMatchFocus(matches[1], 1)`; en el último, wrap a 0.
 - click en "anterior" en index 0 wrap al último.
 - `n` con focus fuera del input dispara siguiente; con focus en input, no.
