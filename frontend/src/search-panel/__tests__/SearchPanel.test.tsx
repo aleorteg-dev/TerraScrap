@@ -131,8 +131,17 @@ describe('SearchPanel', () => {
     await screen.findByRole('option');
     fireEvent.click(screen.getByRole('option'));
 
-    await waitFor(() => expect(searchInWorld).toHaveBeenCalledWith('w1', 1, false));
+    await waitFor(() => expect(searchInWorld).toHaveBeenCalledWith('w1', 1, true));
     await waitFor(() => expect(onResults).toHaveBeenCalledWith(mockResult));
+  });
+
+  it('T-03b exposes an accessible include_containers control enabled by default', () => {
+    const { client } = makeClient();
+    render(
+      <SearchPanel worldId="w1" apiClient={client} onResults={vi.fn()} onMatchFocus={vi.fn()} />
+    );
+
+    expect(screen.getByRole('checkbox', { name: /incluir contenedores/i })).toBeChecked();
   });
 
   it('T-04 displays matches list with count', async () => {
@@ -147,11 +156,40 @@ describe('SearchPanel', () => {
     expect(onMatchFocus).toHaveBeenCalledWith(mockMatch);
   });
 
-  it('T-06 toggling include_containers re-triggers search', async () => {
+  it('T-06 unchecking include_containers sends false on the next search', async () => {
     const { searchInWorld } = await renderAndSelect();
-    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('checkbox', { name: /incluir contenedores/i }));
     await waitFor(() => expect(searchInWorld).toHaveBeenCalledTimes(2));
+    expect(searchInWorld).toHaveBeenLastCalledWith('w1', 1, false);
+  });
+
+  it('T-06b checking include_containers again sends true on the next search', async () => {
+    const { searchInWorld } = await renderAndSelect();
+    const includeContainersControl = screen.getByRole('checkbox', {
+      name: /incluir contenedores/i,
+    });
+
+    fireEvent.click(includeContainersControl);
+    await waitFor(() => expect(searchInWorld).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(includeContainersControl);
+    await waitFor(() => expect(searchInWorld).toHaveBeenCalledTimes(3));
     expect(searchInWorld).toHaveBeenLastCalledWith('w1', 1, true);
+  });
+
+  it('T-06c keeps the selected search parameters when toggling include_containers', async () => {
+    const { searchInWorld, searchItems } = await renderAndSelect([mockItem2], {
+      item_id: 2,
+      total: 1,
+      matches: [mockMatch],
+    });
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /incluir contenedores/i }));
+
+    await waitFor(() => expect(searchInWorld).toHaveBeenCalledTimes(2));
+    expect(searchItems).toHaveBeenCalledWith('zen');
+    expect(searchInWorld).toHaveBeenNthCalledWith(1, 'w1', 2, true);
+    expect(searchInWorld).toHaveBeenNthCalledWith(2, 'w1', 2, false);
   });
 
   it('T-07 shows empty result message', async () => {
@@ -193,6 +231,6 @@ describe('SearchPanel', () => {
     expect(options[1]).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.keyDown(input, { key: 'Enter' });
-    await waitFor(() => expect(searchInWorld).toHaveBeenCalledWith('w1', 2, false));
+    await waitFor(() => expect(searchInWorld).toHaveBeenCalledWith('w1', 2, true));
   });
 });
