@@ -47,6 +47,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps>;
 - **SP-08** `onTileClick` se dispara con la coordenada del tile pulsado.
 - **SP-09** Es resiliente a redimensionado del contenedor (ResizeObserver).
 - **SP-10** El render usa `requestAnimationFrame`.
+- **SP-11** Los chunks parciales de los bordes derecho e inferior se recortan contra los limites reales del mundo. Para `(cx, cy)`, `chunkSize`, `worldW` y `worldH`: `w = min(chunkSize, worldW - cx * chunkSize)` y `h = min(chunkSize, worldH - cy * chunkSize)`. El helper interno `computeChunkDimensions` centraliza este calculo y se usa tanto al crear el bitmap como al escalar `drawImage`.
 
 ## 6. Plan de tests (TDD)
 Combinación de tests de componente + tests de funciones puras (más barato).
@@ -57,6 +58,10 @@ Funciones puras extraídas (unitarias):
 - [x] `T-03 zoom around cursor preserves the world coordinate under the cursor`
 - [x] `T-04 clampZoom respects min/max`
 - [x] `T-05 visibleChunks returns only chunks intersecting viewport`
+- [x] `T-D1 computeChunkDimensions should return full dimensions for an interior chunk`
+- [x] `T-D2 computeChunkDimensions should clip width for a right-edge chunk`
+- [x] `T-D3 computeChunkDimensions should clip height for a bottom-edge chunk`
+- [x] `T-D4 computeChunkDimensions should clip both dimensions for a bottom-right chunk`
 
 De componente:
 - [x] `T-06 renders canvas element with correct dimensions`
@@ -65,6 +70,7 @@ De componente:
 - [x] `T-09 onTileClick receives correct tile coordinates`
 - [x] `T-10 onReady emits a handle with imperative API`
 - [x] `T-12 WorldCanvas should call ctx.drawImage when rendering a loaded chunk`
+- [x] `T-13 WorldCanvas should draw clipped dimensions for edge chunks in a non-multiple world`
 
 Caché de bitmaps (unitarias):
 - [x] `T-C1 renderChunkBitmap should return HTMLCanvasElement sized chunkSize×chunkSize`
@@ -75,9 +81,14 @@ Caché de bitmaps (unitarias):
 - [x] `T-C6 createChunkBitmapCache should retrieve a stored RenderedChunk by worldId, cx, cy`
 - [x] `T-C7 createChunkBitmapCache clearWorld should remove only chunks for that worldId`
 - [x] `T-C8 createChunkBitmapCache size should reflect cache count after set and clearWorld`
+- [x] `T-C9 renderChunkBitmap should size right-edge chunk bitmap to clipped world width`
+- [x] `T-C10 renderChunkBitmap should size bottom-edge chunk bitmap to clipped world height`
+- [x] `T-C11 renderChunkBitmap should size bottom-right chunk bitmap to both clipped dimensions`
+- [x] `T-C12 renderChunkBitmap should keep full chunk dimensions when world dimensions are multiples of chunkSize`
+- [x] `T-C13 renderChunkBitmap should use clipped width as row stride for partial chunks`
 
 ## 7. Notas de implementación
-- Chunk size: 128×128 tiles. Cada chunk se pinta a un `OffscreenCanvas` cacheado; al redibujar, se copia a `ctx.drawImage()` (muy rápido).
+- Chunk size nominal: 128x128 tiles. En los bordes derecho e inferior, el bitmap usa el tamano real devuelto por `computeChunkDimensions`; no se anade padding hasta 128x128. Cada chunk se pinta a un `HTMLCanvasElement` cacheado; al redibujar, se copia a `ctx.drawImage()` con dimensiones escaladas por zoom.
 - Paleta de bloques: mapping `tileId -> color` embebido en el módulo (JSON estático). Los sprites detallados se posponen a v2; v1 usa colores planos.
 - `base64-rle-v1`: runs `(tileId: int16, count: uint16)`. Decodificar en un `Uint16Array`.
 - El estado de pan/zoom vive en `useRef` para no provocar re-renders; el dibujo se dispara imperativamente.
@@ -90,8 +101,8 @@ Caché de bitmaps (unitarias):
 - Fallos de API delegados por `onError` del host (v1.1 opcional).
 
 ## 10. Estado
-- **Versión del contrato**: v1 (sin cambio — optimización interna)
-- **Último cierre**: 2026-04-28 — reabierto y cerrado (chunk bitmap cache — iter-017)
+- **Versión del contrato**: v1 (sin cambio - fix interno de render)
+- **Último cierre**: 2026-05-01 - cerrado fix P1 render de chunks parciales en bordes
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-007
@@ -128,6 +139,7 @@ Caché de bitmaps (unitarias):
 - **Animación en centerOn**: SP-07 menciona animación opcional. v1 hace jump instantáneo.
 - **worldId change**: Si el padre cambia `worldId` sin desmontar (raro, pero posible), `chunkCacheRef`, `bitmapCacheRef` y `pendingRef` quedan obsoletos. Añadir `useEffect([worldId])` que llame `bitmapCacheRef.current.clearWorld(prevWorldId)` y limpie los otros caches.
 - **Centrar en spawn real**: Si B5/B1 exponen `spawnX`/`spawnY` en `WorldMetadata`, reemplazar la heurística `height/5` por las coordenadas de spawn reales. Anotar en B5 deuda.
+- **Lint global fuera de alcance F3**: `npm run lint` ya no reporta ficheros de `world-canvas`, pero sigue fallando por formato Prettier en `api-client`, `app-shell`, `highlight-overlay`, `search-panel` y `src/setupTests.ts`. Resolverlo requiere una iteracion separada o permiso explicito para tocar otros modulos.
 
 ### Evolución propuesta para paridad con TerraMap
 
