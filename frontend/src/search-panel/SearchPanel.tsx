@@ -35,7 +35,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<ItemSummary[]>([]);
   const [selectedItem, setSelectedItem] = useState<ItemSummary | null>(null);
-  const [includeContainers, setIncludeContainers] = useState(false);
+  const [includeContainers, setIncludeContainers] = useState(true);
   const [uiState, setUiState] = useState<UiState>('idle');
   const [results, setResults] = useState<SearchResult | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
@@ -48,6 +48,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const baseId = useId();
   const inputId = `${baseId}-input`;
   const listboxId = `${baseId}-listbox`;
+  const includeContainersId = `${baseId}-include-containers`;
 
   useEffect(() => {
     if (!isUserTypingRef.current || query.trim().length === 0) return;
@@ -185,10 +186,15 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
         </ul>
       )}
 
-      <label>
-        <input type="checkbox" checked={includeContainers} onChange={handleCheckboxChange} />
-        Incluir contenedores
-      </label>
+      <div>
+        <input
+          id={includeContainersId}
+          type="checkbox"
+          checked={includeContainers}
+          onChange={handleCheckboxChange}
+        />
+        <label htmlFor={includeContainersId}>Incluir contenedores</label>
+      </div>
 
       {isLoading && (
         <p role="status" aria-live="polite">
