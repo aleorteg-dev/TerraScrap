@@ -58,6 +58,7 @@ def _encode_block_tile(
     wall_id: int | None = None,
     *,
     frame: tuple[int, int] | None = None,
+    flags4: int | None = None,
 ) -> bytes:
     """Encode a single active tile (no RLE).
 
@@ -66,17 +67,54 @@ def _encode_block_tile(
     ``tfi[tile_id]`` is true.
     """
     flags1 = 0x02  # isActive
+    flags3 = 0
     if wall_id is not None:
         flags1 |= 0x04
+        if wall_id > 255:
+            flags3 |= 0x40
+    if flags4 is not None:
+        flags3 |= 0x01
     if tile_id > 255:
         flags1 |= 0x20
-    out = bytes([flags1])
+    if flags3:
+        flags1 |= 0x01  # has flags2
+        out = bytes([flags1, 0x01, flags3])  # flags2 bit 0 = has flags3
+        if flags4 is not None:
+            out += bytes([flags4])
+    else:
+        out = bytes([flags1])
     out += struct.pack("<H", tile_id) if tile_id > 255 else bytes([tile_id])
     if frame is not None:
         out += struct.pack("<hh", frame[0], frame[1])
     if wall_id is not None:
         out += bytes([wall_id & 0xFF])
+        if wall_id > 255:
+            out += bytes([(wall_id >> 8) & 0xFF])
     return out
+
+
+def _encode_wall_tile(wall_id: int, *, flags4: int | None = None) -> bytes:
+    """Encode a single wall-only tile (no RLE)."""
+    flags1 = 0x04
+    flags3 = 0x40 if wall_id > 255 else 0
+    if flags4 is not None:
+        flags3 |= 0x01
+    if flags3:
+        flags1 |= 0x01
+        out = bytes([flags1, 0x01, flags3])
+        if flags4 is not None:
+            out += bytes([flags4])
+    else:
+        out = bytes([flags1])
+    out += bytes([wall_id & 0xFF])
+    if wall_id > 255:
+        out += bytes([(wall_id >> 8) & 0xFF])
+    return out
+
+
+def _encode_flags4_air_tile(flags4: int) -> bytes:
+    """Encode an air tile that carries the fourth flags byte."""
+    return bytes([0x01, 0x01, 0x01, flags4])
 
 
 def _encode_liquid_tile(liquid_type: str, amount: int) -> bytes:
@@ -134,6 +172,7 @@ def _build_section0(
     width: int,
     height: int,
     hardmode: bool,
+    skyblock_world: bool,
 ) -> bytes:
     buf = bytearray()
     buf += _net_string(name)
@@ -147,19 +186,25 @@ def _build_section0(
     buf += struct.pack("<i", height * 16)  # bottomWorld
     buf += struct.pack("<i", height)  # maxTilesY
     buf += struct.pack("<i", width)  # maxTilesX
-    buf += struct.pack("<i", 0)  # gameMode (v225+)
-    buf += b"\x00"  # drunkWorld
-    buf += b"\x00"  # goodWorld (v185+)
-    buf += b"\x00"  # tenthAnnivWorld (v215+)
-    buf += b"\x00"  # dontStarveWorld (v229+)
+    buf += struct.pack("<i", 0)  # gameMode (v209+)
+    if version >= 222:
+        buf += b"\x00"  # drunkWorld
+    if version >= 227:
+        buf += b"\x00"  # getGoodWorld
     if version >= 238:
+        buf += b"\x00"  # tenthAnnivWorld
+    if version >= 239:
+        buf += b"\x00"  # dontStarveWorld
+    if version >= 241:
         buf += b"\x00"  # notTheBeesWorld
-    if version >= 250:
+    if version >= 249:
         buf += b"\x00"  # remixWorld
-    if version >= 261:
+    if version >= 266:
         buf += b"\x00"  # noTrapsWorld
-    if version >= 274:
+    if version >= 267:
         buf += b"\x00"  # zenithWorld
+    if version >= 302:
+        buf += b"\x01" if skyblock_world else b"\x00"
     buf += struct.pack("<q", 0)  # creationTime (v141+)
     buf += b"\x00"  # moonType
     buf += struct.pack("<i", 0)  # dungeonX
@@ -194,14 +239,20 @@ def _build_section1(
     tile_id_at: dict[tuple[int, int], int] | None = None,
     tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
     frame_important_ids: set[int] | None = None,
+    wall_id_at: dict[tuple[int, int], int] | None = None,
     liquid_at: dict[tuple[int, int], tuple[str, int]] | None = None,
+    flags4_at: dict[tuple[int, int], int] | None = None,
 ) -> bytes:
     overrides = tile_id_at or {}
     frames = tile_frame_at or {}
     tfi = frame_important_ids or set()
+    walls = wall_id_at or {}
     liquids = liquid_at or {}
+    flags4s = flags4_at or {}
     # All positions that are non-air (block override or liquid)
-    special: set[tuple[int, int]] = set(overrides) | set(liquids)
+    special: set[tuple[int, int]] = (
+        set(overrides) | set(walls) | set(liquids) | set(flags4s)
+    )
     buf = bytearray()
     for x in range(width):
         y = 0
@@ -210,11 +261,22 @@ def _build_section1(
             if pos in overrides:
                 tile_id = overrides[pos]
                 frame = frames.get(pos) if tile_id in tfi else None
-                buf += _encode_block_tile(tile_id, frame=frame)
+                buf += _encode_block_tile(
+                    tile_id,
+                    wall_id=walls.get(pos),
+                    frame=frame,
+                    flags4=flags4s.get(pos),
+                )
+                y += 1
+            elif pos in walls:
+                buf += _encode_wall_tile(walls[pos], flags4=flags4s.get(pos))
                 y += 1
             elif pos in liquids:
                 ltype, lamount = liquids[pos]
                 buf += _encode_liquid_tile(ltype, lamount)
+                y += 1
+            elif pos in flags4s:
+                buf += _encode_flags4_air_tile(flags4s[pos])
                 y += 1
             else:
                 # Find run of consecutive plain-air in this column
@@ -227,15 +289,18 @@ def _build_section1(
     return bytes(buf)
 
 
-def _build_section2(chests: Sequence[ChestSpec] | None) -> bytes:
+def _build_section2(*, version: int, chests: Sequence[ChestSpec] | None) -> bytes:
     specs = list(chests) if chests else []
     buf = bytearray()
     buf += struct.pack("<h", len(specs))  # chestCount
-    buf += struct.pack("<h", 40)  # chestSize
+    if version < 280:
+        buf += struct.pack("<h", 40)  # chestSize
     for cs in specs:
         buf += struct.pack("<i", cs.x)
         buf += struct.pack("<i", cs.y)
         buf += _net_string(cs.name)
+        if version >= 280:
+            buf += struct.pack("<i", 40)  # per-chest item slot count
         items = list(cs.items)
         for i in range(40):
             if i < len(items):
@@ -283,12 +348,15 @@ def build_world(
     height: int = 4,
     seed: str = "1234567890.1.1",
     hardmode: bool = False,
+    skyblock_world: bool = False,
     chests: Sequence[ChestSpec] | None = None,
     signs: Sequence[SignSpec] | None = None,
     tile_id_at: dict[tuple[int, int], int] | None = None,
     tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
     frame_important_ids: set[int] | None = None,
+    wall_id_at: dict[tuple[int, int], int] | None = None,
     liquid_at: dict[tuple[int, int], tuple[str, int]] | None = None,
+    flags4_at: dict[tuple[int, int], int] | None = None,
 ) -> bytes:
     """Return bytes of a valid synthetic .wld file."""
     s0 = _build_section0(
@@ -298,6 +366,7 @@ def build_world(
         width=width,
         height=height,
         hardmode=hardmode,
+        skyblock_world=skyblock_world,
     )
     s1 = _build_section1(
         width=width,
@@ -305,9 +374,11 @@ def build_world(
         tile_id_at=tile_id_at,
         tile_frame_at=tile_frame_at,
         frame_important_ids=frame_important_ids,
+        wall_id_at=wall_id_at,
         liquid_at=liquid_at,
+        flags4_at=flags4_at,
     )
-    s2 = _build_section2(chests)
+    s2 = _build_section2(version=version, chests=chests)
     s3 = _build_section3(signs)
 
     # Build header (everything before section data)
