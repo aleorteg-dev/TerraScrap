@@ -13,7 +13,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from twi.api_rest import XApiVersionMiddleware, register_error_handlers
 from twi.api_rest.router import _encode_chunk, create_router
+from twi.app import Settings, create_app
 from twi.item_catalog import ItemCatalog, ItemDetail, ItemNotFoundError, ItemSummary
 from twi.tile_search import SearchMatch, SearchResult, TileSearchEngine
 from twi.wld_parser import (
@@ -179,6 +181,8 @@ def _make_client(
     max_upload_mb: int = 200,
 ) -> TestClient:
     app = FastAPI()
+    register_error_handlers(app)
+    app.add_middleware(XApiVersionMiddleware)
     router = create_router(
         repo=repo,
         catalog=catalog,
@@ -202,6 +206,14 @@ def _decode_base64_rle_v1(payload: str) -> list[int]:
     return flat
 
 
+def _error_code(response_json: dict[str, object]) -> str:
+    error = response_json["error"]
+    assert isinstance(error, dict)
+    code = error["code"]
+    assert isinstance(code, str)
+    return code
+
+
 @pytest.fixture()
 def client(
     repo: _FakeRepo,
@@ -209,6 +221,13 @@ def client(
     search_engine: _FakeSearch,
 ) -> TestClient:
     return _make_client(repo, catalog, search_engine)
+
+
+def _make_bootstrap_client(max_upload_mb: int = 1) -> TestClient:
+    return TestClient(
+        create_app(Settings(max_upload_mb=max_upload_mb)),
+        raise_server_exceptions=False,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +273,7 @@ def test_post_world_too_large_returns_413(
         files={"file": ("world.wld", b"x", "application/octet-stream")},
     )
     assert response.status_code == 413
-    assert response.json()["error"]["code"] == "file_too_large"
+    assert response.json()["error"]["code"] == "upload_too_large"
 
 
 # ---------------------------------------------------------------------------
@@ -439,6 +458,116 @@ def test_every_response_includes_api_version_header(
 
     r_delete = client.delete(f"/api/worlds/{world_id}")
     assert r_delete.headers.get("x-api-version") == "v0.1.0"
+
+
+def test_413_upload_too_large_has_error_dto_shape(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    client = _make_client(repo, catalog, search_engine, max_upload_mb=0)
+
+    response = client.post(
+        "/api/worlds",
+        files={"file": ("world.wld", b"x", "application/octet-stream")},
+    )
+
+    assert response.status_code == 413
+    body = response.json()
+    assert set(body) == {"error"}
+    assert _error_code(body) == "upload_too_large"
+    assert "detail" not in body
+
+
+def test_413_response_has_x_api_version_header() -> None:
+    response = _make_bootstrap_client(max_upload_mb=1).post(
+        "/api/worlds",
+        content=b"x" * (2 * 1024 * 1024),
+        headers={"Content-Type": "application/octet-stream"},
+    )
+
+    assert response.status_code == 413
+    assert response.headers.get("x-api-version") == "v0.1.0"
+
+
+def test_router_and_middleware_return_same_413_code(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    router_response = _make_client(repo, catalog, search_engine, max_upload_mb=0).post(
+        "/api/worlds",
+        files={"file": ("world.wld", b"x", "application/octet-stream")},
+    )
+    middleware_response = _make_bootstrap_client(max_upload_mb=1).post(
+        "/api/worlds",
+        content=b"x" * (2 * 1024 * 1024),
+        headers={"Content-Type": "application/octet-stream"},
+    )
+
+    assert router_response.status_code == 413
+    assert middleware_response.status_code == 413
+    assert _error_code(router_response.json()) == _error_code(
+        middleware_response.json()
+    )
+
+
+def test_422_validation_returns_error_dto_not_detail(client: TestClient) -> None:
+    response = client.get("/api/items", params={"limit": "not-an-int"})
+
+    assert response.status_code == 422
+    body = response.json()
+    assert "detail" not in body
+    assert _error_code(body) == "validation_error"
+    error = body["error"]
+    assert isinstance(error, dict)
+    assert isinstance(error["details"], list)
+
+
+def test_422_response_has_x_api_version_header(client: TestClient) -> None:
+    response = client.get("/api/items", params={"limit": "not-an-int"})
+
+    assert response.status_code == 422
+    assert response.headers.get("x-api-version") == "v0.1.0"
+
+
+def test_404_unknown_world_has_error_dto_and_version_header(
+    client: TestClient,
+) -> None:
+    response = client.get("/api/worlds/does-not-exist")
+
+    assert response.status_code == 404
+    assert response.headers.get("x-api-version") == "v0.1.0"
+    body = response.json()
+    assert set(body) == {"error"}
+    assert _error_code(body) == "world_not_found"
+
+
+def test_500_unhandled_exception_returns_error_dto_without_traceback() -> None:
+    app = FastAPI()
+    register_error_handlers(app)
+    app.add_middleware(XApiVersionMiddleware)
+
+    @app.get("/boom")
+    def boom() -> dict[str, str]:
+        raise RuntimeError("secret traceback marker")
+
+    response = TestClient(app, raise_server_exceptions=False).get("/boom")
+
+    assert response.status_code == 500
+    assert response.headers.get("x-api-version") == "v0.1.0"
+    assert _error_code(response.json()) == "internal_error"
+    text = response.text.lower()
+    assert "traceback" not in text
+    assert "runtimeerror" not in text
+    assert "secret" not in text
+
+
+def test_x_api_version_header_present_on_2xx(client: TestClient) -> None:
+    response = client.get("/api/items", params={"q": "zen"})
+
+    assert response.status_code == 200
+    assert response.headers.get("x-api-version") == "v0.1.0"
 
 
 # ---------------------------------------------------------------------------
