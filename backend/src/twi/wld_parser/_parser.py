@@ -1,4 +1,4 @@
-"""Core parsing logic for .wld files (Terraria v230–v279)."""
+"""Core parsing logic for .wld files (Terraria v230-v319)."""
 
 from __future__ import annotations
 
@@ -19,7 +19,8 @@ from twi.wld_parser._types import (
 _MAGIC = b"relogic"
 _FILE_TYPE_WORLD: int = 2
 _MIN_VERSION: int = 230
-_MAX_VERSION: int = 279
+_MAX_VERSION: int = 319
+_MODERN_CHEST_VERSION: int = 280
 _CHEST_CAPACITY: int = 40
 
 
@@ -99,23 +100,28 @@ def _read_world_info(r: Reader, version: int) -> WorldMetadata:
     max_tiles_y = r.read_int32()  # height
     max_tiles_x = r.read_int32()  # width
 
-    # v225+ game mode (always present for v230+)
+    # v209+ game mode (always present for v230+)
     _game_mode = r.read_int32()
 
-    # Special world flags (version-gated, all present for v230+)
-    _drunk = r.read_bool()  # v185+
-    _good = r.read_bool()  # v185+
-    _tenth = r.read_bool()  # v215+
-    _dont_starve = r.read_bool()  # v229+
-
+    # Special world flags, version gates mirrored from WorldLoader.js.
+    if version >= 222:
+        _drunk = r.read_bool()
+    if version >= 227:
+        _good = r.read_bool()
     if version >= 238:
+        _tenth = r.read_bool()
+    if version >= 239:
+        _dont_starve = r.read_bool()
+    if version >= 241:
         _not_the_bees = r.read_bool()
-    if version >= 250:
+    if version >= 249:
         _remix = r.read_bool()
-    if version >= 261:
+    if version >= 266:
         _no_traps = r.read_bool()
-    if version >= 274:
+    if version >= 267:
         _zenith = r.read_bool()
+    if version >= 302:
+        _skyblock = r.read_bool()
 
     # v141+ creation time (always present for v230+)
     _creation_time = r.read_int64()
@@ -178,6 +184,7 @@ def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid
             flags1 = r.read_byte()
             flags2 = r.read_byte() if (flags1 & 0x01) else 0
             flags3 = r.read_byte() if (flags2 & 0x01) else 0
+            flags4 = r.read_byte() if (flags3 & 0x01) else 0
 
             # Block
             tile_id: int | None = None
@@ -201,8 +208,6 @@ def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid
             wall_id: int | None = None
             if flags1 & 0x04:
                 wall_id = r.read_byte()
-                if flags3 & 0x04:  # wall high byte (v235+)
-                    wall_id |= r.read_byte() << 8
                 if flags3 & 0x10:
                     _wall_color = r.read_byte()
 
@@ -219,12 +224,17 @@ def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid
                 else:
                     liquid_type = "honey"
 
+            if flags3 & 0x40:
+                wall_high = r.read_byte()
+                if wall_id is not None:
+                    wall_id |= wall_high << 8
+
             tile = Tile(
                 tile_id=tile_id,
                 wall_id=wall_id,
                 liquid_type=liquid_type,
                 liquid_amount=liquid_amount,
-                flags=flags2 | (flags3 << 8),
+                flags=flags2 | (flags3 << 8) | (flags4 << 16),
                 frame_x=frame_x,
                 frame_y=frame_y,
             )
@@ -253,25 +263,44 @@ def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid
 # ── section 2: chests ────────────────────────────────────────────────────────
 
 
-def _read_chests(r: Reader) -> tuple[Chest, ...]:
+def _read_chest_item(r: Reader, stack: int) -> ChestItem:
+    if stack > 0:
+        item_id = r.read_int32()
+        prefix = r.read_byte()
+        return ChestItem(item_id=item_id, stack=stack, prefix=prefix)
+    if stack < 0:
+        item_id = r.read_int32()
+        prefix = r.read_byte()
+        return ChestItem(item_id=item_id, stack=1, prefix=prefix)
+    return ChestItem(item_id=0, stack=0, prefix=0)
+
+
+def _skip_chest_item_payload(r: Reader, stack: int) -> None:
+    if stack > 0:
+        _item_id = r.read_int32()
+        _prefix = r.read_byte()
+
+
+def _read_chests(r: Reader, version: int) -> tuple[Chest, ...]:
     chest_count = r.read_int16()
-    chest_size = r.read_int16()
+    chest_size = r.read_int16() if version < _MODERN_CHEST_VERSION else None
 
     chests: list[Chest] = []
     for chest_id in range(chest_count):
         x = r.read_int32()
         y = r.read_int32()
         name = r.read_net_string()
+        item_slot_count = r.read_int32() if chest_size is None else chest_size
 
         items: list[ChestItem] = []
-        for _ in range(chest_size):
+        readable_slots = min(item_slot_count, _CHEST_CAPACITY)
+        for _ in range(readable_slots):
             stack = r.read_int16()
-            if stack > 0:
-                item_id = r.read_int32()
-                prefix = r.read_byte()
-                items.append(ChestItem(item_id=item_id, stack=stack, prefix=prefix))
-            else:
-                items.append(ChestItem(item_id=0, stack=0, prefix=0))
+            items.append(_read_chest_item(r, stack))
+
+        for _ in range(max(0, item_slot_count - _CHEST_CAPACITY)):
+            stack = r.read_int16()
+            _skip_chest_item_payload(r, stack)
 
         # Pad or trim to exactly 40 slots
         while len(items) < _CHEST_CAPACITY:
@@ -315,7 +344,7 @@ def parse_wld(stream: BinaryIO) -> World:
         r.seek(offsets[1])
         tiles = _read_tiles(r, metadata.width, metadata.height, tfi)
         r.seek(offsets[2])
-        chests = _read_chests(r)
+        chests = _read_chests(r, version)
         r.seek(offsets[3])
         signs = _read_signs(r)
     except (WldParseError, UnsupportedWorldVersionError):

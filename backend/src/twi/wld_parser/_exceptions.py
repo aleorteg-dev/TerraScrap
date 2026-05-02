@@ -21,7 +21,7 @@ class UnsupportedWorldVersionError(WldParseError):
     def __init__(
         self,
         version: int,
-        supported_range: tuple[int, int] = (230, 279),
+        supported_range: tuple[int, int] = (230, 319),
     ) -> None:
         min_version, max_version = supported_range
         super().__init__(
