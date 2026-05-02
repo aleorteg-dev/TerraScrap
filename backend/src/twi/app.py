@@ -10,14 +10,18 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-from twi.api_rest import create_router
+from twi.api_rest import (
+    UploadTooLargeError,
+    XApiVersionMiddleware,
+    create_router,
+    register_error_handlers,
+)
 from twi.item_catalog import (
     ItemCatalog,
     ItemCatalogUnavailableError,
@@ -65,16 +69,7 @@ class _UploadSizeLimitMiddleware(BaseHTTPMiddleware):
         content_length = request.headers.get("Content-Length")
         if content_length is not None and int(content_length) > self._max_bytes:
             limit_mb = self._max_bytes // (1024 * 1024)
-            return JSONResponse(
-                status_code=413,
-                content={
-                    "error": {
-                        "code": "upload_too_large",
-                        "message": f"Request body exceeds the {limit_mb} MB limit.",
-                        "details": None,
-                    }
-                },
-            )
+            raise UploadTooLargeError(limit_mb)
         return await call_next(request)
 
 
@@ -138,13 +133,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 pass
 
     fastapi_app = FastAPI(lifespan=lifespan, title="TerraScrap API")
+    register_error_handlers(fastapi_app)
 
-    # Size-limit middleware added first (inner); CORS added second (outer) so that
-    # CORS headers are present even on 413 responses.
+    # Size-limit middleware added first (inner); API version and CORS wrap it so
+    # their headers are present even on 413 responses.
     fastapi_app.add_middleware(
         _UploadSizeLimitMiddleware,
         max_bytes=settings.max_upload_mb * 1024 * 1024,
     )
+    fastapi_app.add_middleware(XApiVersionMiddleware)
     fastapi_app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

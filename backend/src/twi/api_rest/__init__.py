@@ -1,8 +1,17 @@
 """Public contract for B5 – api-rest."""
 
+from twi.api_rest.errors import (
+    API_VERSION,
+    API_VERSION_HEADER,
+    UploadTooLargeError,
+    XApiVersionMiddleware,
+    error_code_for_status,
+    register_error_handlers,
+)
 from twi.api_rest.router import create_router
 from twi.api_rest.schemas import (
     ErrorDetailDto,
+    ErrorDetails,
     ErrorDto,
     ItemDetailDto,
     ItemListDto,
@@ -15,6 +24,9 @@ from twi.api_rest.schemas import (
 )
 
 __all__ = [
+    "API_VERSION",
+    "API_VERSION_HEADER",
+    "ErrorDetails",
     "ErrorDetailDto",
     "ErrorDto",
     "ItemDetailDto",
@@ -23,7 +35,11 @@ __all__ = [
     "SearchMatchDto",
     "SearchResultDto",
     "TilesChunkDto",
+    "UploadTooLargeError",
     "WorldCreatedDto",
     "WorldMetadataDto",
+    "XApiVersionMiddleware",
     "create_router",
+    "error_code_for_status",
+    "register_error_handlers",
 ]

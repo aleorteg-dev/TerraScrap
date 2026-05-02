@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+ErrorDetails = Mapping[str, object] | list[Mapping[str, object]]
+
 
 class WorldMetadataDto(BaseModel):
     name: str
@@ -68,7 +70,7 @@ class ItemListDto(BaseModel):
 class ErrorDetailDto(BaseModel):
     code: str
     message: str
-    details: Mapping[str, object] | None = None
+    details: ErrorDetails | None = None
 
 
 class ErrorDto(BaseModel):

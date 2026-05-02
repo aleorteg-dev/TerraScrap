@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import struct
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 
 from fastapi import APIRouter, Query, Response, UploadFile
 from fastapi.responses import JSONResponse
@@ -21,8 +21,9 @@ from twi.wld_parser import (
 )
 from twi.world_repository import WorldNotFoundError, WorldRepository
 
+from .errors import API_VERSION_HEADERS, UPLOAD_TOO_LARGE_CODE, error_response
 from .schemas import (
-    ErrorDetailDto,
+    ErrorDetails,
     ErrorDto,
     ItemDetailDto,
     ItemListDto,
@@ -34,22 +35,14 @@ from .schemas import (
     WorldMetadataDto,
 )
 
-_API_VERSION = "v0.1.0"
-_V_HDR = {"X-API-Version": _API_VERSION}
-
 
 def _err(
     status: int,
     code: str,
     message: str,
-    details: Mapping[str, object] | None = None,
+    details: ErrorDetails | None = None,
 ) -> JSONResponse:
-    body = ErrorDto(error=ErrorDetailDto(code=code, message=message, details=details))
-    return JSONResponse(
-        status_code=status,
-        content=body.model_dump(),
-        headers=_V_HDR,
-    )
+    return error_response(status, code, message, details)
 
 
 _OkDto = (
@@ -66,7 +59,7 @@ def _ok(dto: _OkDto) -> JSONResponse:
     return JSONResponse(
         status_code=200,
         content=dto.model_dump(),
-        headers=_V_HDR,
+        headers=API_VERSION_HEADERS,
     )
 
 
@@ -157,7 +150,7 @@ def create_router(
         data = await file.read()
         if len(data) > max_upload_mb * 1024 * 1024:
             return _err(
-                413, "file_too_large", f"File exceeds {max_upload_mb} MB limit."
+                413, UPLOAD_TOO_LARGE_CODE, f"File exceeds {max_upload_mb} MB limit."
             )
         try:
             world = parser(data)
@@ -198,12 +191,16 @@ def create_router(
         except WorldNotFoundError:
             return _err(404, "world_not_found", f"World '{world_id}' not found.")
         repo.delete(world_id)
-        return Response(status_code=204, headers=_V_HDR)
+        return Response(status_code=204, headers=API_VERSION_HEADERS)
 
     @router.get(
         "/worlds/{world_id}/tiles",
         response_model=None,
-        responses={200: {"model": TilesChunkDto}, 404: {"model": ErrorDto}},
+        responses={
+            200: {"model": TilesChunkDto},
+            404: {"model": ErrorDto},
+            422: {"model": ErrorDto},
+        },
     )
     async def get_tiles(
         world_id: str,
@@ -234,6 +231,7 @@ def create_router(
             200: {"model": SearchResultDto},
             400: {"model": ErrorDto},
             404: {"model": ErrorDto},
+            422: {"model": ErrorDto},
         },
     )
     async def search_world(
@@ -270,7 +268,7 @@ def create_router(
     @router.get(
         "/items",
         response_model=None,
-        responses={200: {"model": ItemListDto}},
+        responses={200: {"model": ItemListDto}, 422: {"model": ErrorDto}},
     )
     async def list_items(
         q: str = Query(default=""),
@@ -294,7 +292,11 @@ def create_router(
     @router.get(
         "/items/{item_id}",
         response_model=None,
-        responses={200: {"model": ItemDetailDto}, 404: {"model": ErrorDto}},
+        responses={
+            200: {"model": ItemDetailDto},
+            404: {"model": ErrorDto},
+            422: {"model": ErrorDto},
+        },
     )
     async def get_item(item_id: int) -> Response:
         try:
