@@ -16,8 +16,22 @@ def create_router(
 ) -> APIRouter: ...
 ```
 
+```python
+# src/twi/api_rest/errors.py
+def register_error_handlers(app: FastAPI) -> None: ...
+
+class XApiVersionMiddleware(BaseHTTPMiddleware): ...
+```
+
 DTOs (pydantic v2) definidos en `src/twi/api_rest/schemas.py`:
 - `WorldCreatedDto`, `WorldMetadataDto`, `TilesChunkDto`, `SearchResultDto`, `SearchMatchDto`, `ItemSummaryDto`, `ItemDetailDto`, `ErrorDto`.
+
+Contrato transversal de errores HTTP:
+- `register_error_handlers(app)` registra handlers publicos para que `app-bootstrap` los monte.
+- `RequestValidationError` -> 422 `ErrorDto`, `code:"validation_error"`, `details` es una lista normalizada de errores.
+- `StarletteHTTPException` -> `ErrorDto` usando codigos de dominio cuando el status tiene canon definido (`413 -> upload_too_large`, `404 -> world_not_found` cuando aplique); si no hay canon, usa `http_error`.
+- `Exception` no controlada -> 500 `ErrorDto`, `code:"internal_error"`, sin traza ni detalles internos.
+- `XApiVersionMiddleware` añade `X-API-Version: v0.1.0` a toda respuesta, incluidas validacion, errores de framework y limite de upload.
 
 Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
 - `TilesChunkDto.encoding` es siempre `"base64-rle-v1"`.
@@ -40,7 +54,7 @@ Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
 
 ## 5. Especificación (SDD)
 - **SP-01** `POST /api/worlds` con multipart válido → 200 y `world_id`.
-- **SP-02** `POST /api/worlds` con fichero > `max_upload_mb` → 413 con `code:"file_too_large"`.
+- **SP-02** `POST /api/worlds` con fichero > `max_upload_mb` → 413 con `code:"upload_too_large"`.
 - **SP-03** `POST /api/worlds` con bytes que no son `.wld` válido → 400 `code:"invalid_wld"`.
 - **SP-04** `POST /api/worlds` con versión no soportada → 422 `code:"unsupported_version"`, `details.version`.
 - **SP-05** `GET /api/worlds/{id}` inexistente → 404 `code:"world_not_found"`.
@@ -51,6 +65,12 @@ Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
 - **SP-10** `DELETE /api/worlds/{id}` → 204; repetido sobre id inexistente → 404.
 - **SP-11** Todas las respuestas incluyen header `X-API-Version: v0.1.0`.
 - **SP-12** El schema OpenAPI generado por FastAPI coincide con `docs/contracts/api-contract.md` (snapshot test).
+- **SP-13** Todo 413 de upload usa `ErrorDto` y `code:"upload_too_large"`.
+- **SP-14** El 413 producido por el router y el 413 producido por el limite de `app-bootstrap` devuelven el mismo `code`.
+- **SP-15** La validacion FastAPI devuelve 422 `ErrorDto`, no `{ "detail": [...] }`.
+- **SP-16** Un mundo inexistente devuelve 404 `ErrorDto` con header de version.
+- **SP-17** Una excepcion no controlada devuelve 500 `ErrorDto` sin filtrar trazas.
+- **SP-18** El header `X-API-Version` esta presente tambien en respuestas 2xx gestionadas por FastAPI.
 
 ## 6. Plan de tests (TDD)
 Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
@@ -73,26 +93,38 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 - [x] `T-16 test_chunk_bounds_returns_correct_tile_range`
 - [x] `T-17 test_get_tiles_endpoint_returns_canonical_encoding_base64_rle_v1`
 - [x] `T-18 test_encode_chunk_round_trips_known_tiles_as_base64_rle_v1`
+- [x] `T-19 test_413_upload_too_large_has_error_dto_shape`
+- [x] `T-20 test_413_response_has_x_api_version_header`
+- [x] `T-21 test_router_and_middleware_return_same_413_code`
+- [x] `T-22 test_422_validation_returns_error_dto_not_detail`
+- [x] `T-23 test_422_response_has_x_api_version_header`
+- [x] `T-24 test_404_unknown_world_has_error_dto_and_version_header`
+- [x] `T-25 test_500_unhandled_exception_returns_error_dto_without_traceback`
+- [x] `T-26 test_x_api_version_header_present_on_2xx`
 
 ## 7. Notas de implementación
 - Usa un `APIRouter` con prefijo `/api`. El montaje ocurre en `app-bootstrap`.
 - Inyección de dependencias mediante `Depends(lambda: repo)` creadas por el factory. No usar singletons globales.
-- Mapeo de excepciones de dominio → HTTP en un `exception_handler` local:
-  - `WldParseError` → 400
-  - `UnsupportedWorldVersionError` → 422
-  - `WorldNotFoundError` → 404
-  - `ItemNotFoundError` → 404
-  - Cualquier otra → 500 genérica.
+- Mapeo transversal de errores HTTP en `register_error_handlers(app)`:
+  - `RequestValidationError` → 422 `validation_error`.
+  - `UploadTooLargeError` → 413 `upload_too_large`.
+  - `StarletteHTTPException` → `ErrorDto` con codigo canonico por status.
+  - `Exception` → 500 `internal_error`.
+- El mapeo `status_code -> code` vive en una constante o funcion pura del modulo `api_rest`; no duplicar literales en handlers.
+- `app-bootstrap` solo registra handlers y middleware; no construye `ErrorDto`.
 
 ## 8. Performance
 - La construcción del `TilesChunkDto` debe evitar copiar el grid entero: usa la codificación definida en `wld-parser` (RLE base64).
 
 ## 9. Errores
-Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`.
+Forma única: `{"error": {"code": str, "message": str, "details": dict | list | None}}`.
+Codigo canonico de 413: `upload_too_large`.
+Validacion FastAPI: 422 `validation_error` con `details` como lista normalizada.
+Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
 - **Versión del contrato**: v0.1.0
-- **Último cierre**: 2026-04-30 (realineacion encoding tiles Via A)
+- **Último cierre**: 2026-05-02 (contrato de errores HTTP unificado)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -132,6 +164,21 @@ Forma única: `{"error": {"code": str, "message": str, "details": dict | None}}`
   y `frontend/src/api-client/__generated__/schema.d.ts` con `openapi-typescript`.
 - No queda deuda nueva de consumidores frontend para esta via: el consumidor vigente
   espera `base64-rle-v1`.
+
+## 15. Decisiones tomadas (errores HTTP 2026-05-02)
+
+- Codigo canonico de 413 fijado en `upload_too_large`; el router y el limite de
+  tamano del bootstrap devuelven el mismo `code`.
+- `register_error_handlers(app)` queda como contrato publico de B5 para registrar
+  `RequestValidationError`, `UploadTooLargeError`, `StarletteHTTPException` y
+  `Exception` no controlada.
+- `XApiVersionMiddleware` queda como contrato publico de B5 y anade
+  `X-API-Version: v0.1.0` a respuestas 2xx, 4xx y 5xx, incluido el path de
+  limite de upload.
+- `ErrorDetailDto.details` admite `dict | list | None` para permitir la lista
+  normalizada de errores de validacion FastAPI sin romper los detalles de dominio.
+- Se regeneraron `docs/contracts/openapi.json` y el snapshot unitario de B5. No se
+  tocaron los tipos generados de `frontend/src/api-client/__generated__/`.
 
 ## 12. Deuda / follow-ups
 

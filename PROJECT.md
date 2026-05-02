@@ -353,3 +353,4 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | 2026-05-01 | housekeeping frontend | housekeeping: frontend lint formato Prettier auto-fix sobre 8 archivos. | iter-housekeeping-P2 |
 | 2026-05-01 | docs | docs: alineación de stack a React 19 en PROJECT.md, README.md, CLAUDE.md. | iter-docs-P2 |
 | 2026-05-01 | housekeeping backend | housekeeping: eliminados 4 directorios pytest temporales en backend/ y añadidas reglas específicas/genéricas en .gitignore para prevenir variantes Codex pytest tmp. | iter-housekeeping-P2 |
+| 2026-05-02 | B5 api-rest | Contrato de errores HTTP unificado: 413 canonico `upload_too_large`, 422 `validation_error` con `ErrorDto`, fallback `http_error`, 500 `internal_error` sin trazas y `X-API-Version` obligatorio tambien en errores. Regenerado `docs/contracts/openapi.json`; tipos frontend no tocados. | iter-027 |

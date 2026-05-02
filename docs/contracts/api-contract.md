@@ -7,6 +7,11 @@ Versión: `v0.1.0`
 Base path: `/api`
 Serialización: `application/json` salvo upload (`multipart/form-data`).
 Errores: siempre con forma `{ "error": { "code": string, "message": string, "details"?: any } }`.
+Codigos transversales:
+- **413**: `code: "upload_too_large"` es el canonico para cualquier limite de upload.
+- **422** de validacion FastAPI: `code: "validation_error"`, `details` es la lista de errores normalizada.
+- **HTTPException** sin codigo de dominio: `code: "http_error"`.
+- **500** no controlado: `code: "internal_error"` sin trazas ni detalles internos.
 
 ---
 
@@ -34,7 +39,7 @@ Sube un fichero `.wld` y crea una sesión de mundo.
   }
   ```
 - **400**: archivo no es `.wld` válido (`code: "invalid_wld"`).
-- **413**: archivo supera el límite (`code: "file_too_large"`).
+- **413**: archivo supera el límite (`code: "upload_too_large"`).
 - **422**: versión no soportada (`code: "unsupported_version"`, `details: { version }`).
 
 #### `GET /api/worlds/{world_id}`
@@ -119,6 +124,7 @@ Detalle de un ítem.
 - **Sesión**: `world_id` es opaco (UUID v4). No hay auth; quien tenga el id puede operar sobre ese mundo cargado. TTL por defecto **30 minutos** desde el último acceso.
 - **Límites**: tamaño máximo de upload configurable por env `TWI_MAX_UPLOAD_MB` (default 200).
 - **Versionado**: el header `X-API-Version: v0.1.0` se devuelve en toda respuesta.
+- **Errores HTTP**: las respuestas generadas por validacion, excepciones HTTP, limite de upload o errores no controlados tambien respetan `ErrorDto` y el header de version.
 
 ---
 
