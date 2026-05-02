@@ -23,7 +23,7 @@ class Tile:
     wall_id: int | None
     liquid_type: Literal["none", "water", "lava", "honey", "shimmer"]  # tipo de líquido
     liquid_amount: int          # 0..255; 0 cuando liquid_type == "none"
-    flags: int                  # bits de flags2 | (flags3 << 8): cables, slope, actuator
+    flags: int                  # bits de flags2 | (flags3 << 8) | (flags4 << 16)
     frame_x: int | None = None  # U: solo presente si tfi[tile_id] == True; None en tiles unframed/aire
     frame_y: int | None = None  # V: idem; forzado a 0 cuando tile_id == 144 (Timers)
 
@@ -75,7 +75,28 @@ class UnsupportedWorldVersionError(WldParseError):
     supported_range: tuple[int, int]
 ```
 
-Rango de versiones soportado: **>= 230 y <= 279**. Fuera de rango -> `UnsupportedWorldVersionError` con `code="unsupported_version"` y `details={"detected_version": version, "supported_range": (230, 279)}`. Los mundos v319 se rechazan explicitamente hasta mapear el formato binario real.
+Rango de versiones soportado: **>= 230 y <= 319**. Fuera de rango -> `UnsupportedWorldVersionError` con `code="unsupported_version"` y `details={"detected_version": version, "supported_range": (230, 319)}`.
+
+### 2.3. Versiones soportadas
+
+Referencia normativa local revisada completa: `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\WorldLoader.js`.
+
+Tramos aceptados:
+- `v230-v279`: tramo historico ya soportado, con gates corregidos segun `WorldLoader.js` para special world flags (`>=222`, `>=227`, `>=238`, `>=239`, `>=241`, `>=249`, `>=266`, `>=267`).
+- `v280-v286`: sin campos nuevos de header documentados en `WorldLoader.js`; section 2 usa layout moderno de chests (`itemCount:int32` por chest). Esta frontera `>279` es inferida del corpus: v279 conserva `chestSize:int16` global y v319 sigue `readChests` de `WorldLoader.js`.
+- `v287-v288`: section 0 anade `forceHalloweenForever`, `forceXMasForever` (`>=287`) y `vampireSeed` (`>=288`) en la cola de header.
+- `v291-v295`: section 0 anade `_tempMeteorShowerCount:int32` y `_tempCoinRain:int32` (`>=291`).
+- `v296-v298`: section 0 anade `infectedSeed:uint8` (`>=296`) y `teamBasedSpawnsSeed:uint8` + lista variable de pares `int16,int16` (`>=297`).
+- `v299-v301`: section 0 anade `manifest:string` (`>=299`) y un `uint32` heredado para `>=299 && <313`.
+- `v302-v303`: section 0 anade `skyblockWorld:uint8` antes de los timestamps (`>=302`).
+- `v304-v312`: section 0 anade `dualDungeonsSeed:uint8` (`>=304`) y conserva el `uint32` heredado hasta `<313`.
+- `v313-v319`: conserva `manifest:string` y deja de leer el `uint32` heredado.
+
+Campos nuevos relevantes para el parser:
+- Header section 0: `skyblockWorld:uint8` se lee condicionalmente para alinear correctamente los campos posteriores usados por `WorldMetadata`.
+- Header section 0 tail: los campos de `v287+`, `v288+`, `v291+`, `v296+`, `v297+`, `v299+`, `v304+` no forman parte del contrato publico actual; se saltan mediante offsets de seccion del formato `.wld` tras leer la metadata contratada.
+- Tiles section 1: se consume el cuarto byte de flags cuando `flags3 & 0x01`; se corrige el byte alto de `wall_id` a `flags3 & 0x40`, en el orden de lectura de `WorldLoader.js`; `flags3 & 0x80` sigue representando `shimmer`.
+- Chests section 2: para `v280+` se usa layout moderno sin `chestSize:int16` global; cada chest lee `itemCount:int32` tras `name`. Para `v230-v279` se conserva `chestSize:int16` global por compatibilidad con corpus v279.
 
 ## 3. Dependencias
 - Ninguna interna.
@@ -94,7 +115,8 @@ Rango de versiones soportado: **>= 230 y <= 279**. Fuera de rango -> `Unsupporte
 - **SP-03** Los chests se devuelven con su posición *(x, y)* y un array de 40 slots; los slots vacíos tienen `item_id=0`.
 - **SP-04** Un fichero con cabecera distinta a la firma Terraria lanza `WldParseError`.
 - **SP-05** Un fichero con versión fuera de rango lanza `UnsupportedWorldVersionError(version=...)`.
-- **SP-05b** Un fichero v319 lanza `UnsupportedWorldVersionError` con `detected_version=319`, `supported_range=(230, 279)` y detalles legibles para la API/UX.
+- **SP-05b** Un fichero v320 o superior lanza `UnsupportedWorldVersionError` con `detected_version=<version>`, `supported_range=(230, 319)` y detalles legibles para la API/UX.
+- **SP-05c** Un fichero v319 valido se parsea y devuelve `World` con metadata y dimensiones de tiles coherentes.
 - **SP-06** El parser es **determinista**: el mismo input produce el mismo `World` (igualdad estructural).
 
 ## 6. Plan de tests (TDD)
@@ -117,7 +139,14 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-15 test_parse_honey_tile` (iter-020)
 - [x] `T-16 test_parse_shimmer_tile` (iter-020)
 - [x] `T-17 test_parse_dry_tile` (iter-020)
-- [x] `T-18 test_parse_rejects_version_319_with_user_facing_details` (iter-021)
+- [x] `T-18 test_parse_rejects_version_319_with_user_facing_details` (iter-021, reemplazado en iter-026)
+- [x] `T-19 test_parse_v319_real_world_ok` (iter-026)
+- [x] `T-20 test_parse_above_ceiling_raises_unsupported_version` (iter-026)
+- [x] `T-21 test_parse_v230_still_ok` (iter-026)
+- [x] `T-22 test_parse_v279_still_ok` (iter-026)
+- [x] `T-23 test_parse_v302_skyblock_world_flag_alignment_ok` (iter-026)
+- [x] `T-24 test_parse_v304_dual_dungeons_tramo_ok` (iter-026)
+- [x] `T-25 test_parse_documented_intermediate_version_tramos_ok` (iter-026)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -134,10 +163,20 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `UnsupportedWorldVersionError`: fuera de rango soportado. Expone `version`, `detected_version`, `supported_range` y `details`.
 
 ## 10. Estado
-- **Versión del contrato**: v2.1
-- **Último cierre**: 2026-04-30
-- **Iteración actual**: iter-021
-- **Tests**: 20/20 unitarios B1 verdes. Verificacion global ejecutada; bloqueos fuera del cambio B1 quedan registrados en Deuda / follow-ups.
+- **Versión del contrato**: v2.2
+- **Último cierre**: 2026-05-02
+- **Iteración actual**: iter-026
+- **Tests**: `python -m pytest` verde (104/104). Cobertura total 95% con `coverage report --fail-under=80`. `mypy src/twi --strict` y `ruff check src/ tests/` verdes. Formato B1 verde; `ruff format src/ tests/ --check` queda bloqueado solo por `backend/tests/unit/world_repository/test_world_repository.py` (B2, no tocado).
+
+### Decisiones tomadas (iter-026)
+- Techo actualizado a `_MAX_VERSION = 319`; `v320+` conserva `UnsupportedWorldVersionError(code="unsupported_version")` con `supported_range=(230, 319)`.
+- `WorldLoader.js` se uso como referencia para gates de special world flags y deltas `v287+`, `v288+`, `v291+`, `v296+`, `v297+`, `v299+`, `v302+`, `v304+`.
+- El contrato publico no anade campos nuevos: `WorldMetadata`, `Tile`, `Chest`, `Sign` y `World` se mantienen compatibles.
+- Se lee `skyblockWorld` (`v302+`) porque esta antes de campos usados por `WorldMetadata`.
+- La cola de header con campos no expuestos se salta mediante offsets de seccion, como permite el formato.
+- Tiles: se consume `flags4` cuando `flags3 & 0x01`; el byte alto de `wall_id` se lee con `flags3 & 0x40` y queda cubierto por fixture sintetica v319.
+- Chests: `v230-v279` mantiene `chestSize:int16` global; `v280-v319` usa `itemCount:int32` por chest, validado contra el corpus real v319.
+- Corpus real validado: `Gotear_Tierras_llanas.wld` (`v279`) y `El_Ínsula_Ultranervioso.wld` (`v319`) parsean con metadata y dimensiones coherentes.
 
 ### Decisiones tomadas (iter-021)
 - Via elegida: **B**, mantener soporte real acotado a v230-v279 y mejorar la UX del rechazo.
@@ -156,11 +195,11 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `Sign` se añadió al contrato (referenciado en `World` pero sin definir en v0).
 - `TileGrid` implementada como lista de listas (`list[list[Tile]]`) sin numpy; rendimiento
   adecuado para el presupuesto de 10 s (el test T-08 pasa holgadamente).
-- Tile `flags` = `flags2 | (flags3 << 8)` del formato binario (cables, slope, actuator).
+- Tile `flags` = `flags2 | (flags3 << 8) | (flags4 << 16)` del formato binario (cables, slope, actuator y flags extendidos).
 - `size` se clasifica por `width`: ≤4200 → small, ≤6400 → medium, >6400 → large.
-- La fixture builder escribe archivos en formato v230-v279 usando el mismo orden de
+- La fixture builder escribe archivos en formato v230-v319 usando el mismo orden de
   campos que el parser, garantizando round-trip exacto. Las versiones fuera de rango
-  (100, 300) se rechazan inmediatamente tras leer la firma `relogic`.
+  (100, 320) se rechazan inmediatamente tras leer la firma `relogic`.
 - `wld_builder.py` vive en `tests/fixtures/` (no en `src/`); es infraestructura de test,
   no parte del dominio.
 - **iter-019 (2026-04-28)**: `Tile.frame_x` y `Tile.frame_y` añadidos como `int | None`
@@ -173,25 +212,17 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   todos los `Tile(...)` ya construidos en otros módulos (B2/B4/B5).
 
 ### Deuda / follow-ups
-- **Soporte real v319**: diferido por decision SDD (Via B). Antes de aceptar v319 hay que mapear los deltas binarios v279-v319 y cubrir con fixtures sinteticas por version/campo nuevo; no basta con subir `_MAX_VERSION`.
-- **Integracion con corpus real v319**: `tests/integration/test_real_wld_parser.py` espera parseo real de un `.wld` v319. Tras la Via B debe ajustarse en una iteracion de integracion para esperar `unsupported_version` o separarse de la suite completa hasta implementar la Via A.
 - **Encoding `base64-rle-v2`**: el endpoint `GET /tiles` usa `base64-rle-v1` (solo `tile_id`). Para exponer `liquid_type`/`liquid_amount` al frontend, el encoding debe actualizarse a `base64-rle-v2` (8 bytes/tile). Esta deuda se resolverá en **iter API.1** (B5 + F3). Anotar allí que `liquid_type` se codifica como 3 bits (`none=0, water=1, lava=2, honey=3, shimmer=4`) + `liquid_amount` (1 byte).
-- **mypy `no-redef` en `tile_search/_engine.py:109,112`**: pre-existente al iter-019,
-  no causado por los cambios de B1; reasignación de `tile_map`/`wall_map` con anotación
-  en la rama `else` tras un binding sin anotación en el `if`. Pertenece a B4
-  tile-search, no se toca aquí. Anotado para que la próxima iteración de B4 lo limpie
-  (basta con anotar la rama `if` o reestructurar el binding).
-- **Compatibilidad con mundos reales**: el parser fue validado contra fixtures sintéticas.
-  Una iteración de integración debería probarse con un `.wld` real de Terraria 1.4.4 para
-  verificar que el orden de campos en el header sección 0 coincide exactamente.
-  (Riesgo: algún campo intermedio para versiones específicas podría estar en posición
-  distinta en mundos generados por el juego vs. la especificación implementada.)
+- **Compatibilidad con mas mundos reales**: iter-026 valida corpus local `v279` y `v319`.
+  Si aparecen mundos reales `v280-v318`, anadirlos al corpus y cubrir cualquier delta no
+  observado antes de ampliar semantica expuesta por el dominio.
+- **Formato global fuera de B1**: `ruff format src/ tests/ --check` detecta formato pendiente
+  en `backend/tests/unit/world_repository/test_world_repository.py`. No se toca en esta
+  iteracion por pertenecer a B2 `world-repository`.
 - **numpy para TileGrid**: si el rendimiento de B4 tile-search resulta limitado por
   iteración Python sobre listas, sustituir `list[list[Tile]]` por un `ndarray` empaquetado.
 - **NPC / TileEntities / Footer**: secciones no parseadas; no son necesarias para el
   contrato actual pero podrían ser útiles para B2 o future work.
-- **Walls > 255**: la lógica del byte alto de wall (flags3 bit 2) está implementada
-  pero no cubierta por tests; añadir un test específico en una iteración futura.
 
 ### Evolución propuesta para paridad con TerraMap
 
@@ -202,13 +233,11 @@ Referencia local acotada:
   - leer solo `isTileMatch`, `getTileText`, `getItemText`, `onWorldLoaderWorkerMessage`.
 
 Brechas actuales:
-- `Tile` no conserva `frame_x/frame_y` (`TextureU/TextureV` en TerraMap). Sin esos campos, varios muebles/objetos colocados no se pueden distinguir solo por `tile_id`.
-- `Tile` conserva `liquid` como cantidad pero no tipo de líquido (`water/lava/honey/shimmer`), lo que limita el render.
 - `WorldMetadata` no expone `spawn_x/spawn_y`, `world_surface_y`, `rock_layer_y` ni `hell_layer_y`, necesarios para centrar y pintar capas como TerraMap.
 - `World` no modela NPCs ni tile entities. TerraMap los usa para lista de NPCs, tile info y búsqueda de items en frames/racks/mannequins/hat racks.
-- El rango actual v230-v279 rechaza mundos recientes. TerraMap contiene ramas para versiones posteriores (por ejemplo `>=287`, `>=299`, `>=304`). Revisar soporte 1.4.5+ usando offsets de sección para saltar datos no modelados.
+- El rango v230-v319 ya acepta el corpus real actual. Queda ampliar semantica de campos no expuestos si B2/B4/B5 lo necesitan.
 
-Contrato v2 (parcialmente implementado — iter-020):
+Contrato v2/v2.2 (parcialmente implementado):
 - `Tile.frame_x/frame_y`: implementado en iter-019.
 - `Tile.liquid_type/liquid_amount`: implementado en iter-020 (este iter).
 - Pendiente: ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.
@@ -222,6 +251,6 @@ Tests mínimos futuros:
 - parsear un NPC town simple.
 - parsear tile entity con item simple (item frame o weapon rack).
 - parsear tile entity con inventario múltiple (mannequin o hat rack).
-- aceptar una versión reciente soportada o devolver error explícito con versión y motivo.
+- ampliar el corpus con mundos reales adicionales de `v280-v318` si aparecen.
 
 Estado: planificado, no implementado.
