@@ -3,11 +3,14 @@ import { createApiClient, ApiError } from '../../src/api-client/index';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function makeFetch(status: number, body: unknown) {
+function makeFetch(status: number, body: unknown, headers: Record<string, string> = {}) {
   return vi.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
     json: (): Promise<unknown> => Promise.resolve(body),
+    headers: {
+      get: (name: string): string | null => headers[name] ?? null,
+    },
   });
 }
 
@@ -56,7 +59,7 @@ describe('uploadWorld', () => {
     await expect(client.uploadWorld(file)).rejects.toThrow(ApiError);
     await expect(client.uploadWorld(file)).rejects.toMatchObject({
       code: 'invalid_wld',
-      httpStatus: 400,
+      status: 400,
     });
   });
 });
@@ -126,7 +129,7 @@ describe('network errors', () => {
 
     await expect(client.getWorldMetadata('any')).rejects.toMatchObject({
       code: 'network_error',
-      httpStatus: 0,
+      status: 0,
     });
     await expect(client.getWorldMetadata('any')).rejects.toThrow(ApiError);
   });
@@ -143,7 +146,12 @@ describe('deleteWorld', () => {
   });
 
   it('T-07b deleteWorld resolves on 204', async () => {
-    const mock = vi.fn().mockResolvedValue({ ok: true, status: 204, json: vi.fn() });
+    const mock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 204,
+      json: vi.fn(),
+      headers: { get: (): null => null },
+    });
     const client = createApiClient({ fetchImpl: asFetch(mock) });
 
     await expect(client.deleteWorld('world-id-1')).resolves.toBeUndefined();
