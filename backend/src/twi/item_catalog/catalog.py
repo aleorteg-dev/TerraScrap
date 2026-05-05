@@ -2,6 +2,7 @@
 
 import json
 import logging
+import sys
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +45,17 @@ def _normalize(text: str) -> str:
     )
 
 
+def _parse_id(query: str) -> int | None:
+    try:
+        item_id = int(query)
+    except (ValueError, OverflowError):
+        return None
+
+    if item_id <= 0 or item_id > sys.maxsize:
+        return None
+    return item_id
+
+
 class _InMemoryItemCatalog:
     def __init__(self, items: list[ItemDetail]) -> None:
         self._by_id: dict[int, ItemDetail] = {item.id: item for item in items}
@@ -52,11 +64,28 @@ class _InMemoryItemCatalog:
         ]
 
     def search(self, query: str, limit: int = 20) -> list[ItemSummary]:
+        q = query.strip()
+        if not q:
+            return []
+
+        item_id = _parse_id(q)
+        if item_id is not None:
+            return self._search_by_id(item_id)
+
+        return self._search_by_name(q, limit)
+
+    def _search_by_id(self, item_id: int) -> list[ItemSummary]:
+        item = self._by_id.get(item_id)
+        if item is None:
+            return []
+        return [item]
+
+    def _search_by_name(self, query: str, limit: int) -> list[ItemSummary]:
         q = _normalize(query)
         prefixes: list[ItemSummary] = []
         substrings: list[ItemSummary] = []
         for norm_name, summary in self._index:
-            if not q or q in norm_name:
+            if q in norm_name:
                 if norm_name.startswith(q):
                     prefixes.append(summary)
                 else:
