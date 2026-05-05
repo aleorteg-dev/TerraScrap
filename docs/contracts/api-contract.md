@@ -98,6 +98,10 @@ Busca un ítem en el mundo cargado.
 #### `GET /api/items?q=<texto>&limit=20`
 Autocompletado.
 
+`q` conserva la misma firma y forma de respuesta. Además de texto por nombre,
+si `q` parsea como entero decimal positivo se resuelve como búsqueda exacta por
+`item_id`; una query vacía devuelve `items: []`.
+
 - **200**:
   ```json
   {
