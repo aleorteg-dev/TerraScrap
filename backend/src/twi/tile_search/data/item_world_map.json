@@ -1,8 +1,269 @@
 {
-  "tiles": {
-    "2": 0,
-    "3": 1,
-    "8": 4
+  "items": {
+    "2": {
+      "category": "block",
+      "tile_id": 0
+    },
+    "3": {
+      "category": "block",
+      "tile_id": 1
+    },
+    "8": {
+      "category": "object",
+      "tile_id": 4
+    },
+    "9": {
+      "category": "block",
+      "tile_id": 30
+    },
+    "11": {
+      "category": "block",
+      "tile_id": 6
+    },
+    "12": {
+      "category": "block",
+      "tile_id": 7
+    },
+    "13": {
+      "category": "block",
+      "tile_id": 8
+    },
+    "14": {
+      "category": "block",
+      "tile_id": 9
+    },
+    "26": {
+      "category": "wall",
+      "wall_id": 1
+    },
+    "29": {
+      "category": "object",
+      "tile_id": 12,
+      "frame_xy": [
+        0,
+        0
+      ]
+    },
+    "30": {
+      "category": "wall",
+      "wall_id": 2
+    },
+    "56": {
+      "category": "block",
+      "tile_id": 22
+    },
+    "61": {
+      "category": "block",
+      "tile_id": 25
+    },
+    "93": {
+      "category": "wall",
+      "wall_id": 4
+    },
+    "109": {
+      "category": "object",
+      "tile_id": 639
+    },
+    "116": {
+      "category": "block",
+      "tile_id": 37
+    },
+    "135": {
+      "category": "wall",
+      "wall_id": 7
+    },
+    "138": {
+      "category": "wall",
+      "wall_id": 8
+    },
+    "140": {
+      "category": "wall",
+      "wall_id": 9
+    },
+    "169": {
+      "category": "block",
+      "tile_id": 53
+    },
+    "172": {
+      "category": "block",
+      "tile_id": 57
+    },
+    "173": {
+      "category": "block",
+      "tile_id": 56
+    },
+    "174": {
+      "category": "block",
+      "tile_id": 58
+    },
+    "176": {
+      "category": "block",
+      "tile_id": 59
+    },
+    "221": {
+      "category": "object",
+      "tile_id": 77
+    },
+    "364": {
+      "category": "block",
+      "tile_id": 107
+    },
+    "365": {
+      "category": "block",
+      "tile_id": 108
+    },
+    "366": {
+      "category": "block",
+      "tile_id": 111
+    },
+    "409": {
+      "category": "block",
+      "tile_id": 117
+    },
+    "438": {
+      "category": "object",
+      "tile_id": 105,
+      "frame_xy": [
+        72,
+        0
+      ]
+    },
+    "473": {
+      "category": "object",
+      "tile_id": 105,
+      "frame_xy": [
+        1332,
+        0
+      ]
+    },
+    "524": {
+      "category": "object",
+      "tile_id": 133,
+      "frame_xy": [
+        0,
+        0
+      ]
+    },
+    "593": {
+      "category": "block",
+      "tile_id": 147
+    },
+    "699": {
+      "category": "block",
+      "tile_id": 166
+    },
+    "700": {
+      "category": "block",
+      "tile_id": 167
+    },
+    "701": {
+      "category": "block",
+      "tile_id": 168
+    },
+    "702": {
+      "category": "block",
+      "tile_id": 169
+    },
+    "836": {
+      "category": "block",
+      "tile_id": 203
+    },
+    "880": {
+      "category": "block",
+      "tile_id": 204
+    },
+    "947": {
+      "category": "block",
+      "tile_id": 211
+    },
+    "1101": {
+      "category": "block",
+      "tile_id": 226
+    },
+    "1104": {
+      "category": "block",
+      "tile_id": 221
+    },
+    "1105": {
+      "category": "block",
+      "tile_id": 222
+    },
+    "1106": {
+      "category": "block",
+      "tile_id": 223
+    },
+    "1221": {
+      "category": "object",
+      "tile_id": 133,
+      "frame_xy": [
+        54,
+        0
+      ]
+    },
+    "1378": {
+      "category": "wall",
+      "wall_id": 94
+    },
+    "1379": {
+      "category": "wall",
+      "wall_id": 95
+    },
+    "1380": {
+      "category": "wall",
+      "wall_id": 96
+    },
+    "1381": {
+      "category": "wall",
+      "wall_id": 97
+    },
+    "1382": {
+      "category": "wall",
+      "wall_id": 98
+    },
+    "1383": {
+      "category": "wall",
+      "wall_id": 99
+    },
+    "3081": {
+      "category": "block",
+      "tile_id": 367
+    },
+    "3086": {
+      "category": "block",
+      "tile_id": 368
+    },
+    "4525": {
+      "category": "wall",
+      "wall_id": 200
+    },
+    "4526": {
+      "category": "wall",
+      "wall_id": 201
+    },
+    "4527": {
+      "category": "wall",
+      "wall_id": 202
+    },
+    "4528": {
+      "category": "wall",
+      "wall_id": 203
+    },
+    "5532": {
+      "category": "object",
+      "tile_id": 26,
+      "frame_xy": [
+        0,
+        0
+      ]
+    },
+    "5533": {
+      "category": "object",
+      "tile_id": 26,
+      "frame_xy": [
+        54,
+        0
+      ]
+    }
   },
-  "walls": {}
+  "version": "1.0.0"
 }
