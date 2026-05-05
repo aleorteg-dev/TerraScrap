@@ -1,9 +1,9 @@
-# Módulo `B4 – tile-search`
+# Modulo `B4 - tile-search`
 
-## 1. Propósito
-Motor de búsqueda sobre un `World` ya parseado. Dado un `item_id`, devuelve todas las coordenadas donde aparece: como bloque, como pared o dentro de contenedores (chests / dressers…).
+## 1. Proposito
+Motor de busqueda sobre un `World` ya parseado. Dado un `item_id`, devuelve todas las coordenadas donde aparece como bloque, pared, objeto colocado o dentro de cofres.
 
-## 2. Contrato público
+## 2. Contrato publico
 
 ```python
 @dataclass(frozen=True)
@@ -31,116 +31,136 @@ class TileSearchEngine(Protocol):
 def create_tile_search_engine(
     item_to_tile_mapping: Mapping[int, int] | None = None,
     item_to_wall_mapping: Mapping[int, int] | None = None,
+    item_to_object_mapping: Mapping[int, int] | None = None,
+    item_to_object_frame_mapping: Mapping[int, tuple[int, int]] | None = None,
 ) -> TileSearchEngine: ...
 ```
 
-## 3. Dependencias
-- `B1 wld-parser` (solo tipos de dominio).
-- Stdlib.
+## 3. Categorias de match
 
-## 4. No objetivos
-- No devuelve píxeles ni se mete con el renderer.
-- No hace caching entre llamadas (eso se puede añadir fuera si se requiere).
-- No contempla "ítems equivalentes" (ej. distintos tipos de madera), solo coincidencia exacta por id.
+- `block`: compara `Tile.tile_id` contra el `tile_id` documentado para un item de terreno solido o bloque de construccion. Emite un match por cada celda ocupada por ese bloque.
+- `wall`: compara `Tile.wall_id` contra el `wall_id` documentado para un item de pared. Emite un match por cada celda de pared.
+- `object`: compara `Tile.tile_id` contra un tile placeable multi-celda o frame-important: estatuas, antorchas, puertas, muebles, cristales y estaciones. Si el mapping tiene `frame_xy`, solo matchea la celda cuya pareja `(frame_x, frame_y)` coincide. Si no lo tiene, el motor deduce la esquina superior izquierda por continuidad de frames. En ambos casos emite una sola vez por instancia, en la esquina superior izquierda del frame.
+- `chest`: no usa `item_world_map.json`; recorre los `Chest.items` parseados por B1 y emite un match por slot coincidente en `(chest.x, chest.y)`.
 
-## 5. Especificación (SDD)
-- **SP-01** Si el `item_id` tiene entrada en `item_to_tile_mapping`, todas las celdas del grid cuyo `tile_id` coincida con `item_to_tile_mapping[item_id]` aparecen como `source="block"`. Sin entrada → sin matches de bloque.
-- **SP-02** Si el `item_id` tiene entrada en `item_to_wall_mapping`, todas las celdas cuyo `wall_id` coincida con `item_to_wall_mapping[item_id]` aparecen como `source="wall"`. Sin entrada → sin matches de pared. (La comparación directa `item_id == wall_id` fue eliminada en iter-005: ítem y pared viven en espacios de ID distintos en Terraria.)
-- **SP-03** Cada slot de cada `Chest` con `item_id` coincidente produce un `SearchMatch` en la posición `(chest.x, chest.y)` con `source="chest"`, `chest_id` y `stack`.
-- **SP-04** Con `include_containers=False`, se omiten los matches de contenedores.
-- **SP-05** `total == len(matches)`.
-- **SP-06** Si no hay matches, `SearchResult(item_id, 0, ())`.
-- **SP-07** Es **puro**: no muta `world` ni caches compartidas.
-- **SP-08** Dos chests apilados (misma x,y) con el mismo ítem generan dos matches distintos.
+`block` y `object` comparten el campo `tile_id`, pero no significan lo mismo. `block` es terreno o bloque solido 1x1 que debe reportarse por celda. `object` es un tile colocado con entidad visual propia o varias celdas; debe reportarse por instancia, no por cada celda ocupada.
 
-## 6. Plan de tests (TDD)
-- [x] `T-01 test_search_finds_block_matches`
-- [x] `T-02 test_search_finds_wall_matches`
-- [x] `T-03 test_search_finds_chest_items`
-- [x] `T-04 test_search_without_containers_excludes_chest_matches`
-- [x] `T-05 test_search_returns_empty_when_no_matches`
-- [x] `T-06 test_search_total_matches_len_matches`
-- [x] `T-07 test_search_is_pure_and_deterministic`
-- [x] `T-08 test_search_large_world_completes_within_budget` (marca `@pytest.mark.perf`)
-- [x] `test_search_stacked_chests_produce_distinct_matches` (SP-08, extra)
+`include_containers=False` omite `source="chest"`. Los objetos colocados siguen apareciendo porque no son contenedores semanticos en este contrato.
 
-## 7. Notas de implementación
-- Dos mappings separados: `item_to_tile_mapping: dict[int, int]` e `item_to_wall_mapping: dict[int, int]`. Ambos se inyectan al factory. Ítem y `tile_id`/`wall_id` viven en espacios distintos en Terraria; no se puede asumir identidad directa.
-- Carga por defecto desde `data/item_world_map.json` (sección `"tiles"` y `"walls"`). Solo si ambos parámetros son `None` se carga el JSON; si alguno se pasa explícitamente, no se toca el fichero. El fichero `item_tile_map.json` queda obsoleto y puede eliminarse en una limpieza futura.
-- Mappings verificados en `item_world_map.json`: Dirt Block (2→0), Stone Block (3→1), Torch (8→4). Sección `"walls"` vacía hasta confirmar IDs con fuente documentada.
-- Iteración del grid: un solo paso O(W·H) con short-circuit por `None`; block y wall se computan en el mismo bucle.
+## 4. Formato de `item_world_map.json`
+
+Version actual documentada: `1.0.0`.
+
+```json
+{
+  "items": {
+    "<item_id>": {
+      "category": "block | wall | object",
+      "tile_id": 0,
+      "wall_id": 0,
+      "frame_xy": [0, 0]
+    }
+  },
+  "version": "1.0.0"
+}
+```
+
+Reglas:
+
+- La raiz solo admite `items` y `version`.
+- `version` usa semver `MAJOR.MINOR.PATCH`.
+- Las claves de `items` son `item_id` numericos como string.
+- `category="block"` requiere `tile_id` y prohibe `wall_id`.
+- `category="wall"` requiere `wall_id` y prohibe `tile_id` y `frame_xy`.
+- `category="object"` requiere `tile_id`; `frame_xy` es opcional y representa la esquina superior izquierda del frame en coordenadas `U/V` guardadas por B1 como `Tile.frame_x/frame_y`.
+- No se permiten claves desconocidas.
+- No se permite que dos `item_id` distintos compartan `(category, tile_id)` o `(category, wall_id)` si alguno de ellos no tiene `frame_xy`. Esto evita falsos positivos en tiles con multiples variantes.
+
+## 5. Alcance de datos de esta iteracion
+
+Fuente de `item_id`: catalogo B3 local `backend/src/twi/item_catalog/data/items.seed.json`.
+
+Fuentes de `tile_id`, `wall_id` y `frame_xy`:
+
+- Terraria wiki.gg: `https://terraria.wiki.gg/wiki/Item_IDs`, `https://terraria.wiki.gg/wiki/Tile_IDs/Part1`, `https://terraria.wiki.gg/wiki/Tile_IDs/Part2`, `https://terraria.wiki.gg/wiki/Tile_IDs/Part3`, `https://terraria.wiki.gg/wiki/Tile_IDs/Part4`, `https://terraria.wiki.gg/wiki/Tile_IDs/Part5`, `https://terraria.wiki.gg/wiki/Tile_IDs/Part6`, `https://terraria.wiki.gg/wiki/Tile_IDs/Part7`, `https://terraria.wiki.gg/wiki/Tile_IDs/Part8`, `https://terraria.wiki.gg/wiki/Tile_IDs/Part9`, `https://terraria.wiki.gg/wiki/Wall_IDs`.
+- Terraria wiki.gg paginas concretas: `https://terraria.wiki.gg/wiki/Altars`, `https://terraria.wiki.gg/wiki/Statues`, `https://terraria.wiki.gg/wiki/Hardmode_Forges`, `https://terraria.wiki.gg/wiki/Life_Crystal`, `https://terraria.wiki.gg/wiki/Repaired_Mana_Crystal`, `https://terraria.wiki.gg/wiki/Dungeon_Brick_Walls`, `https://terraria.wiki.gg/wiki/Hallowed_Walls`.
+- TerraMap local como referencia de `U/V`: `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\settings.js`, entradas `Tiles` para ids `12`, `26`, `77`, `105`, `133`, `639`.
+
+Cobertura minima congelada:
+
+- Bloques: Dirt Block, Stone Block, Wood, Ebonstone Block, Crimstone Block, Pearlstone Block, Hellstone, Obsidian, Snow Block, Sand Block, Mud Block, Ash Block, Granite Block, Marble Block, Meteorite, Lihzahrd Brick, Copper Ore, Tin Ore, Iron Ore, Lead Ore, Silver Ore, Tungsten Ore, Gold Ore, Platinum Ore, Demonite Ore, Crimtane Ore, Cobalt Ore, Palladium Ore, Mythril Ore, Orichalcum Ore, Adamantite Ore, Titanium Ore, Chlorophyte Ore.
+- Walls: Dirt Wall, Stone Wall, Wood Wall, Blue Brick Wall, Green Brick Wall, Pink Brick Wall, Blue Slab Wall, Blue Tiled Wall, Green Slab Wall, Green Tiled Wall, Pink Slab Wall, Pink Tiled Wall, Hallowed Prism Wall, Hallowed Cavern Wall, Hallowed Shard Wall, Hallowed Crystalline Wall.
+- Objects: Torch, Heart Statue, Star Statue, Life Crystal, Mana Crystal, Demon Altar, Crimson Altar, Hellforge, Adamantite Forge, Titanium Forge.
+
+Notas de datos:
+
+- Para `Demon Altar` y `Crimson Altar`, B3 contiene tambien items icon-only `6135/6136`. Esta iteracion usa `5532/5533`, que son los item IDs placeables indicados por wiki.gg para Terraria 1.4.5.
+- `Mana Crystal` no tiene tile placeable directo; se cubre como tile `ManaCrystal`/`Repaired Mana Crystal` (`tile_id=639`) porque ese objeto colocado suelta Mana Crystal. Queda marcado como alias pragmatico.
+- Paredes con variantes safe/unsafe quedan representadas por un solo `wall_id` primario en esta version del formato.
+
+## 6. Especificacion (SDD)
+
+- **SP-01** Item con categoria `block`: todas las celdas cuyo `tile_id` coincida aparecen como `source="block"`.
+- **SP-02** Item con categoria `wall`: todas las celdas cuyo `wall_id` coincida aparecen como `source="wall"`.
+- **SP-03** Item con categoria `object`: todas las instancias cuyo `tile_id` y, si aplica, `frame_xy` coincidan aparecen como `source="object"` una sola vez por instancia en la esquina superior izquierda.
+- **SP-04** Cada slot de cada `Chest` con `item_id` coincidente produce un `SearchMatch` con `source="chest"`, `chest_id` y `stack`.
+- **SP-05** Con `include_containers=False`, se omiten los matches de cofres.
+- **SP-06** `total == len(matches)`.
+- **SP-07** Si no hay matches o el item no esta mapeado, devuelve `SearchResult(item_id, 0, ())`.
+- **SP-08** El motor es puro: no muta `world` ni caches compartidas.
+- **SP-09** Dos chests apilados en la misma coordenada con el mismo item generan dos matches distintos.
+- **SP-10** La carga de `item_world_map.json` valida formato y colisiones al construir el motor; un archivo invalido falla pronto.
+
+## 7. Plan de tests (TDD)
+
+- [x] `test_engine_finds_block_match`
+- [x] `test_engine_finds_wall_match`
+- [x] `test_engine_finds_object_match_once_per_instance`
+- [x] `test_engine_unknown_item_returns_empty`
+- [x] `test_engine_chest_match_still_works`
+- [x] `test_data_file_has_minimum_coverage`
+- [x] `test_data_file_schema_valid`
+- [x] `test_object_with_multiple_frames_uses_frame_xy`
+- [x] Regresiones existentes de pureza, orden, chests apilados, no contaminacion block/wall y performance.
+
+## 8. Notas de implementacion
+
+- El motor mantiene compatibilidad con `item_to_tile_mapping` y `item_to_wall_mapping` inyectados para tests existentes, y agrega `item_to_object_mapping` + `item_to_object_frame_mapping`.
+- `_mapping.py` separa parseo/validacion del JSON del matcher del mundo.
+- La carga por defecto usa `data/item_world_map.json`; el fichero legado `item_tile_map.json` queda sin uso.
+- La iteracion del grid branch-ea por categoria antes de recorrer el mundo para no pagar checks de `object` en busquedas de bloque/pared.
 - Los matches se devuelven ordenados por `(y, x)` para orden consistente en el frontend.
 
-## 8. Performance
-- Target: world large (8400×2400 ≈ 20M tiles) + 1000 chests < 500 ms.
-- Representación vectorizada (numpy) opcional: `np.where(tile_ids == target)` acelera el paso de grid.
+## 9. Performance
 
-## 9. Errores
-- Ninguna excepción específica. Item id inexistente → resultado vacío (no es error del motor).
+- Target historico: world large (8400x2400 aprox. 20M tiles) + 1000 chests < 500 ms.
+- Estado actual: loop Python O(W*H), guardia de regresion en 3.5 s. RNF-03 real requiere vectorizacion o arrays auxiliares en B1.
 
-## 10. Estado
-- **Versión del contrato**: v2
-- **Último cierre**: 2026-05-01
-- **Iteración actual**: cerrada
-- **Nota de cierre**: fix tipado redefinición en `create_tile_search_engine`.
+## 10. Errores
+
+- Item inexistente o no mapeado no es error: resultado vacio.
+- `item_world_map.json` invalido si es error de arranque del motor: se lanza `ValueError`.
+
+## 11. Estado
+
+- **Version del contrato**: v3
+- **Ultimo cierre**: 2026-05-05
+- **Iteracion actual**: cerrada
+- **Version JSON**: `1.0.0`
+- **Conteo cubierto**: 59 items total; 33 `block`, 16 `wall`, 10 `object`.
+- **Verificacion**:
+  - `python -m pytest tests/unit/tile_search/test_tile_search.py -q`: 24 passed.
+  - `python -m coverage run --source=src/twi/tile_search -m pytest tests/unit/tile_search/test_tile_search.py -q` + `python -m coverage report --fail-under=80`: 83%.
+  - `python -m mypy src/twi --strict`: sin errores.
+  - `python -m ruff check src/ tests/`: sin errores.
+  - `python -m ruff format src/ tests/ --check`: 40 files already formatted.
+  - `python -m pytest`: bloqueado fuera de B4 por `PermissionError` creando/leeyendo `tmp_path`/basetemp en este sandbox; B4 completo pasa.
 - **Deuda / follow-ups**:
-  - **VERIFY-EXT-01** — La suite completa `pytest` sigue fallando fuera de B4:
-    permisos de `tmp_path` en tests de `item_catalog`/integración y tests reales de `wld-parser`
-    sobre un mundo v319 no soportado (B1 soporta v230-v279). No se toca en esta iteración.
-  - **FORMAT-EXT-01** — `ruff format src/ tests/ --check` detecta formato pendiente en
-    `tests/unit/world_repository/test_world_repository.py`. No se toca en esta iteración por pertenecer a B2.
-  - **PERF-01** — El loop O(W·H) sobre `list[list[Tile]]` alcanza ~2.3 s en CPython 3.14 para un
-    mundo Large (20 M tiles). RNF-03 (< 500 ms) requiere vectorización numpy. Solución propuesta:
-    exponer en B1 (`TileGrid`) arrays numpy cacheados (`tile_ids: np.ndarray`, `wall_ids: np.ndarray`)
-    o agregar una utilidad `to_arrays() -> tuple[NDArray, NDArray]`; el motor usaría `np.where` en
-    lugar del loop Python. No se toca en esta iteración (cambio de contrato en B1).
-  - **WALL-IDS** — Sección `"walls"` de `item_world_map.json` está vacía. Añadir mappings
-    `item_id → wall_id` verificados con fuente documentada (wiki.gg u offset en `.wld`).
-    Stone Wall (item 26) y Dirt Wall (item 30) son los candidatos inmediatos.
-  - **STALE-JSON** — `data/item_tile_map.json` queda sin uso. Puede eliminarse en limpieza futura.
-
-### Evolución propuesta para paridad con TerraMap
-
-Referencia local acotada:
-- `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\main.js`
-  - leer solo `addTileSelectOptions`, `addItemSelectOptions`, `addWallSelectOptions`, `isTileMatch`, `highlightInfos`, `getTileInfoFrom`, `getSelectedInfos`.
-- `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\terramap.github.io\resources\js\settings.js`
-  - leer solo las estructuras `Tiles`, `Items`, `Walls` necesarias para entender ids, frames y nombres.
-
-Brechas actuales:
-- `item_world_map.json` contiene solo tres mappings de bloque y ningún mapping de pared.
-- El motor solo soporta un `tile_id` o `wall_id` por item; TerraMap distingue frames/variantes mediante `U/V`.
-- `source="object"` existe en el tipo pero no se produce porque B1 no expone tile entities.
-- La búsqueda en contenedores cubre chests, pero no objetos con inventario fuera de chests.
-
-Contrato propuesto v3 (depende de B1 v2):
-- permitir mappings con condiciones opcionales de frame: `item_id -> [{ kind:"tile", tile_id, frame_x?, frame_y? }, { kind:"wall", wall_id }]`.
-- buscar en `World.tile_entities` y devolver `SearchMatch(source="object", tile_entity_id=...)` con coordenadas de la entidad.
-- ampliar firma: `search(world, item_id, include_containers=True, frame_x=None, frame_y=None)`. Si `frame_x/frame_y` se pasan, filtrar matches `source="block"` por igualdad exacta del frame.
-- generar o versionar `item_world_map.json` desde una fuente verificable, no mantenerlo manualmente con tres entradas.
-
-Semántica de `include_containers` (v3):
-- `True` (default): incluye `source="chest"` **y** `source="object"` (tile entities con inventario: item frames, weapon racks, mannequins, hat racks).
-- `False`: excluye `chest` **y** `object`. Bloque y pared nunca se ven afectados.
-- Razón: para el caso de uso "¿dónde dejé X?" ambos son contenedores semánticamente equivalentes. Si en el futuro se necesita granularidad, añadir `include_chests`/`include_objects` como flags adicionales sin romper el default.
-
-Tests mínimos futuros:
-- item con mapping por `tile_id` simple.
-- item con mapping por `tile_id + frame_x/frame_y` que no confunda variantes.
-- item con mapping de pared.
-- item dentro de item frame/weapon rack produce `source="object"` con `tile_entity_id`.
-- item dentro de mannequin/hat rack produce `source="object"` y respeta stacks/prefix cuando existan.
-- `include_containers=False` oculta `chest` y `object`, conserva `block` y `wall`.
-- `frame_x=18, frame_y=0` filtra correctamente un mapping `tile_id` ambiguo (variantes de muebles).
-
-Estado: planificado, no implementado.
-
-## 11. Decisiones tomadas en iter-004 y iter-005
-- **Wall search via `item_to_wall_mapping`** (iter-005): la comparación directa `item_id == wall_id`
-  producía resultados incorrectos porque ítem y pared viven en espacios de ID distintos en Terraria.
-  Se sustituyó por lookup explícito en `item_to_wall_mapping`, igual que bloques con `item_to_tile_mapping`.
-- **`item_world_map.json`** (iter-005): nuevo fichero unificado con secciones `"tiles"` y `"walls"`.
-  Solo mappings verificados: 2→0, 3→1, 8→4. Mappings erróneos `9→1` y `30→7` eliminados.
-- **Budget de T-08 = 3.5 s**: el loop Python mide ~2.3 s; se usa margen 1.5× para varianza de CI.
-  El test sirve como guardia de regresión, no como gate estricto de RNF-03.
-- **Módulo de dominio puro**: cero imports de FastAPI/pydantic; todos los modelos son `dataclass`.
+  - **VERIFY-EXT-01**: resolver permisos de pytest tmp/cache en el entorno Windows para poder cerrar la suite completa sin `--ignore` ni workarounds.
+  - **MULTI-WALL-ID**: soportar varios `wall_id` por item para safe/unsafe y variantes naturales/colocadas.
+  - **MULTI-FRAME-ITEM**: soportar varios `frame_xy` por item para orientaciones left/right y estilos alternos de un mismo objeto.
+  - **OBJECT-ALIAS-01**: revisar el alias `Mana Crystal -> tile_id 639` cuando B3 exponga relacion explicita con `Repaired Mana Crystal`.
+  - **DATA-EXPAND-01**: ampliar muebles, decoracion, objetos de eventos, NPC-related tiles, bioma desert/ocean/glowing moss y variantes modernas fuera de la lista minima.
+  - **API-DOCS-OBJECT**: `docs/contracts/api-contract.md` y `docs/modules/backend/api-rest.md` aun describen `object` como tile entity con inventario. No se toca api-rest en esta iteracion.
+  - **STALE-JSON**: `data/item_tile_map.json` queda obsoleto.
+  - **PERF-01**: RNF-03 (< 500 ms) requiere arrays vectorizables desde B1.
