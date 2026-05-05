@@ -30,8 +30,18 @@ Flujo principal (máquina de estados implícita):
 - **SP-04** `SearchPanel.onMatchFocus(m)` llama `canvasHandle.centerOn(m.x, m.y)`.
 - **SP-05** Un botón "Cerrar mundo" vuelve a `NoWorld` tras llamar `apiClient.deleteWorld`.
 - **SP-06** Errores de la API muestran un toast no bloqueante.
-- **SP-07** Layout responsivo: canvas arriba (flex 1), panel lateral derecho (320 px), upload centrado cuando no hay mundo.
+- **SP-07** Layout raiz fluido: `#root` ocupa el 100 % del viewport y el mundo cargado usa una rejilla estable de dos columnas.
 - **SP-08** Persiste `worldId` en `sessionStorage` para recuperar la sesión al recargar.
+
+### Layout raiz
+- `#root` debe ocupar `width: 100%` del viewport, sin `max-width`, sin `margin: 0 auto`, sin padding inducido por la plantilla Vite y sin `text-align: center`.
+- El `body` no debe inducir scroll horizontal: `margin: 0`, `min-width: 1024px` como breakpoint minimo soportado y `overflow-x: hidden`.
+- El arbol React debajo de `App` ocupa todo el viewport disponible con `.app { width: 100%; min-height: 100dvh; }`.
+- En estado `WorldLoaded`, `.app-main` es una rejilla de dos columnas: `320px 1fr`. La primera columna contiene `search-panel`; la segunda contiene el host del `world-canvas`.
+- El ancho contratado del `search-panel` es fijo: `320px`. Esta iteracion soporta viewports desde `1024px`; por debajo queda fuera de alcance y se registrara como follow-up mobile.
+- El host del canvas debe usar `min-width: 0`, `width: 100%`, `height: 100%` y permitir que `WorldCanvas` pinte al `100%` del espacio asignado. El canvas debe escalar cuando cambia el tamano del navegador.
+- No debe haber scroll horizontal en viewports `>= 1024px`.
+- Alcance de implementacion: solo CSS global, CSS/app-shell y, si hace falta, el componente raiz `App.tsx`. No se toca logica de canvas, internals de `search-panel`, rutas de datos ni contratos de API.
 
 ## 6. Plan de tests (TDD)
 - [x] `T-01 renders UploadWorld in initial state`
@@ -41,6 +51,14 @@ Flujo principal (máquina de estados implícita):
 - [x] `T-05 closes world and resets state`
 - [x] `T-06 recovers worldId from sessionStorage on mount`
 - [x] `T-07 shows toast on API error`
+- [x] `test_root_has_no_max_width`
+- [x] `test_root_fills_viewport_width`
+- [x] `test_root_no_centered_margin`
+- [x] `test_root_no_text_align_center`
+- [x] `test_layout_grid_two_columns`
+- [x] `test_canvas_host_grows_with_viewport`
+- [x] `test_search_panel_has_stable_width`
+- [x] `test_app_renders_without_console_errors`
 
 ## 7. Notas de implementación
 - Usar `useReducer` con `State = NoWorld | { kind: "WorldLoaded"; worldId; metadata; matches }`.
@@ -54,8 +72,8 @@ Flujo principal (máquina de estados implícita):
 - Gestionados por un `ErrorBoundary` sencillo en la raíz.
 
 ## 10. Estado
-- **Versión del contrato**: v1.0
-- **Último cierre**: 2026-04-27 (iter-012)
+- **Versión del contrato**: v1.1
+- **Último cierre**: 2026-05-05 (layout raiz fluido)
 - **Iteración actual**: cerrada
 
 ### Decisiones tomadas
@@ -65,10 +83,16 @@ Flujo principal (máquina de estados implícita):
 - `deleteWorld` falla silenciosamente: se muestra toast pero se cierra la sesión local igualmente (sesiones en memoria, pueden haber expirado).
 - `ErrorBoundary` clase mínima en el mismo fichero (no necesita módulo propio).
 - `src/App.tsx` re-exporta desde `./app-shell` para mantener compatibilidad con cualquier import legacy.
+- Layout `WorldLoaded`: `search-panel` queda a la izquierda con ancho fijo `320px`; `world-canvas` ocupa la columna restante con `minmax(0, 1fr)`.
+- Chequeo visual manual 2026-05-05 con Chrome headless y sesion `WorldLoaded` simulada:
+  - 1024 px: `rootWidth=1024`, columnas `320px 704px`, sin overflow horizontal.
+  - 1440 px: `rootWidth=1440`, columnas `320px 1120px`, sin overflow horizontal.
+  - 1920 px: `rootWidth=1920`, columnas `320px 1600px`, sin overflow horizontal.
 
 ### Deuda / follow-ups
 - Smoke test manual pendiente (requiere backend vivo con `.wld` real). Anotar resultado aquí tras realizarlo.
 - P1 deployment-docker: empaquetar frontend con nginx.
+- Iteracion mobile pendiente: definir layout por debajo de `1024px` y decidir si el panel colapsa, pasa a drawer o se apila sobre el canvas.
 
 ### Evolución propuesta para paridad con TerraMap
 
