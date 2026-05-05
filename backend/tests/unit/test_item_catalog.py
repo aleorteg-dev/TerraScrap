@@ -14,15 +14,25 @@ T-11  test_load_catalog_falls_back_to_seed_and_logs_warning
 T-12  test_load_catalog_raises_when_both_absent
 T-13  test_load_catalog_falls_back_to_seed_when_cache_invalid_schema
 T-14  test_load_catalog_raises_when_no_seed_and_cache_absent
+T-15  test_search_numeric_returns_item_by_id
+T-16  test_search_alpha_returns_by_name
+T-17  test_search_zero_padded_id
+T-18  test_search_unknown_id_returns_empty
+T-19  test_search_empty_query_returns_empty
+T-20  test_search_negative_or_overflow_falls_back_to_name
+T-21  test_search_mixed_alphanumeric_uses_name_branch
+T-22  test_refresh_cli_creates_output_parent_and_runs
 """
 
 import json
 import logging
+import sys
 from pathlib import Path
 
 import httpx
 import pytest
 
+import twi.item_catalog.refresh as refresh_cli
 from twi.item_catalog import (
     ItemCatalog,
     ItemCatalogUnavailableError,
@@ -87,6 +97,15 @@ def catalog(cache_file: Path) -> ItemCatalog:
     return create_catalog_from_cache(cache_file)
 
 
+def _catalog_from_items(tmp_path: Path, items: list[dict[str, object]]) -> ItemCatalog:
+    cache_path = tmp_path / "items.json"
+    cache_path.write_text(
+        json.dumps({"schema": 1, "items": items}),
+        encoding="utf-8",
+    )
+    return create_catalog_from_cache(cache_path)
+
+
 # ---------------------------------------------------------------------------
 # T-01  prefix match
 # ---------------------------------------------------------------------------
@@ -95,6 +114,77 @@ def catalog(cache_file: Path) -> ItemCatalog:
 def test_search_prefix_match_returns_item(catalog: ItemCatalog) -> None:
     results = catalog.search("zen")
     assert any(r.name == "Zenith" for r in results)
+
+
+def test_search_numeric_returns_item_by_id(catalog: ItemCatalog) -> None:
+    results = catalog.search("4956")
+    assert [(item.id, item.name) for item in results] == [(4956, "Zenith")]
+
+
+def test_search_alpha_returns_by_name(catalog: ItemCatalog) -> None:
+    results = catalog.search("zen")
+    assert [(item.id, item.name) for item in results] == [(4956, "Zenith")]
+
+
+def test_search_zero_padded_id(catalog: ItemCatalog) -> None:
+    results = catalog.search("0001")
+    assert [(item.id, item.name) for item in results] == [(1, "Copper Shortsword")]
+
+
+def test_search_unknown_id_returns_empty(catalog: ItemCatalog) -> None:
+    assert catalog.search("999999") == []
+
+
+def test_search_empty_query_returns_empty(catalog: ItemCatalog) -> None:
+    assert catalog.search("") == []
+    assert catalog.search("   ") == []
+
+
+def test_search_negative_or_overflow_falls_back_to_name(tmp_path: Path) -> None:
+    catalog = _catalog_from_items(
+        tmp_path,
+        [
+            {
+                "id": 7,
+                "name": "-1",
+                "sprite_url": "https://example.com/negative.png",
+                "category": "debug",
+                "rarity": 0,
+                "tooltip": None,
+            },
+            {
+                "id": 8,
+                "name": "99999999999999999999",
+                "sprite_url": "https://example.com/overflow.png",
+                "category": "debug",
+                "rarity": 0,
+                "tooltip": None,
+            },
+        ],
+    )
+
+    assert [(item.id, item.name) for item in catalog.search("-1")] == [(7, "-1")]
+    assert [
+        (item.id, item.name) for item in catalog.search("99999999999999999999")
+    ] == [(8, "99999999999999999999")]
+
+
+def test_search_mixed_alphanumeric_uses_name_branch(tmp_path: Path) -> None:
+    catalog = _catalog_from_items(
+        tmp_path,
+        [
+            {
+                "id": 9,
+                "name": "4956a",
+                "sprite_url": "https://example.com/mixed.png",
+                "category": "debug",
+                "rarity": 0,
+                "tooltip": None,
+            }
+        ],
+    )
+
+    assert [(item.id, item.name) for item in catalog.search("4956a")] == [(9, "4956a")]
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +204,7 @@ def test_search_is_case_insensitive(catalog: ItemCatalog) -> None:
 
 
 def test_search_respects_limit(catalog: ItemCatalog) -> None:
-    results = catalog.search("", limit=2)
+    results = catalog.search("o", limit=2)
     assert len(results) <= 2
 
 
@@ -216,6 +306,28 @@ async def test_refresh_cache_parses_sample_wiki_html_page(tmp_path: Path) -> Non
     assert items_by_id[4956]["name"] == "Zenith"
 
     assert 99 not in items_by_id, "non-numeric ID row must be skipped"
+
+
+def test_refresh_cli_creates_output_parent_and_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "nested" / "items.json"
+    calls: list[Path] = []
+
+    async def fake_run(path: Path) -> None:
+        calls.append(path)
+
+    monkeypatch.setattr(refresh_cli, "_run", fake_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["python -m twi.item_catalog.refresh", "--output", str(output)],
+    )
+
+    refresh_cli.main()
+
+    assert output.parent.is_dir()
+    assert calls == [output]
 
 
 # ---------------------------------------------------------------------------
