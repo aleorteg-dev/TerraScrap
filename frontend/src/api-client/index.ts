@@ -1,4 +1,13 @@
-export { ApiError, createApiClient } from './client';
+export {
+  ApiError,
+  UploadTooLargeError,
+  WorldNotFoundError,
+  ItemNotFoundError,
+  ValidationError,
+  InternalApiError,
+  parseError,
+} from './errors';
+export { createApiClient } from './client';
 export type {
   ApiClient,
   ApiClientOptions,

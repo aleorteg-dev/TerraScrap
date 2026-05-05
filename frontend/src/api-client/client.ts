@@ -1,4 +1,5 @@
 import type { components } from './__generated__/schema';
+import { ApiError, parseError } from './errors';
 
 // ── Tipos re-exportados desde el schema generado ──────────────────────────────
 
@@ -9,25 +10,8 @@ export type SearchMatch = components['schemas']['SearchMatchDto'];
 export type ItemSummary = components['schemas']['ItemSummaryDto'];
 export type ItemDetail = components['schemas']['ItemDetailDto'];
 
-// Tipo interno: no expuesto, sólo usado dentro de uploadWorld
 type WorldCreatedDto = components['schemas']['WorldCreatedDto'];
 type ItemListDto = components['schemas']['ItemListDto'];
-
-// ── ApiError ──────────────────────────────────────────────────────────────────
-
-export class ApiError extends Error {
-  readonly code: string;
-  readonly httpStatus: number;
-  readonly details: unknown;
-
-  constructor(code: string, httpStatus: number, message: string, details?: unknown) {
-    super(message);
-    this.name = 'ApiError';
-    this.code = code;
-    this.httpStatus = httpStatus;
-    this.details = details;
-  }
-}
 
 // ── Contrato público ──────────────────────────────────────────────────────────
 
@@ -56,16 +40,6 @@ export interface ApiClientOptions {
 
 // ── Helpers internos ──────────────────────────────────────────────────────────
 
-function isErrorPayload(
-  v: unknown
-): v is { error: { code: string; message: string; details?: unknown } } {
-  if (typeof v !== 'object' || v === null || !('error' in v)) return false;
-  const inner = (v as Record<string, unknown>)['error'];
-  if (typeof inner !== 'object' || inner === null) return false;
-  const err = inner as Record<string, unknown>;
-  return typeof err['code'] === 'string' && typeof err['message'] === 'string';
-}
-
 async function doRequest<T>(fetchImpl: typeof fetch, url: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -80,11 +54,7 @@ async function doRequest<T>(fetchImpl: typeof fetch, url: string, init?: Request
   }
 
   if (!response.ok) {
-    const body: unknown = await response.json();
-    if (isErrorPayload(body)) {
-      throw new ApiError(body.error.code, response.status, body.error.message, body.error.details);
-    }
-    throw new ApiError('unknown_error', response.status, 'Unknown server error');
+    throw await parseError(response);
   }
 
   const json: unknown = await response.json();
@@ -154,16 +124,7 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
       // SP-06: swallow 404 (idempotente)
       if (response.status === 404) return;
       if (response.ok) return;
-      const body: unknown = await response.json();
-      if (isErrorPayload(body)) {
-        throw new ApiError(
-          body.error.code,
-          response.status,
-          body.error.message,
-          body.error.details
-        );
-      }
-      throw new ApiError('unknown_error', response.status, 'Unknown server error');
+      throw await parseError(response);
     },
   };
 }
