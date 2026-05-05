@@ -160,6 +160,14 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
               </button>
             </header>
             <main className="app-main">
+              <aside className="app-sidebar">
+                <SearchPanel
+                  worldId={state.worldId}
+                  apiClient={client}
+                  onResults={handleResults}
+                  onMatchFocus={handleMatchFocus}
+                />
+              </aside>
               <div className="app-canvas-container">
                 <WorldCanvas
                   worldId={state.worldId}
@@ -169,14 +177,6 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                 />
                 <HighlightOverlay canvasHandle={canvasHandle} matches={state.matches} />
               </div>
-              <aside className="app-sidebar">
-                <SearchPanel
-                  worldId={state.worldId}
-                  apiClient={client}
-                  onResults={handleResults}
-                  onMatchFocus={handleMatchFocus}
-                />
-              </aside>
             </main>
           </>
         )}

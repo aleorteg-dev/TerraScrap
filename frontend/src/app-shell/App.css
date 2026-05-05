@@ -2,7 +2,9 @@
 .app {
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100dvh;
+  min-height: 100dvh;
   overflow: hidden;
   font-family: sans-serif;
 }
@@ -60,24 +62,32 @@
 
 /* ── Main area ───────────────────────────────────────────────────────────────── */
 .app-main {
-  display: flex;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
   flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
 /* Canvas + overlay stack */
 .app-canvas-container {
   position: relative;
-  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
 /* Sidebar */
 .app-sidebar {
   width: 320px;
-  flex-shrink: 0;
+  min-width: 320px;
+  max-width: 320px;
   overflow-y: auto;
-  border-left: 1px solid #333;
+  box-shadow: inset -1px 0 #333;
   background: #111;
   color: #eee;
 }
