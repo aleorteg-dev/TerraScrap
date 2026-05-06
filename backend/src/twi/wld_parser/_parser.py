@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import BinaryIO, Literal
 
 from twi.wld_parser._exceptions import UnsupportedWorldVersionError, WldParseError
@@ -9,6 +10,7 @@ from twi.wld_parser._reader import Reader
 from twi.wld_parser._types import (
     Chest,
     ChestItem,
+    Npc,
     Sign,
     Tile,
     TileGrid,
@@ -22,6 +24,8 @@ _MIN_VERSION: int = 230
 _MAX_VERSION: int = 319
 _MODERN_CHEST_VERSION: int = 280
 _CHEST_CAPACITY: int = 40
+_NPC_KILL_COUNT_VERSION: int = 268
+_NPC_TOWN_VARIATION_VERSION: int = 213
 
 
 def _classify_size(width: int) -> str:
@@ -61,9 +65,9 @@ def _read_file_header(r: Reader) -> tuple[int, list[int], list[bool]]:
     _favorites = r.read_uint64()
 
     num_sections = r.read_int16()
-    if num_sections < 4:
+    if num_sections < 5:
         raise WldParseError(
-            f"Too few sections: {num_sections} (need at least 4).",
+            f"Too few sections: {num_sections} (need at least 5).",
             code="corrupt",
         )
     offsets = [r.read_int32() for _ in range(num_sections)]
@@ -357,6 +361,137 @@ def _read_signs(r: Reader) -> tuple[Sign, ...]:
     return tuple(signs)
 
 
+def _validate_npc_coordinates(
+    *,
+    npc_id: int,
+    position_x: float,
+    position_y: float,
+    is_homeless: bool,
+    home_x: int,
+    home_y: int,
+    is_town_npc: bool,
+    width: int,
+    height: int,
+) -> None:
+    position_ok = (
+        math.isfinite(position_x)
+        and math.isfinite(position_y)
+        and 0.0 <= position_x < float(width)
+        and 0.0 <= position_y < float(height)
+    )
+    home_ok = (
+        not is_town_npc or is_homeless or (0 <= home_x < width and 0 <= home_y < height)
+    )
+    if position_ok and home_ok:
+        return
+
+    raise WldParseError(
+        "NPC coordinates are outside world bounds.",
+        code="invalid_npc",
+        details={
+            "id": npc_id,
+            "position_x": position_x,
+            "position_y": position_y,
+            "home_x": home_x,
+            "home_y": home_y,
+            "width": width,
+            "height": height,
+        },
+    )
+
+
+def _read_town_npc(r: Reader, version: int, width: int, height: int) -> Npc:
+    npc_id = r.read_int32()
+    name = r.read_net_string()
+    position_x = r.read_float32() / 16.0
+    position_y = r.read_float32() / 16.0
+    is_homeless = r.read_bool()
+    home_x = r.read_int32()
+    home_y = r.read_int32()
+
+    if version >= _NPC_TOWN_VARIATION_VERSION and r.read_bool():
+        _town_variation = r.read_int32()
+    _homeless_despawn = r.read_bool()
+
+    _validate_npc_coordinates(
+        npc_id=npc_id,
+        position_x=position_x,
+        position_y=position_y,
+        is_homeless=is_homeless,
+        home_x=home_x,
+        home_y=home_y,
+        is_town_npc=True,
+        width=width,
+        height=height,
+    )
+    return Npc(
+        id=npc_id,
+        name=name,
+        position_x=position_x,
+        position_y=position_y,
+        is_homeless=is_homeless,
+        home_x=home_x,
+        home_y=home_y,
+        is_town_npc=True,
+    )
+
+
+def _read_transient_npc(r: Reader, width: int, height: int) -> Npc:
+    npc_id = r.read_int32()
+    position_x = r.read_float32() / 16.0
+    position_y = r.read_float32() / 16.0
+    home_x = -1
+    home_y = -1
+
+    _validate_npc_coordinates(
+        npc_id=npc_id,
+        position_x=position_x,
+        position_y=position_y,
+        is_homeless=False,
+        home_x=home_x,
+        home_y=home_y,
+        is_town_npc=False,
+        width=width,
+        height=height,
+    )
+    return Npc(
+        id=npc_id,
+        name="",
+        position_x=position_x,
+        position_y=position_y,
+        is_homeless=False,
+        home_x=home_x,
+        home_y=home_y,
+        is_town_npc=False,
+    )
+
+
+def _read_npcs(r: Reader, version: int, width: int, height: int) -> list[Npc]:
+    if version >= _NPC_KILL_COUNT_VERSION:
+        kill_count_entries = r.read_int32()
+        if kill_count_entries < 0:
+            raise WldParseError(
+                "NPC kill-count table has a negative size.",
+                code="invalid_npc",
+                details={"kill_count_entries": kill_count_entries},
+            )
+        for _ in range(kill_count_entries):
+            r.read_int32()
+
+    npcs: list[Npc] = []
+    has_npc = r.read_bool()
+    while has_npc:
+        npcs.append(_read_town_npc(r, version, width, height))
+        has_npc = r.read_bool()
+
+    has_transient_npc = r.read_bool()
+    while has_transient_npc:
+        npcs.append(_read_transient_npc(r, width, height))
+        has_transient_npc = r.read_bool()
+
+    return npcs
+
+
 # ── public entry points ───────────────────────────────────────────────────────
 
 
@@ -372,9 +507,11 @@ def parse_wld(stream: BinaryIO) -> World:
         chests = _read_chests(r, version)
         r.seek(offsets[3])
         signs = _read_signs(r)
+        r.seek(offsets[4])
+        npcs = _read_npcs(r, version, metadata.width, metadata.height)
     except (WldParseError, UnsupportedWorldVersionError):
         raise
     except Exception as exc:
         raise WldParseError(f"Failed to parse .wld: {exc}", code="corrupt") from exc
 
-    return World(metadata=metadata, tiles=tiles, chests=chests, signs=signs)
+    return World(metadata=metadata, tiles=tiles, chests=chests, signs=signs, npcs=npcs)

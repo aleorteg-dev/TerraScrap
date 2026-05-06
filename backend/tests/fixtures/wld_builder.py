@@ -161,6 +161,18 @@ class SignSpec:
     text: str = ""
 
 
+@dataclass
+class NpcSpec:
+    id: int
+    name: str
+    position_x: float
+    position_y: float
+    is_homeless: bool
+    home_x: int
+    home_y: int
+    is_town_npc: bool = True
+
+
 # ── section builders ──────────────────────────────────────────────────────────
 
 
@@ -235,6 +247,39 @@ def _build_section0(
     buf += b"\x00"  # shadowOrbsbrokenmod3
     buf += struct.pack("<i", 0)  # altarsSmashed
     buf += b"\x01" if hardmode else b"\x00"  # hardMode
+    return bytes(buf)
+
+
+def _build_section4(*, version: int, npcs: Sequence[NpcSpec] | None) -> bytes:
+    specs = list(npcs) if npcs else []
+    town_npcs = [npc for npc in specs if npc.is_town_npc]
+    transient_npcs = [npc for npc in specs if not npc.is_town_npc]
+
+    buf = bytearray()
+    if version >= 268:
+        buf += struct.pack("<i", 0)  # NPC kill-count entries
+
+    for npc in town_npcs:
+        buf += b"\x01"
+        buf += struct.pack("<i", npc.id)
+        buf += _net_string(npc.name)
+        buf += struct.pack("<f", npc.position_x * 16.0)
+        buf += struct.pack("<f", npc.position_y * 16.0)
+        buf += b"\x01" if npc.is_homeless else b"\x00"
+        buf += struct.pack("<i", npc.home_x)
+        buf += struct.pack("<i", npc.home_y)
+        if version >= 213:
+            buf += b"\x00"  # no town variation payload
+        buf += b"\x00"  # homelessDespawn
+    buf += b"\x00"
+
+    for npc in transient_npcs:
+        buf += b"\x01"
+        buf += struct.pack("<i", npc.id)
+        buf += struct.pack("<f", npc.position_x * 16.0)
+        buf += struct.pack("<f", npc.position_y * 16.0)
+    buf += b"\x00"
+
     return bytes(buf)
 
 
@@ -346,6 +391,54 @@ def _encode_tfi(num_tile_types: int, frame_important_ids: set[int] | None) -> by
     return bytes(out)
 
 
+@dataclass
+class WldBuilder:
+    name: str = "TestWorld"
+    version: int = 269
+    width: int = 8
+    height: int = 4
+    seed: str = "1234567890.1.1"
+    hardmode: bool = False
+    npcs: list[NpcSpec] = field(default_factory=list)
+
+    def add_npc(
+        self,
+        *,
+        id: int,
+        name: str,
+        position_x: float,
+        position_y: float,
+        is_homeless: bool,
+        home_x: int,
+        home_y: int,
+        is_town_npc: bool = True,
+    ) -> WldBuilder:
+        self.npcs.append(
+            NpcSpec(
+                id=id,
+                name=name,
+                position_x=position_x,
+                position_y=position_y,
+                is_homeless=is_homeless,
+                home_x=home_x,
+                home_y=home_y,
+                is_town_npc=is_town_npc,
+            )
+        )
+        return self
+
+    def build(self) -> bytes:
+        return build_world(
+            name=self.name,
+            version=self.version,
+            width=self.width,
+            height=self.height,
+            seed=self.seed,
+            hardmode=self.hardmode,
+            npcs=self.npcs,
+        )
+
+
 def build_world(
     *,
     name: str = "TestWorld",
@@ -361,6 +454,7 @@ def build_world(
     rock_layer_y: float = 500.0,
     chests: Sequence[ChestSpec] | None = None,
     signs: Sequence[SignSpec] | None = None,
+    npcs: Sequence[NpcSpec] | None = None,
     tile_id_at: dict[tuple[int, int], int] | None = None,
     tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
     frame_important_ids: set[int] | None = None,
@@ -394,13 +488,14 @@ def build_world(
     )
     s2 = _build_section2(version=version, chests=chests)
     s3 = _build_section3(signs)
+    s4 = _build_section4(version=version, npcs=npcs)
 
     # Build header (everything before section data)
     magic = b"relogic"
     file_type = bytes([2])  # world
     revision = struct.pack("<I", 0)
     favorites = struct.pack("<Q", 0)
-    num_sections = struct.pack("<h", 4)
+    num_sections = struct.pack("<h", 5)
     num_tile_types = struct.pack("<h", _NUM_TILE_TYPES)
     tfi_bytes = _encode_tfi(_NUM_TILE_TYPES, frame_important_ids)
 
@@ -411,7 +506,7 @@ def build_world(
         + 4  # revision
         + 8  # favorites
         + 2  # num_sections
-        + 4 * 4  # 4 section offsets (int32 each)
+        + 4 * 5  # 5 section offsets (int32 each)
         + 2  # num_tile_types
         + len(tfi_bytes)  # tfi bitfield
     )
@@ -420,8 +515,9 @@ def build_world(
     off1 = off0 + len(s0)
     off2 = off1 + len(s1)
     off3 = off2 + len(s2)
+    off4 = off3 + len(s3)
 
-    offsets = struct.pack("<4i", off0, off1, off2, off3)
+    offsets = struct.pack("<5i", off0, off1, off2, off3, off4)
 
     header = (
         struct.pack("<i", version)
@@ -436,4 +532,4 @@ def build_world(
     )
 
     assert len(header) == header_size, f"{len(header)} != {header_size}"
-    return header + s0 + s1 + s2 + s3
+    return header + s0 + s1 + s2 + s3 + s4

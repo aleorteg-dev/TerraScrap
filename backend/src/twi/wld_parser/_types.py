@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 
@@ -59,6 +59,18 @@ class Sign:
     text: str
 
 
+@dataclass(frozen=True)
+class Npc:
+    id: int
+    name: str
+    position_x: float
+    position_y: float
+    is_homeless: bool
+    home_x: int
+    home_y: int
+    is_town_npc: bool
+
+
 class TileGrid:
     """Read-only tile grid, indexable as grid[x][y]."""
 
@@ -95,3 +107,4 @@ class World:
     tiles: TileGrid
     chests: tuple[Chest, ...]
     signs: tuple[Sign, ...]
+    npcs: list[Npc] = field(default_factory=list)

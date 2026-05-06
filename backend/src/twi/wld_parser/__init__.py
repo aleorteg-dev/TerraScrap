@@ -7,6 +7,7 @@ from twi.wld_parser._parser import parse_wld
 from twi.wld_parser._types import (
     Chest,
     ChestItem,
+    Npc,
     Sign,
     Tile,
     TileGrid,
@@ -22,6 +23,7 @@ def parse_wld_bytes(data: bytes) -> World:
 __all__ = [
     "Chest",
     "ChestItem",
+    "Npc",
     "Sign",
     "Tile",
     "TileGrid",

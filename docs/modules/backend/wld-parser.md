@@ -53,6 +53,17 @@ class Sign:
     y: int
     text: str
 
+@dataclass(frozen=True)
+class Npc:
+    id: int
+    name: str
+    position_x: float
+    position_y: float
+    is_homeless: bool
+    home_x: int
+    home_y: int
+    is_town_npc: bool
+
 class TileGrid:                     # read-only, indexable grid[x][y] -> Tile
     width: int
     height: int
@@ -64,6 +75,7 @@ class World:
     tiles: TileGrid
     chests: tuple[Chest, ...]
     signs: tuple[Sign, ...]
+    npcs: list[Npc]
 ```
 
 ### 2.2. Funciones
@@ -159,6 +171,9 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-29 test_parse_metadata_hell_layer_y_derived_from_terramap_formula` (iter-02)
 - [x] `T-30 test_parse_metadata_new_field_types_are_correct` (iter-02)
 - [x] `T-31 test_parse_world_info_truncated_before_spawn_raises_invalid_world_info` (iter-02)
+- [x] `T-32 test_parse_npcs_returns_same_size_and_fields` (iter-03)
+- [x] `T-33 test_parse_zero_npcs_returns_empty_list` (iter-03)
+- [x] `T-34 test_parse_npc_with_position_outside_world_raises_invalid_npc` (iter-03)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -172,13 +187,23 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 
 ## 9. Errores
 - `WldParseError`: cabecera inválida, EOF inesperado, sección corrupta. Expone `code` y `details`.
+- `WldParseError(code="invalid_npc")`: NPC con posición fuera de `[0, width)` / `[0, height)` o hogar inválido cuando no es homeless.
 - `UnsupportedWorldVersionError`: fuera de rango soportado. Expone `version`, `detected_version`, `supported_range` y `details`.
 
 ## 10. Estado
-- **Versión del contrato**: v2.3
+- **Versión del contrato**: v2.4
 - **Último cierre**: 2026-05-06
-- **Iteración actual**: iter-02
-- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (39/39). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings.
+- **Iteración actual**: iter-03
+- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (42/42). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Cobertura B1: 90%.
+
+### Decisiones tomadas (iter-03 / 2026-05-06)
+- `Npc` añadido al contrato de dominio con `id`, `name`, `position_x`, `position_y`, `is_homeless`, `home_x`, `home_y`, `is_town_npc`.
+- `World.npcs: list[Npc]` se puebla desde la sección NPCs tras `_read_signs`.
+- Para `v230-v279` se respeta el layout de `readNpcs`: tabla de kill-counts en `v>=268`, lista de NPCs con nombre/hogar terminada por bool, y lista secundaria terminada por bool.
+- `position_x` y `position_y` se exponen en coordenadas de tile (`float`), dividiendo las posiciones binarias en píxeles por 16.
+- Coordenadas de posición fuera del mundo y hogares inválidos en NPCs no homeless lanzan `WldParseError(code="invalid_npc")`.
+- `wld_builder.py` emite la sección 4 con `NpcSpec`, parámetro `npcs=` en `build_world` y helper `WldBuilder.add_npc(...)`.
+- Tests T-32..T-34 cubren round-trip de N NPCs, lista vacía y error `invalid_npc`.
 
 ### Decisiones tomadas (iter-026)
 - Techo actualizado a `_MAX_VERSION = 319`; `v320+` conserva `UnsupportedWorldVersionError(code="unsupported_version")` con `supported_range=(230, 319)`.
@@ -242,7 +267,8 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   iteracion por pertenecer a B2 `world-repository`.
 - **numpy para TileGrid**: si el rendimiento de B4 tile-search resulta limitado por
   iteración Python sobre listas, sustituir `list[list[Tile]]` por un `ndarray` empaquetado.
-- **NPC / TileEntities / Footer**: secciones no parseadas; no son necesarias para el
+- **NPCs**: ~~sección no parseada~~ **CERRADO iter-03 (2026-05-06)** con T-32..T-34 en `test_npcs.py`.
+- **TileEntities / Footer**: secciones no parseadas; no son necesarias para el
   contrato actual pero podrían ser útiles para B2 o future work.
 
 ### Evolución propuesta para paridad con TerraMap
@@ -254,23 +280,24 @@ Referencia local acotada:
   - leer solo `isTileMatch`, `getTileText`, `getItemText`, `onWorldLoaderWorkerMessage`.
 
 Brechas actuales:
-- `WorldMetadata` no expone `spawn_x/spawn_y`, `world_surface_y`, `rock_layer_y` ni `hell_layer_y`, necesarios para centrar y pintar capas como TerraMap.
-- `World` no modela NPCs ni tile entities. TerraMap los usa para lista de NPCs, tile info y búsqueda de items en frames/racks/mannequins/hat racks.
+- `WorldMetadata` ya expone `spawn_x/spawn_y`, `world_surface_y`, `rock_layer_y` y `hell_layer_y` desde iter-02.
+- `World` ya modela NPCs desde iter-03; todavía no modela tile entities. TerraMap los usa para tile info y búsqueda de items en frames/racks/mannequins/hat racks.
 - El rango v230-v319 ya acepta el corpus real actual. Queda ampliar semantica de campos no expuestos si B2/B4/B5 lo necesitan.
 
 Contrato v2/v2.2 (parcialmente implementado):
 - `Tile.frame_x/frame_y`: implementado en iter-019.
 - `Tile.liquid_type/liquid_amount`: implementado en iter-020 (este iter).
 - ~~Pendiente: ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.~~ **CERRADO iter-02 (2026-05-06)** — T-26..T-31 en `test_metadata_extended.py`.
-- añadir `Npc`, `TileEntityItem`, `TileEntity` y `World.tile_entities`.
+- ~~Pendiente: añadir `Npc` y `World.npcs`.~~ **CERRADO iter-03 (2026-05-06)** — T-32..T-34 en `test_npcs.py`.
+- añadir `TileEntityItem`, `TileEntity` y `World.tile_entities`.
 - mantener compatibilidad de lectura para chests/signs y no hacer que B2/B4 dependan de detalles internos no documentados.
 
 Tests mínimos futuros:
 - parsear un tile frame-important y comprobar `frame_x/frame_y`.
 - parsear cada tipo de líquido soportado.
-- parsear un NPC town simple.
+- ~~parsear un NPC town simple.~~ **CERRADO iter-03 (2026-05-06)**.
 - parsear tile entity con item simple (item frame o weapon rack).
 - parsear tile entity con inventario múltiple (mannequin o hat rack).
 - ampliar el corpus con mundos reales adicionales de `v280-v318` si aparecen.
 
-Estado: planificado, no implementado.
+Estado: NPCs implementado; tile entities planificado, no implementado.
