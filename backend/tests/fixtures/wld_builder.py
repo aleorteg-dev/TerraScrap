@@ -173,6 +173,10 @@ def _build_section0(
     height: int,
     hardmode: bool,
     skyblock_world: bool,
+    spawn_x: int,
+    spawn_y: int,
+    world_surface_y: float,
+    rock_layer_y: float,
 ) -> bytes:
     buf = bytearray()
     buf += _net_string(name)
@@ -207,28 +211,30 @@ def _build_section0(
         buf += b"\x01" if skyblock_world else b"\x00"
     buf += struct.pack("<q", 0)  # creationTime (v141+)
     buf += b"\x00"  # moonType
+    # Background style arrays (WorldLoader.js layout):
+    # treeTypeXCoordinates[3] + treeStyles[4] + caveBackXCoordinates[3]
+    # + caveBackStyles[4] + iceBackStyle + jungleBackStyle + hellBackStyle
+    buf += struct.pack("<17i", *([0] * 17))
+    # Spawn point and world layers
+    buf += struct.pack("<i", spawn_x)  # spawnTileX
+    buf += struct.pack("<i", spawn_y)  # spawnTileY
+    buf += struct.pack("<d", world_surface_y)  # worldSurfaceY (float64)
+    buf += struct.pack("<d", rock_layer_y)  # rockLayerY (float64)
+    # Skip fields from gameTime to eclipse
+    buf += struct.pack("<d", 0.0)  # gameTime
+    buf += b"\x01"  # isDay
+    buf += struct.pack("<i", 0)  # moonPhase
+    buf += b"\x00"  # bloodMoon
+    buf += b"\x00"  # eclipse
     buf += struct.pack("<i", 0)  # dungeonX
     buf += struct.pack("<i", 0)  # dungeonY
-    buf += b"\x00"  # isEvilWorld
-    buf += b"\x00"  # downedBoss1
-    buf += b"\x00"  # downedBoss2
-    buf += b"\x00"  # downedBoss3
-    buf += b"\x00"  # downedQueenBee
-    buf += b"\x00"  # downedMechBoss1
-    buf += b"\x00"  # downedMechBoss2
-    buf += b"\x00"  # downedMechBoss3
-    buf += b"\x00"  # downedMechBossAny
-    buf += b"\x00"  # downedPlant
-    buf += b"\x00"  # downedGolem
-    buf += b"\x00"  # downedSlimeKing
-    buf += b"\x00"  # savedGoblin
-    buf += b"\x00"  # savedWizard
-    buf += b"\x00"  # savedMechanic
-    buf += b"\x00"  # smashedOrb
-    buf += b"\x00"  # meteorLanded
-    buf += b"\x00"  # shadowOrbCount
+    # 21 bools: crimsonWorld + 11 killed-boss + 3 saved-NPC
+    # + defeatedGoblinInvasion + killedClown + defeatedFrostLegion
+    # + defeatedPirates + brokeAShadowOrb + meteorSpawned
+    buf += b"\x00" * 21
+    buf += b"\x00"  # shadowOrbsbrokenmod3
     buf += struct.pack("<i", 0)  # altarsSmashed
-    buf += b"\x01" if hardmode else b"\x00"
+    buf += b"\x01" if hardmode else b"\x00"  # hardMode
     return bytes(buf)
 
 
@@ -349,6 +355,10 @@ def build_world(
     seed: str = "1234567890.1.1",
     hardmode: bool = False,
     skyblock_world: bool = False,
+    spawn_x: int = 100,
+    spawn_y: int = 50,
+    world_surface_y: float = 200.0,
+    rock_layer_y: float = 500.0,
     chests: Sequence[ChestSpec] | None = None,
     signs: Sequence[SignSpec] | None = None,
     tile_id_at: dict[tuple[int, int], int] | None = None,
@@ -367,6 +377,10 @@ def build_world(
         height=height,
         hardmode=hardmode,
         skyblock_world=skyblock_world,
+        spawn_x=spawn_x,
+        spawn_y=spawn_y,
+        world_surface_y=world_surface_y,
+        rock_layer_y=rock_layer_y,
     )
     s1 = _build_section1(
         width=width,

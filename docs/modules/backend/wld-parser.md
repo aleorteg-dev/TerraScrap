@@ -16,6 +16,12 @@ class WorldMetadata:
     seed: str
     size: Literal["small", "medium", "large"]
     hardmode: bool
+    # Added in iter-02 (v0.2 contract). Defaults allow backward-compat fixtures.
+    spawn_x: int = 0
+    spawn_y: int = 0
+    world_surface_y: float = 0.0   # float64 from .wld binary
+    rock_layer_y: float = 0.0      # float64 from .wld binary
+    hell_layer_y: float = 0.0      # computed: TerraMap formula (height - 235)
 
 @dataclass(frozen=True)
 class Tile:
@@ -147,6 +153,12 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-23 test_parse_v302_skyblock_world_flag_alignment_ok` (iter-026)
 - [x] `T-24 test_parse_v304_dual_dungeons_tramo_ok` (iter-026)
 - [x] `T-25 test_parse_documented_intermediate_version_tramos_ok` (iter-026)
+- [x] `T-26 test_parse_metadata_exposes_spawn_x_y` (iter-02)
+- [x] `T-27 test_parse_metadata_exposes_world_surface_y` (iter-02)
+- [x] `T-28 test_parse_metadata_exposes_rock_layer_y` (iter-02)
+- [x] `T-29 test_parse_metadata_hell_layer_y_derived_from_terramap_formula` (iter-02)
+- [x] `T-30 test_parse_metadata_new_field_types_are_correct` (iter-02)
+- [x] `T-31 test_parse_world_info_truncated_before_spawn_raises_invalid_world_info` (iter-02)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -163,10 +175,10 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `UnsupportedWorldVersionError`: fuera de rango soportado. Expone `version`, `detected_version`, `supported_range` y `details`.
 
 ## 10. Estado
-- **Versión del contrato**: v2.2
-- **Último cierre**: 2026-05-02
-- **Iteración actual**: iter-026
-- **Tests**: `python -m pytest` verde (104/104). Cobertura total 95% con `coverage report --fail-under=80`. `mypy src/twi --strict` y `ruff check src/ tests/` verdes. Formato B1 verde; `ruff format src/ tests/ --check` queda bloqueado solo por `backend/tests/unit/world_repository/test_world_repository.py` (B2, no tocado).
+- **Versión del contrato**: v2.3
+- **Último cierre**: 2026-05-06
+- **Iteración actual**: iter-02
+- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (39/39). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings.
 
 ### Decisiones tomadas (iter-026)
 - Techo actualizado a `_MAX_VERSION = 319`; `v320+` conserva `UnsupportedWorldVersionError(code="unsupported_version")` con `supported_range=(230, 319)`.
@@ -177,6 +189,15 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - Tiles: se consume `flags4` cuando `flags3 & 0x01`; el byte alto de `wall_id` se lee con `flags3 & 0x40` y queda cubierto por fixture sintetica v319.
 - Chests: `v230-v279` mantiene `chestSize:int16` global; `v280-v319` usa `itemCount:int32` por chest, validado contra el corpus real v319.
 - Corpus real validado: `Gotear_Tierras_llanas.wld` (`v279`) y `El_Ínsula_Ultranervioso.wld` (`v319`) parsean con metadata y dimensiones coherentes.
+
+### Decisiones tomadas (iter-02 / 2026-05-06)
+- `WorldMetadata` extendida con `spawn_x: int`, `spawn_y: int`, `world_surface_y: float`, `rock_layer_y: float`, `hell_layer_y: float`. Todos con defaults `0`/`0.0` para compatibilidad con fixtures de B2/B4/B5 que no los proveen.
+- `_read_world_info` corregido para seguir el orden binario real de WorldLoader.js: tras `moonType` se leen los 17 int32 de estilos de fondo, luego `spawnX`, `spawnY`, `worldSurfaceY` y `rockLayerY` (float64), luego los campos hasta `hardMode`.
+- La función saltaba antes de los campos de árbol/cueva/fondo directamente a los booleans de jefes, lo que producía `hardmode` correcto solo por coincidencia al usar el builder sintético. El nuevo parseo es fiel al formato real.
+- `hell_layer_y` se calcula (no lee): fórmula TerraMap `((h-230)-surf)/6 * 6 + surf - 5`, que simplifica a `h - 235.0`.
+- `_build_section0` en `wld_builder.py` actualizado para emitir el formato real completo. Nuevos parámetros en `build_world`: `spawn_x=100`, `spawn_y=50`, `world_surface_y=200.0`, `rock_layer_y=500.0`.
+- `Reader.read_double()` y `Reader.read_float32()` añadidos a `_reader.py`.
+- `WldParseError(code="invalid_world_info")` lanzado si la sección 0 se trunca antes de los campos spawn/layer (T-31).
 
 ### Decisiones tomadas (iter-021)
 - Via elegida: **B**, mantener soporte real acotado a v230-v279 y mejorar la UX del rechazo.
@@ -240,8 +261,7 @@ Brechas actuales:
 Contrato v2/v2.2 (parcialmente implementado):
 - `Tile.frame_x/frame_y`: implementado en iter-019.
 - `Tile.liquid_type/liquid_amount`: implementado en iter-020 (este iter).
-- Pendiente: ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.
-- ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.
+- ~~Pendiente: ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.~~ **CERRADO iter-02 (2026-05-06)** — T-26..T-31 en `test_metadata_extended.py`.
 - añadir `Npc`, `TileEntityItem`, `TileEntity` y `World.tile_entities`.
 - mantener compatibilidad de lectura para chests/signs y no hacer que B2/B4 dependan de detalles internos no documentados.
 

@@ -127,34 +127,54 @@ def _read_world_info(r: Reader, version: int) -> WorldMetadata:
     _creation_time = r.read_int64()
 
     _moon_type = r.read_byte()
-    _dungeon_x = r.read_int32()
-    _dungeon_y = r.read_int32()
-    _is_evil_world = r.read_bool()
 
-    # Boss kill flags (all present since v66+, v134+ for slime king)
-    _downed_boss1 = r.read_bool()
-    _downed_boss2 = r.read_bool()
-    _downed_boss3 = r.read_bool()
-    _downed_queen_bee = r.read_bool()
-    _downed_mech1 = r.read_bool()
-    _downed_mech2 = r.read_bool()
-    _downed_mech3 = r.read_bool()
-    _downed_mech_any = r.read_bool()
-    _downed_plant = r.read_bool()
-    _downed_golem = r.read_bool()
-    _downed_slime_king = r.read_bool()
+    # Background style arrays (WorldLoader.js layout: 3+4+3+4+1+1+1 int32s).
+    # These sit between moonType and the spawn/layer fields in the binary.
+    try:
+        for _ in range(3):
+            r.read_int32()  # treeTypeXCoordinates
+        for _ in range(4):
+            r.read_int32()  # treeStyles
+        for _ in range(3):
+            r.read_int32()  # caveBackXCoordinates
+        for _ in range(4):
+            r.read_int32()  # caveBackStyles
+        r.read_int32()  # iceBackStyle
+        r.read_int32()  # jungleBackStyle
+        r.read_int32()  # hellBackStyle
 
-    # NPC saved flags
-    _saved_goblin = r.read_bool()
-    _saved_wizard = r.read_bool()
-    _saved_mechanic = r.read_bool()
+        spawn_x = r.read_int32()
+        spawn_y = r.read_int32()
+        world_surface_y = r.read_double()
+        rock_layer_y = r.read_double()
+    except WldParseError as _exc:
+        raise WldParseError(
+            "World info section truncated before spawn/layer fields.",
+            code="invalid_world_info",
+        ) from _exc
 
-    _smashed_orb = r.read_bool()
-    _meteor_landed = r.read_bool()
-    _shadow_orb_count = r.read_byte()
-    _altars_smashed = r.read_int32()
+    # Skip remaining fields up to hardMode (WorldLoader.js order).
+    r.read_double()  # gameTime
+    r.read_bool()  # isDay
+    r.read_int32()  # moonPhase
+    r.read_bool()  # bloodMoon
+    r.read_bool()  # eclipse
+    r.read_int32()  # dungeonX
+    r.read_int32()  # dungeonY
+
+    # 21 single-byte bools: crimsonWorld + 11 killed-boss + 3 saved-NPC
+    # + defeatedGoblinInvasion + killedClown + defeatedFrostLegion
+    # + defeatedPirates + brokeAShadowOrb + meteorSpawned
+    for _ in range(21):
+        r.read_bool()
+    r.read_byte()  # shadowOrbsbrokenmod3
+    r.read_int32()  # altarsSmashed
 
     hardmode = r.read_bool()
+
+    # Compute hell layer from surface and height (TerraMap formula).
+    _hell_level = ((max_tiles_y - 230) - world_surface_y) / 6.0
+    hell_layer_y = _hell_level * 6.0 + world_surface_y - 5.0
 
     size = _classify_size(max_tiles_x)
     return WorldMetadata(
@@ -165,6 +185,11 @@ def _read_world_info(r: Reader, version: int) -> WorldMetadata:
         seed=seed,
         size=size,  # type: ignore[arg-type]
         hardmode=hardmode,
+        spawn_x=spawn_x,
+        spawn_y=spawn_y,
+        world_surface_y=world_surface_y,
+        rock_layer_y=rock_layer_y,
+        hell_layer_y=hell_layer_y,
     )
 
 

@@ -16,6 +16,13 @@ class WorldMetadata:
     seed: str
     size: Literal["small", "medium", "large"]
     hardmode: bool
+    # Spawn + layer fields (v0.2 contract). Default 0/0.0 keeps backward
+    # compatibility with fixtures in other modules that don't set them.
+    spawn_x: int = 0
+    spawn_y: int = 0
+    world_surface_y: float = 0.0
+    rock_layer_y: float = 0.0
+    hell_layer_y: float = 0.0
 
 
 @dataclass(frozen=True)
