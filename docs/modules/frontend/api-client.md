@@ -138,9 +138,9 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 - Evitar leer `response.text()` antes del JSON para no doblar memoria con payloads grandes (tiles).
 
 ## 13. Estado
-- **Versión del contrato consumida**: api-contract.md v0.1.0
+- **Versión del contrato consumida**: api-contract.md v0.1.1
 - **Versión OpenAPI**: snapshot en `docs/contracts/openapi.json`
-- **Último cierre**: 2026-05-05 (iter-031)
+- **Último cierre**: 2026-05-06 (iter-032)
 - **Iteración actual**: cerrada
 
 ## 14. Decisiones tomadas
@@ -161,7 +161,7 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 - `makeFetch` en tests actualizado para incluir `headers.get()` mock, necesario tras centralizar el parseo en `parseError`.
 
 ## 15. Deuda / follow-ups
-- `getItem(itemId: number): Promise<ItemDetail>` no está en `ApiClient` pero el endpoint `GET /api/items/{item_id}` existe. Añadir cuando F4 (search-panel) lo necesite.
+- `getItem(itemId: number): Promise<ItemDetail>` implementado en iter-032. Disponible en `ApiClient` interface.
 - `uploadWorld` no reporta progreso (SP-05 marcado como "v2"). Añadir cuando ui-upload lo requiera.
 - Validar `X-API-Version` en `parseError` y lanzar si hay mismatch: follow-up para iteración posterior.
 - `npm install --legacy-peer-deps`: actualizar `openapi-typescript` cuando publique soporte oficial para TypeScript 6.

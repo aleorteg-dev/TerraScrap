@@ -75,5 +75,5 @@ Vitest + Testing Library.
   - Errores de validación locales (`invalid_extension`, `file_too_large`) no llaman a la API ni disparan `onError`.
   - `stopPropagation` en el `onClick` del `<input>` para evitar doble apertura del diálogo de fichero.
 - **Deuda / follow-ups**:
-  - El componente usa un ID estático `"wld-file-input"`. Si se renderiza más de una instancia en la misma página, habrá IDs duplicados. Migrar a `useId()` cuando sea necesario (aplaza a F6 app-shell si sigue siendo instancia única).
+  - ID estático `"wld-file-input"` migrado a `useId()` en iter-032. Ahora es seguro renderizar múltiples instancias.
   - No hay barra de progreso real (porcentaje); el endpoint `POST /api/worlds` no expone progreso — progreso indeterminado es suficiente para v1.

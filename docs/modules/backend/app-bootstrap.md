@@ -38,12 +38,12 @@ class Settings(BaseSettings):
 - **SP-06** Health check `GET /healthz` → 200 `{"status":"ok"}`.
 
 ## 6. Plan de tests (TDD)
-- [ ] `T-01 test_create_app_returns_fastapi_with_routes_mounted`
-- [ ] `T-02 test_healthz_returns_ok`
-- [ ] `T-03 test_cors_header_on_allowed_origin`
-- [ ] `T-04 test_cors_header_absent_on_disallowed_origin`
-- [ ] `T-05 test_upload_size_middleware_returns_413_over_limit` (fichero dummy grande)
-- [ ] `T-06 test_purge_task_runs_on_schedule` (usa clock/scheduler mockeado)
+- [x] `T-01 test_create_app_returns_fastapi_with_routes_mounted`
+- [x] `T-02 test_healthz_returns_ok`
+- [x] `T-03 test_cors_header_on_allowed_origin`
+- [x] `T-04 test_cors_header_absent_on_disallowed_origin`
+- [x] `T-05 test_upload_size_middleware_returns_413_over_limit` (fichero dummy grande)
+- [x] `T-06 test_purge_task_runs_on_schedule` (usa clock/scheduler mockeado)
 
 ## 7. Notas de implementación
 - Preferir `FastAPI(lifespan=...)` para arrancar/parar el task de purga.
@@ -57,8 +57,8 @@ class Settings(BaseSettings):
 - Fallo cargando cache de ítems → log warning; el endpoint `/api/items` devolverá 503 hasta que exista.
 
 ## 10. Estado
-- **Versión del contrato**: v0.1.0
-- **Último cierre**: 2026-04-26 (iter-006)
+- **Versión del contrato**: v0.1.1
+- **Último cierre**: 2026-05-06 (iter-032)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-006
@@ -79,10 +79,6 @@ class Settings(BaseSettings):
 
 ## 12. Deuda / follow-ups
 
-- **503 en /api/items sin caché**: requiere que `api_rest.create_router` acepte un
-  catalog opcional o que el router capture una nueva excepción `CatalogUnavailableError`.
-  Anotar para iter-007 (si se necesita antes de F1).
-- **Logging estructurado (JSON)**: SP-04 parcialmente cubierto (nivel configurable). El
-  formato JSON + `request_id` por request queda fuera de esta iteración.
-- **`WorldRepository.delete_strict`**: heredado de iter-005; sigue pendiente para el
-  endpoint DELETE.
+- **503 en /api/items sin caché**: resuelto en iter-032. `_NullCatalog.search()` y `_NullCatalog.get()` lanzan `ItemCatalogUnavailableError`; el router B5 captura y devuelve 503 `code:"catalog_unavailable"`. Tests T-27 y T-28 en `test_api_rest.py` verifican.
+- **Logging estructurado (JSON)**: SP-04 parcialmente cubierto (nivel configurable). El formato JSON + `request_id` por request sigue pendiente — requiere middleware de correlación dedicado.
+- **`WorldRepository.delete_strict`**: resuelto en iter-032. Implementado en B2 y usado en DELETE endpoint de B5.

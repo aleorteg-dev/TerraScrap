@@ -101,6 +101,8 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 - [x] `T-24 test_404_unknown_world_has_error_dto_and_version_header`
 - [x] `T-25 test_500_unhandled_exception_returns_error_dto_without_traceback`
 - [x] `T-26 test_x_api_version_header_present_on_2xx`
+- [x] `T-27 test_items_returns_503_when_catalog_unavailable` (iter-032)
+- [x] `T-28 test_get_item_by_id_returns_503_when_catalog_unavailable` (iter-032)
 
 ## 7. Notas de implementación
 - Usa un `APIRouter` con prefijo `/api`. El montaje ocurre en `app-bootstrap`.
@@ -123,8 +125,8 @@ Validacion FastAPI: 422 `validation_error` con `details` como lista normalizada.
 Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
-- **Versión del contrato**: v0.1.0
-- **Último cierre**: 2026-05-02 (contrato de errores HTTP unificado)
+- **Versión del contrato**: v0.1.1
+- **Último cierre**: 2026-05-06 (iter-032)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -182,13 +184,10 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 12. Deuda / follow-ups
 
-- **iter-006 (B6 app-bootstrap)**: añadir CORS, lifespan, settings, montar el router.
-- **`WorldRepository.delete_strict`**: añadir método que lanza `WorldNotFoundError` si el
-  id no existe, para eliminar el `get()+delete()` en el endpoint DELETE.
-- **world-canvas.md spec sync (F3)**: el doc de F3 dice "Uint16Array" pero la implementación
-  usa `Int16Array` (correcto para el chequeo `tileId < 0`). Actualizar en iteración F3.
-- **wall_id / liquid / flags ausentes del payload**: encoding simplificado solo transmite
-  tile_id. Si F3 necesita paredes o líquidos, revisar encoding en iteración futura.
+- **`WorldRepository.delete_strict`**: resuelto en iter-032. El endpoint DELETE ahora llama `repo.delete_strict()` directamente.
+- **503 para catálogo no disponible**: resuelto en iter-032. `GET /api/items` y `GET /api/items/{id}` devuelven 503 `code:"catalog_unavailable"` cuando `ItemCatalogUnavailableError`.
+- **world-canvas.md spec sync (F3)**: el doc de F3 dice "Uint16Array" pero la implementación usa `Int16Array`. Actualizar en iteración F3.
+- **wall_id / liquid / flags ausentes del payload**: encoding `base64-rle-v1` solo transmite `tile_id`. Si F3 necesita paredes o líquidos, implementar `base64-rle-v2` en iteración B5.1 (ver evolución propuesta).
 
 ### Evolución propuesta para paridad con TerraMap
 
