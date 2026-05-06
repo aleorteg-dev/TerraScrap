@@ -191,34 +191,22 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ### Evolución propuesta para paridad con TerraMap
 
-El contrato HTTP actual es suficiente para el MVP, pero no para render tipo TerraMap ni para inspección de tiles.
+**Documentada en contrato v0.2 (iter-01, 2026-05-06).**
 
-DTOs nuevos para `v0.2.0` (ver `docs/contracts/api-contract.md` §4):
-- `WorldMetadataDto` extendido: `spawn_x`, `spawn_y` (int), `world_surface_y`, `rock_layer_y`, `hell_layer_y` (float).
-- `TilesChunkDto.encoding = "base64-rle-v2"` (8 bytes/tile: tile_id, wall_id, liquid_type, liquid_amount, frame_x_packed, flags). Mantener `base64-rle-v1` durante la transición.
-- `TileDetailDto`: `{ x, y, tile_id, wall_id, liquid_type, liquid_amount, frame_x, frame_y, chest_id?, sign_id?, tile_entity_id? }`.
-- `NpcSummaryDto`: `{ id, name, type, x, y }`. `NpcListDto`: `{ npcs: NpcSummaryDto[] }`.
-- `SearchMatchDto` admite `tile_entity_id?: int` cuando `source="object"`.
+Ver `docs/contracts/api-contract.md` §§2, 5 para el contrato oficial vigente. Resumen:
 
-Endpoints nuevos:
-- `GET /api/worlds/{world_id}/tile?x=<int>&y=<int>` → `TileDetailDto`. 400 si coords inválidas, 404 si mundo no existe o fuera de grid.
-- `GET /api/worlds/{world_id}/npcs` → `NpcListDto`. 404 si mundo no existe.
+- `WorldMetadataDto` extendido: `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y` — §5.1.
+- `base64-rle-v2` (10 bytes/run: tile_id, wall_id, liquid_type, liquid_amount, frame_x_hi, flags, count) + FRAME_BLOCK — §5.2.
+- `TileDetailDto`, `NpcDto`, `NpcListDto`, `SearchMatchDto` extendido — §5.3.
+- `GET /api/worlds/{world_id}/tile` y `GET /api/worlds/{world_id}/npcs` — §2.
+- `GET /search` con `frame_x`/`frame_y` opcionales; `include_containers=false` excluye `object` — §1.1.
 
-Cambios en endpoints existentes:
-- `GET /api/worlds/{world_id}/search` admite `frame_x`, `frame_y` opcionales. Si presentes, filtra `source="block"` por igualdad exacta de frame. `include_containers=false` excluye **tanto `chest` como `object`**.
+La implementación de todo lo anterior ocurre en **iter-011** (B5.1 api-rest v0.2).
+OpenAPI y tipos frontend se regeneran en esa iteración.
 
-No objetivos de v0.2:
-- Export PNG: se compone en frontend (F6) a partir de F3+F5; backend no lo expone.
-
-Restricción: no cambiar API sin actualizar `docs/contracts/api-contract.md`, `docs/contracts/openapi.json`, `F1 api-client` y los tests snapshot. Mapeo de excepciones extendido:
-- `TileEntityNotFoundError` (futuro) → 404 `code:"tile_entity_not_found"`.
-- coordenadas fuera del grid → 400 `code:"invalid_coordinates"`.
-
-Tests mínimos futuros:
-- `T-13 GET /tile devuelve TileDetailDto con frame y tile_entity_id`.
-- `T-14 GET /npcs devuelve lista vacía si el mundo no tiene NPCs`.
-- `T-15 search con frame_x/frame_y filtra variantes`.
-- `T-16 search con include_containers=false oculta chest y object`.
-- `T-17 OpenAPI snapshot v0.2 actualizado`.
-
-Estado: planificado, no implementado.
+Tests mínimos futuros (iter-011):
+- `T-29 GET /tile devuelve TileDetailDto con frame y tile_entity_id`.
+- `T-30 GET /npcs devuelve lista vacía si el mundo no tiene NPCs`.
+- `T-31 search con frame_x/frame_y filtra variantes`.
+- `T-32 search con include_containers=false oculta chest y object`.
+- `T-33 OpenAPI snapshot v0.2 actualizado`.
