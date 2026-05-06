@@ -1,4 +1,5 @@
 import {
+  useId,
   useRef,
   useState,
   useMemo,
@@ -35,6 +36,7 @@ export const UploadWorld: FC<UploadProps> = ({
 }) => {
   const client = useMemo(() => apiClient ?? createApiClient(), [apiClient]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [validationErr, setValidationErr] = useState<ValidationKind | null>(null);
@@ -131,11 +133,11 @@ export const UploadWorld: FC<UploadProps> = ({
         Drop a <code>.wld</code> file here, or click to browse
       </p>
 
-      <label htmlFor="wld-file-input" className="sr-only">
+      <label htmlFor={inputId} className="sr-only">
         Select a .wld file
       </label>
       <input
-        id="wld-file-input"
+        id={inputId}
         ref={inputRef}
         type="file"
         accept=".wld"

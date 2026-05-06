@@ -25,6 +25,7 @@ export interface ApiClient {
     chunkSize?: number
   ): Promise<TilesChunk>;
   searchItems(query: string, limit?: number): Promise<ItemSummary[]>;
+  getItem(itemId: number): Promise<ItemDetail>;
   searchInWorld(
     worldId: string,
     itemId: number,
@@ -100,6 +101,10 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
       if (limit !== undefined) params.set('limit', String(limit));
       const dto = await doRequest<ItemListDto>(fetchImpl, `${baseUrl}/items?${params.toString()}`);
       return dto.items;
+    },
+
+    getItem(itemId: number) {
+      return doRequest<ItemDetail>(fetchImpl, `${baseUrl}/items/${itemId}`);
     },
 
     searchInWorld(worldId: string, itemId: number, includeContainers?: boolean) {
