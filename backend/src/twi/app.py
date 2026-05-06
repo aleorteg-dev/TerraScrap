@@ -26,7 +26,6 @@ from twi.item_catalog import (
     ItemCatalog,
     ItemCatalogUnavailableError,
     ItemDetail,
-    ItemNotFoundError,
     ItemSummary,
     load_catalog,
 )
@@ -74,13 +73,13 @@ class _UploadSizeLimitMiddleware(BaseHTTPMiddleware):
 
 
 class _NullCatalog:
-    """Placeholder when item cache is unavailable at startup."""
+    """Placeholder when item cache is unavailable at startup; all calls raise."""
 
     def search(self, query: str, limit: int = 20) -> list[ItemSummary]:
-        return []
+        raise ItemCatalogUnavailableError("Item catalog unavailable.")
 
     def get(self, item_id: int) -> ItemDetail:
-        raise ItemNotFoundError(item_id)
+        raise ItemCatalogUnavailableError("Item catalog unavailable.")
 
 
 async def _purge_loop(repo: WorldRepository, interval: int) -> None:

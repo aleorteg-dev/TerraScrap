@@ -53,6 +53,11 @@ class _FakeRepo:
     def delete(self, world_id: str) -> None:
         self._worlds.pop(world_id, None)
 
+    def delete_strict(self, world_id: str) -> None:
+        if world_id not in self._worlds:
+            raise WorldNotFoundError(world_id)
+        del self._worlds[world_id]
+
     def touch(self, world_id: str) -> None:
         if world_id not in self._worlds:
             raise WorldNotFoundError(world_id)
@@ -778,3 +783,53 @@ def test_chunk_bounds_returns_correct_tile_range() -> None:
     sx, sy, w, h = _chunk_bounds(100, 100, 128, 10, 10)
     assert w == 0
     assert h == 0
+
+
+# ---------------------------------------------------------------------------
+# T-27 – GET /api/items returns 503 when catalog unavailable
+# ---------------------------------------------------------------------------
+
+
+def test_items_returns_503_when_catalog_unavailable(
+    repo: _FakeRepo,
+    search_engine: _FakeSearch,
+) -> None:
+    from twi.item_catalog import ItemCatalogUnavailableError
+
+    class _NullCat:
+        def search(self, query: str, limit: int = 20) -> list[ItemSummary]:
+            raise ItemCatalogUnavailableError("unavailable")
+
+        def get(self, item_id: int) -> ItemDetail:
+            raise ItemCatalogUnavailableError("unavailable")
+
+    client = _make_client(repo, _NullCat(), search_engine)
+    resp = client.get("/api/items", params={"q": "dirt"})
+    assert resp.status_code == 503
+    body = resp.json()
+    assert body["error"]["code"] == "catalog_unavailable"
+
+
+# ---------------------------------------------------------------------------
+# T-28 – GET /api/items/{id} returns 503 when catalog unavailable
+# ---------------------------------------------------------------------------
+
+
+def test_get_item_by_id_returns_503_when_catalog_unavailable(
+    repo: _FakeRepo,
+    search_engine: _FakeSearch,
+) -> None:
+    from twi.item_catalog import ItemCatalogUnavailableError
+
+    class _NullCat:
+        def search(self, query: str, limit: int = 20) -> list[ItemSummary]:
+            raise ItemCatalogUnavailableError("unavailable")
+
+        def get(self, item_id: int) -> ItemDetail:
+            raise ItemCatalogUnavailableError("unavailable")
+
+    client = _make_client(repo, _NullCat(), search_engine)
+    resp = client.get("/api/items/757")
+    assert resp.status_code == 503
+    body = resp.json()
+    assert body["error"]["code"] == "catalog_unavailable"

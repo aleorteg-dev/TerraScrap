@@ -9,7 +9,7 @@ from collections.abc import Callable
 from fastapi import APIRouter, Query, Response, UploadFile
 from fastapi.responses import JSONResponse
 
-from twi.item_catalog import ItemCatalog, ItemNotFoundError
+from twi.item_catalog import ItemCatalog, ItemCatalogUnavailableError, ItemNotFoundError
 from twi.tile_search import TileSearchEngine
 from twi.wld_parser import (
     TileGrid,
@@ -187,10 +187,9 @@ def create_router(
     )
     async def delete_world(world_id: str) -> Response:
         try:
-            repo.get(world_id)
+            repo.delete_strict(world_id)
         except WorldNotFoundError:
             return _err(404, "world_not_found", f"World '{world_id}' not found.")
-        repo.delete(world_id)
         return Response(status_code=204, headers=API_VERSION_HEADERS)
 
     @router.get(
@@ -268,13 +267,24 @@ def create_router(
     @router.get(
         "/items",
         response_model=None,
-        responses={200: {"model": ItemListDto}, 422: {"model": ErrorDto}},
+        responses={
+            200: {"model": ItemListDto},
+            422: {"model": ErrorDto},
+            503: {"model": ErrorDto},
+        },
     )
     async def list_items(
         q: str = Query(default=""),
         limit: int = Query(default=20, ge=1, le=100),
     ) -> Response:
-        summaries = catalog.search(q, limit)
+        try:
+            summaries = catalog.search(q, limit)
+        except ItemCatalogUnavailableError:
+            return _err(
+                503,
+                "catalog_unavailable",
+                "Item catalog is not available. Try again later.",
+            )
         return _ok(
             ItemListDto(
                 items=[
@@ -296,6 +306,7 @@ def create_router(
             200: {"model": ItemDetailDto},
             404: {"model": ErrorDto},
             422: {"model": ErrorDto},
+            503: {"model": ErrorDto},
         },
     )
     async def get_item(item_id: int) -> Response:
@@ -303,6 +314,12 @@ def create_router(
             detail = catalog.get(item_id)
         except ItemNotFoundError:
             return _err(404, "item_not_found", f"Item {item_id} not found in catalog.")
+        except ItemCatalogUnavailableError:
+            return _err(
+                503,
+                "catalog_unavailable",
+                "Item catalog is not available. Try again later.",
+            )
         return _ok(
             ItemDetailDto(
                 id=detail.id,
