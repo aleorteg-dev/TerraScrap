@@ -25,6 +25,8 @@ class WorldRepository(Protocol):
 
     def delete(self, world_id: str) -> None: ...
 
+    def delete_strict(self, world_id: str) -> None: ...
+
     def touch(self, world_id: str) -> None: ...
 
     def purge_expired(self, now: datetime | None = None) -> int: ...
@@ -75,6 +77,17 @@ class _InMemoryRepository:
     def delete(self, world_id: str) -> None:
         with self._lock:
             self._data.pop(world_id, None)
+
+    def delete_strict(self, world_id: str) -> None:
+        with self._lock:
+            entry = self._data.get(world_id)
+            if entry is None:
+                raise WorldNotFoundError(world_id)
+            now = self._clock()
+            if self._expired(entry, now):
+                del self._data[world_id]
+                raise WorldNotFoundError(world_id)
+            del self._data[world_id]
 
     def touch(self, world_id: str) -> None:
         with self._lock:

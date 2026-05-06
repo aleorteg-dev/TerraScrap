@@ -195,3 +195,39 @@ def test_concurrent_store_and_get_is_safe() -> None:
 
     assert not errors
     assert len(stored_ids) == 20
+
+
+# ---------------------------------------------------------------------------
+# T-09
+# ---------------------------------------------------------------------------
+
+
+def test_delete_strict_removes_existing_world() -> None:
+    repo = create_in_memory_repository()
+    world = _make_world()
+    world_id = repo.store(world)
+
+    repo.delete_strict(world_id)
+
+    with pytest.raises(WorldNotFoundError):
+        repo.get(world_id)
+
+
+def test_delete_strict_raises_on_unknown_id() -> None:
+    repo = create_in_memory_repository()
+    with pytest.raises(WorldNotFoundError) as exc_info:
+        repo.delete_strict("nonexistent-id")
+    assert exc_info.value.world_id == "nonexistent-id"
+
+
+def test_delete_strict_raises_on_expired_world() -> None:
+    clock_ref = _frozen_clock(datetime(2000, 1, 1, 0, 0, 0))
+    repo = create_in_memory_repository(ttl_seconds=60, clock=lambda: clock_ref[0])
+    world = _make_world()
+    world_id = repo.store(world)
+
+    clock_ref[0] = datetime(2000, 1, 1, 0, 1, 1)  # past TTL
+
+    with pytest.raises(WorldNotFoundError) as exc_info:
+        repo.delete_strict(world_id)
+    assert exc_info.value.world_id == world_id
