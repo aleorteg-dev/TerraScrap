@@ -173,6 +173,54 @@ class NpcSpec:
     is_town_npc: bool = True
 
 
+@dataclass
+class TileEntitySpec:
+    """Synthetic tile entity for test fixtures.
+
+    ``payload`` is the type-specific bytes written after the common header
+    (type:uint8, id:int32, x:int16, y:int16).  Use the ``te_*`` helpers below
+    to build payloads for each entity type.
+    """
+
+    entity_type: int
+    x: int
+    y: int
+    payload: bytes = field(default_factory=bytes)
+
+
+# ── tile entity payload helpers ───────────────────────────────────────────────
+
+
+def te_target_dummy(npc_id: int = 0) -> bytes:
+    return struct.pack("<h", npc_id)
+
+
+def te_item(item_id: int = 0, prefix_id: int = 0, stack: int = 0) -> bytes:
+    return struct.pack("<hBh", item_id, prefix_id, stack)
+
+
+def te_logic_sensor(logic_check_type: int = 0, on: int = 0) -> bytes:
+    return struct.pack("BB", logic_check_type, on)
+
+
+def te_mannequin_empty() -> bytes:
+    """All slots empty: arg0=0, bb=0, pose=0, bits_byte=0."""
+    return bytes([0, 0, 0, 0])
+
+
+def te_hat_rack_empty() -> bytes:
+    """All slots empty: bitmask=0."""
+    return bytes([0])
+
+
+def te_pylon() -> bytes:
+    return b""
+
+
+def te_anchor(item_id: int = 0) -> bytes:
+    return struct.pack("<h", item_id)
+
+
 # ── section builders ──────────────────────────────────────────────────────────
 
 
@@ -376,6 +424,20 @@ def _build_section3(signs: Sequence[SignSpec] | None) -> bytes:
     return bytes(buf)
 
 
+def _build_section5(
+    tile_entities: Sequence[TileEntitySpec] | None,
+) -> bytes:
+    specs = list(tile_entities) if tile_entities else []
+    buf = bytearray()
+    buf += struct.pack("<i", len(specs))
+    for i, te in enumerate(specs):
+        buf += bytes([te.entity_type])
+        buf += struct.pack("<i", i)  # sequential id
+        buf += struct.pack("<hh", te.x, te.y)
+        buf += te.payload
+    return bytes(buf)
+
+
 # ── main builder ──────────────────────────────────────────────────────────────
 
 _NUM_TILE_TYPES = 623  # cover all Terraria 1.4.x tile IDs
@@ -400,6 +462,7 @@ class WldBuilder:
     seed: str = "1234567890.1.1"
     hardmode: bool = False
     npcs: list[NpcSpec] = field(default_factory=list)
+    tile_entities: list[TileEntitySpec] = field(default_factory=list)
 
     def add_npc(
         self,
@@ -427,6 +490,19 @@ class WldBuilder:
         )
         return self
 
+    def add_tile_entity(
+        self,
+        *,
+        entity_type: int,
+        x: int,
+        y: int,
+        payload: bytes = b"",
+    ) -> WldBuilder:
+        self.tile_entities.append(
+            TileEntitySpec(entity_type=entity_type, x=x, y=y, payload=payload)
+        )
+        return self
+
     def build(self) -> bytes:
         return build_world(
             name=self.name,
@@ -436,6 +512,7 @@ class WldBuilder:
             seed=self.seed,
             hardmode=self.hardmode,
             npcs=self.npcs,
+            tile_entities=self.tile_entities,
         )
 
 
@@ -455,6 +532,7 @@ def build_world(
     chests: Sequence[ChestSpec] | None = None,
     signs: Sequence[SignSpec] | None = None,
     npcs: Sequence[NpcSpec] | None = None,
+    tile_entities: Sequence[TileEntitySpec] | None = None,
     tile_id_at: dict[tuple[int, int], int] | None = None,
     tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
     frame_important_ids: set[int] | None = None,
@@ -489,13 +567,14 @@ def build_world(
     s2 = _build_section2(version=version, chests=chests)
     s3 = _build_section3(signs)
     s4 = _build_section4(version=version, npcs=npcs)
+    s5 = _build_section5(tile_entities)
 
     # Build header (everything before section data)
     magic = b"relogic"
     file_type = bytes([2])  # world
     revision = struct.pack("<I", 0)
     favorites = struct.pack("<Q", 0)
-    num_sections = struct.pack("<h", 5)
+    num_sections = struct.pack("<h", 6)
     num_tile_types = struct.pack("<h", _NUM_TILE_TYPES)
     tfi_bytes = _encode_tfi(_NUM_TILE_TYPES, frame_important_ids)
 
@@ -506,7 +585,7 @@ def build_world(
         + 4  # revision
         + 8  # favorites
         + 2  # num_sections
-        + 4 * 5  # 5 section offsets (int32 each)
+        + 4 * 6  # 6 section offsets (int32 each)
         + 2  # num_tile_types
         + len(tfi_bytes)  # tfi bitfield
     )
@@ -516,8 +595,9 @@ def build_world(
     off2 = off1 + len(s1)
     off3 = off2 + len(s2)
     off4 = off3 + len(s3)
+    off5 = off4 + len(s4)
 
-    offsets = struct.pack("<5i", off0, off1, off2, off3, off4)
+    offsets = struct.pack("<6i", off0, off1, off2, off3, off4, off5)
 
     header = (
         struct.pack("<i", version)
@@ -532,4 +612,4 @@ def build_world(
     )
 
     assert len(header) == header_size, f"{len(header)} != {header_size}"
-    return header + s0 + s1 + s2 + s3 + s4
+    return header + s0 + s1 + s2 + s3 + s4 + s5

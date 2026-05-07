@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import BinaryIO, Literal
 
@@ -13,10 +14,13 @@ from twi.wld_parser._types import (
     Npc,
     Sign,
     Tile,
+    TileEntity,
     TileGrid,
     World,
     WorldMetadata,
 )
+
+_LOG = logging.getLogger(__name__)
 
 _MAGIC = b"relogic"
 _FILE_TYPE_WORLD: int = 2
@@ -492,6 +496,121 @@ def _read_npcs(r: Reader, version: int, width: int, height: int) -> list[Npc]:
     return npcs
 
 
+# ── section 5: tile entities ─────────────────────────────────────────────────
+
+_MAX_TILE_ENTITY_TYPE: int = 10
+
+
+def _read_mannequin_data(r: Reader) -> dict[str, int | str]:
+    arg0 = r.read_byte()
+    bb = r.read_byte()
+    pose = r.read_byte()
+    bits_byte = r.read_byte()
+    data: dict[str, int | str] = {"pose": pose}
+    num = arg0 | (((bits_byte >> 1) & 1) << 8)
+    for i in range(9):
+        if (num >> i) & 1:
+            data[f"item_{i}_id"] = r.read_int16()
+            data[f"item_{i}_prefix"] = r.read_byte()
+            data[f"item_{i}_stack"] = r.read_int16()
+        else:
+            data[f"item_{i}_id"] = 0
+            data[f"item_{i}_prefix"] = 0
+            data[f"item_{i}_stack"] = 0
+    num2 = bb | (((bits_byte >> 2) & 1) << 8)
+    for j in range(9):
+        if (num2 >> j) & 1:
+            data[f"dye_{j}_id"] = r.read_int16()
+            data[f"dye_{j}_prefix"] = r.read_byte()
+            data[f"dye_{j}_stack"] = r.read_int16()
+        else:
+            data[f"dye_{j}_id"] = 0
+            data[f"dye_{j}_prefix"] = 0
+            data[f"dye_{j}_stack"] = 0
+    if bits_byte & 1:
+        data["misc_0_id"] = r.read_int16()
+        data["misc_0_prefix"] = r.read_byte()
+        data["misc_0_stack"] = r.read_int16()
+    else:
+        data["misc_0_id"] = 0
+        data["misc_0_prefix"] = 0
+        data["misc_0_stack"] = 0
+    return data
+
+
+def _read_hat_rack_data(r: Reader) -> dict[str, int | str]:
+    bitmask = r.read_byte()
+    data: dict[str, int | str] = {}
+    for i in range(2):
+        if (bitmask >> i) & 1:
+            data[f"item_{i}_id"] = r.read_int16()
+            data[f"item_{i}_prefix"] = r.read_byte()
+            data[f"item_{i}_stack"] = r.read_int16()
+        else:
+            data[f"item_{i}_id"] = 0
+            data[f"item_{i}_prefix"] = 0
+            data[f"item_{i}_stack"] = 0
+    for j in range(2):
+        if (bitmask >> (j + 2)) & 1:
+            data[f"dye_{j}_id"] = r.read_int16()
+            data[f"dye_{j}_prefix"] = r.read_byte()
+            data[f"dye_{j}_stack"] = r.read_int16()
+        else:
+            data[f"dye_{j}_id"] = 0
+            data[f"dye_{j}_prefix"] = 0
+            data[f"dye_{j}_stack"] = 0
+    return data
+
+
+def _read_tile_entity_data(r: Reader, entity_type: int) -> dict[str, int | str] | None:
+    """Return type-specific payload dict, or None for unknown type."""
+    if entity_type == 0:  # target dummy
+        npc_id = r.read_int16()
+        return {"npc_id": npc_id}
+    if entity_type in (1, 4, 6, 8):  # item frame / weapon rack / plate / dead cells jar
+        item_id = r.read_int16()
+        prefix_id = r.read_byte()
+        stack = r.read_int16()
+        return {"item_id": item_id, "prefix_id": prefix_id, "stack": stack}
+    if entity_type == 2:  # logic sensor
+        logic_check_type = r.read_byte()
+        on = r.read_byte()
+        return {"logic_check_type": logic_check_type, "on": on}
+    if entity_type == 3:  # display doll / mannequin
+        return _read_mannequin_data(r)
+    if entity_type == 5:  # hat rack
+        return _read_hat_rack_data(r)
+    if entity_type == 7:  # pylon
+        return {}
+    if entity_type in (9, 10):  # kite anchor / critter anchor
+        item_id = r.read_int16()
+        return {"item_id": item_id}
+    return None
+
+
+def _read_tile_entities(r: Reader) -> list[TileEntity]:
+    count = r.read_int32()
+    entities: list[TileEntity] = []
+    for _ in range(count):
+        entity_type = r.read_byte()
+        entity_id = r.read_int32()
+        x = r.read_int16()
+        y = r.read_int16()
+        data = _read_tile_entity_data(r, entity_type)
+        if data is None:
+            _LOG.warning(
+                "Unknown tile entity type %d at (%d, %d); skipping remaining entities.",
+                entity_type,
+                x,
+                y,
+            )
+            break
+        entities.append(
+            TileEntity(id=entity_id, entity_type=entity_type, x=x, y=y, data=data)
+        )
+    return entities
+
+
 # ── public entry points ───────────────────────────────────────────────────────
 
 
@@ -509,9 +628,20 @@ def parse_wld(stream: BinaryIO) -> World:
         signs = _read_signs(r)
         r.seek(offsets[4])
         npcs = _read_npcs(r, version, metadata.width, metadata.height)
+        tile_entities: list[TileEntity] = []
+        if len(offsets) >= 6:
+            r.seek(offsets[5])
+            tile_entities = _read_tile_entities(r)
     except (WldParseError, UnsupportedWorldVersionError):
         raise
     except Exception as exc:
         raise WldParseError(f"Failed to parse .wld: {exc}", code="corrupt") from exc
 
-    return World(metadata=metadata, tiles=tiles, chests=chests, signs=signs, npcs=npcs)
+    return World(
+        metadata=metadata,
+        tiles=tiles,
+        chests=chests,
+        signs=signs,
+        npcs=npcs,
+        tile_entities=tile_entities,
+    )

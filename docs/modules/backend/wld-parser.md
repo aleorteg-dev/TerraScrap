@@ -64,6 +64,14 @@ class Npc:
     home_y: int
     is_town_npc: bool
 
+@dataclass(frozen=True)
+class TileEntity:
+    id: int
+    entity_type: int          # 0..10; unknown types are warned and skipped
+    x: int
+    y: int
+    data: dict[str, int | str]  # type-specific fields; see §5 for key names
+
 class TileGrid:                     # read-only, indexable grid[x][y] -> Tile
     width: int
     height: int
@@ -76,6 +84,7 @@ class World:
     chests: tuple[Chest, ...]
     signs: tuple[Sign, ...]
     npcs: list[Npc]
+    tile_entities: list[TileEntity]   # empty list for worlds with 0 entities
 ```
 
 ### 2.2. Funciones
@@ -174,6 +183,17 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-32 test_parse_npcs_returns_same_size_and_fields` (iter-03)
 - [x] `T-33 test_parse_zero_npcs_returns_empty_list` (iter-03)
 - [x] `T-34 test_parse_npc_with_position_outside_world_raises_invalid_npc` (iter-03)
+- [x] `T-35 test_parse_zero_tile_entities_returns_empty_list` (iter-04)
+- [x] `T-36 test_parse_tile_entity_type0_target_dummy` (iter-04)
+- [x] `T-37 test_parse_tile_entity_type1_item_frame` (iter-04)
+- [x] `T-37b test_parse_tile_entity_type4_weapon_rack_has_item_fields` (iter-04)
+- [x] `T-38 test_parse_tile_entity_type2_logic_sensor` (iter-04)
+- [x] `T-39 test_parse_tile_entity_type7_pylon_data_is_empty` (iter-04)
+- [x] `T-40 test_parse_tile_entity_type3_mannequin_empty_slots` (iter-04)
+- [x] `T-41 test_parse_tile_entity_type5_hat_rack_empty_slots` (iter-04)
+- [x] `T-42 test_parse_unknown_tile_entity_type_emits_warning_no_exception` (iter-04)
+- [x] `T-43 test_parse_entities_before_unknown_type_are_kept` (iter-04)
+- [x] `T-44 test_wld_builder_add_tile_entity_round_trip` (iter-04)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -191,10 +211,21 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `UnsupportedWorldVersionError`: fuera de rango soportado. Expone `version`, `detected_version`, `supported_range` y `details`.
 
 ## 10. Estado
-- **Versión del contrato**: v2.4
-- **Último cierre**: 2026-05-06
-- **Iteración actual**: iter-03
-- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (42/42). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Cobertura B1: 90%.
+- **Versión del contrato**: v2.5
+- **Último cierre**: 2026-05-07
+- **Iteración actual**: iter-04
+- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (53/53). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Cobertura B1: ≥90%.
+
+### Decisiones tomadas (iter-04 / 2026-05-07)
+- `TileEntity` añadido al contrato con `id`, `entity_type`, `x`, `y`, `data: dict[str, int | str]`.
+- `World.tile_entities: list[TileEntity]` con `default_factory=list` para compatibilidad retroactiva con B2/B4/B5 que no lo proveen.
+- Sección 5 (tile entities) leída desde `offsets[5]` si `len(offsets) >= 6`; mundos de 5 secciones (pre-iter-04) quedan con `tile_entities=[]`.
+- Builder actualizado a 6 secciones; `_build_section5` serializa entidades con payload raw.
+- Tipos soportados: 0 (target dummy), 1/4/6/8 (single item), 2 (logic sensor), 3 (mannequin), 5 (hat rack), 7 (pylon), 9/10 (kite/critter anchor).
+- Tipo desconocido (>10): `logging.warning` estructurado + interrupción del bucle; no se lanza excepción.
+- `data` keys por tipo documentadas en §5; para mannequin: `item_N_id/prefix/stack` (N 0-8), `dye_N_id/prefix/stack` (N 0-8), `misc_0_id/prefix/stack`, `pose`. Para hat rack: `item_N_id/prefix/stack` y `dye_N_id/prefix/stack` (N 0-1).
+- `WldBuilder.add_tile_entity(entity_type, x, y, payload)` + helpers `te_*` en `wld_builder.py`.
+- T-35..T-44 verdes (11 tests nuevos). Todos en `test_tile_entities.py`.
 
 ### Decisiones tomadas (iter-03 / 2026-05-06)
 - `Npc` añadido al contrato de dominio con `id`, `name`, `position_x`, `position_y`, `is_homeless`, `home_x`, `home_y`, `is_town_npc`.
@@ -268,8 +299,7 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - **numpy para TileGrid**: si el rendimiento de B4 tile-search resulta limitado por
   iteración Python sobre listas, sustituir `list[list[Tile]]` por un `ndarray` empaquetado.
 - **NPCs**: ~~sección no parseada~~ **CERRADO iter-03 (2026-05-06)** con T-32..T-34 en `test_npcs.py`.
-- **TileEntities / Footer**: secciones no parseadas; no son necesarias para el
-  contrato actual pero podrían ser útiles para B2 o future work.
+- ~~**TileEntities**~~: **CERRADO iter-04 (2026-05-07)** con T-35..T-44 en `test_tile_entities.py`.
 
 ### Evolución propuesta para paridad con TerraMap
 
@@ -289,15 +319,15 @@ Contrato v2/v2.2 (parcialmente implementado):
 - `Tile.liquid_type/liquid_amount`: implementado en iter-020 (este iter).
 - ~~Pendiente: ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.~~ **CERRADO iter-02 (2026-05-06)** — T-26..T-31 en `test_metadata_extended.py`.
 - ~~Pendiente: añadir `Npc` y `World.npcs`.~~ **CERRADO iter-03 (2026-05-06)** — T-32..T-34 en `test_npcs.py`.
-- añadir `TileEntityItem`, `TileEntity` y `World.tile_entities`.
+- ~~añadir `TileEntityItem`, `TileEntity` y `World.tile_entities`.~~ **CERRADO iter-04 (2026-05-07)**.
 - mantener compatibilidad de lectura para chests/signs y no hacer que B2/B4 dependan de detalles internos no documentados.
 
 Tests mínimos futuros:
 - parsear un tile frame-important y comprobar `frame_x/frame_y`.
 - parsear cada tipo de líquido soportado.
 - ~~parsear un NPC town simple.~~ **CERRADO iter-03 (2026-05-06)**.
-- parsear tile entity con item simple (item frame o weapon rack).
-- parsear tile entity con inventario múltiple (mannequin o hat rack).
+- ~~parsear tile entity con item simple (item frame o weapon rack).~~ **CERRADO iter-04**.
+- ~~parsear tile entity con inventario múltiple (mannequin o hat rack).~~ **CERRADO iter-04**.
 - ampliar el corpus con mundos reales adicionales de `v280-v318` si aparecen.
 
-Estado: NPCs implementado; tile entities planificado, no implementado.
+Estado: NPCs implementado (iter-03). Tile entities implementado (iter-04).

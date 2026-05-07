@@ -102,9 +102,19 @@ class TileGrid:
 
 
 @dataclass(frozen=True)
+class TileEntity:
+    id: int
+    entity_type: int
+    x: int
+    y: int
+    data: dict[str, int | str]
+
+
+@dataclass(frozen=True)
 class World:
     metadata: WorldMetadata
     tiles: TileGrid
     chests: tuple[Chest, ...]
     signs: tuple[Sign, ...]
     npcs: list[Npc] = field(default_factory=list)
+    tile_entities: list[TileEntity] = field(default_factory=list)
