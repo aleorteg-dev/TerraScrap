@@ -18,6 +18,11 @@ class WorldMetadataDto(BaseModel):
     seed: str
     size: Literal["small", "medium", "large"]
     hardmode: bool
+    spawn_x: int
+    spawn_y: int
+    world_surface_y: float
+    rock_layer_y: float
+    hell_layer_y: float
 
 
 class WorldCreatedDto(BaseModel):
@@ -25,13 +30,49 @@ class WorldCreatedDto(BaseModel):
     metadata: WorldMetadataDto
 
 
+TilesEncoding = Literal["base64-rle-v1", "base64-rle-v2"]
+
+
 class TilesChunkDto(BaseModel):
     chunk_x: int
     chunk_y: int
     width: int
     height: int
-    encoding: Literal["base64-rle-v1"]
+    encoding: TilesEncoding
     payload: str
+
+
+class NpcDto(BaseModel):
+    id: int
+    name: str
+    type: Literal["town", "banner"]
+    x: int
+    y: int
+
+
+class NpcListDto(BaseModel):
+    npcs: list[NpcDto]
+
+
+class TileEntityDto(BaseModel):
+    id: int
+    type: Literal["item_frame", "weapon_rack", "mannequin", "hat_rack", "plate"]
+    x: int
+    y: int
+
+
+class TileDetailDto(BaseModel):
+    x: int
+    y: int
+    tile_id: int | None
+    wall_id: int | None
+    liquid_type: Literal["none", "water", "lava", "honey", "shimmer"]
+    liquid_amount: int
+    frame_x: int | None = None
+    frame_y: int | None = None
+    chest_id: int | None = None
+    sign_id: int | None = None
+    tile_entity_id: int | None = None
 
 
 class SearchMatchDto(BaseModel):

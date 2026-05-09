@@ -24,7 +24,8 @@ class XApiVersionMiddleware(BaseHTTPMiddleware): ...
 ```
 
 DTOs (pydantic v2) definidos en `src/twi/api_rest/schemas.py`:
-- `WorldCreatedDto`, `WorldMetadataDto`, `TilesChunkDto`, `SearchResultDto`, `SearchMatchDto`, `ItemSummaryDto`, `ItemDetailDto`, `ErrorDto`.
+- `WorldCreatedDto`, `WorldMetadataDto` (v0.2: `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`), `TilesChunkDto` (v0.2: `encoding: Literal["base64-rle-v1", "base64-rle-v2"]`), `SearchResultDto`, `SearchMatchDto`, `ItemSummaryDto`, `ItemDetailDto`, `ErrorDto`.
+- v0.2 nuevos: `NpcDto`, `NpcListDto`, `TileEntityDto`, `TileDetailDto`. Aún no expuestos por endpoints (ver iter 09–10).
 
 Contrato transversal de errores HTTP:
 - `register_error_handlers(app)` registra handlers publicos para que `app-bootstrap` los monte.
@@ -34,11 +35,11 @@ Contrato transversal de errores HTTP:
 - `XApiVersionMiddleware` añade `X-API-Version: v0.1.0` a toda respuesta, incluidas validacion, errores de framework y limite de upload.
 
 Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
-- `TilesChunkDto.encoding` es siempre `"base64-rle-v1"`.
-- `payload` es `base64` de runs `(tileId:int16LE, count:uint16LE)`.
-- Orden fila-mayor: `y` externo, `x` interno.
-- Aire se serializa como `tileId = -1`.
-- `chunk_x` y `chunk_y` son indices de chunk; `start = index * chunk_size`.
+- Query param `encoding`: `"base64-rle-v1"` (default) | `"base64-rle-v2"`. Otro valor → 400 `code:"invalid_encoding"`.
+- `TilesChunkDto.encoding` es siempre el discriminador de la respuesta.
+- `payload` v1: `base64` de runs `(tileId:int16LE, count:uint16LE)`. Orden fila-mayor (y externo, x interno). Aire = `-1`.
+- `payload` v2: `base64` de `HEADER (8B "TWv2" + frame_count u16LE + reserved u16LE)` + `RUNS (10B/run: tile_id i16, wall_id u16, liquid_type u8, liquid_amount u8, frame_x_hi u8, flags u8, count u16)` + `FRAME_BLOCK (6B/entrada: run_index u16, frame_x_lo u8, reserved u8=0, frame_y u16)`. flags bit 0 = `has_frame`; bits 1..5 (actuator/wires) reservados a 0 (deuda hasta decomposición de `Tile.flags`).
+- `chunk_x` y `chunk_y` son índices de chunk; `start = index * chunk_size`.
 
 ## 3. Dependencias
 - `B2 world-repository`
@@ -125,8 +126,8 @@ Validacion FastAPI: 422 `validation_error` con `details` como lista normalizada.
 Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
-- **Versión del contrato**: v0.1.1
-- **Último cierre**: 2026-05-06 (iter-032)
+- **Versión del contrato**: v0.2 parcial (DTOs + encoder v2; endpoints `/tile` y `/npcs` pendientes)
+- **Último cierre**: 2026-05-09 (iter-08)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -187,7 +188,10 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 - **`WorldRepository.delete_strict`**: resuelto en iter-032. El endpoint DELETE ahora llama `repo.delete_strict()` directamente.
 - **503 para catálogo no disponible**: resuelto en iter-032. `GET /api/items` y `GET /api/items/{id}` devuelven 503 `code:"catalog_unavailable"` cuando `ItemCatalogUnavailableError`.
 - **world-canvas.md spec sync (F3)**: el doc de F3 dice "Uint16Array" pero la implementación usa `Int16Array`. Actualizar en iteración F3.
-- **wall_id / liquid / flags ausentes del payload**: encoding `base64-rle-v1` solo transmite `tile_id`. Si F3 necesita paredes o líquidos, implementar `base64-rle-v2` en iteración B5.1 (ver evolución propuesta).
+- **wall_id / liquid / flags ausentes del payload v1**: encoding `base64-rle-v1` solo transmite `tile_id`. **Cerrado parcialmente (iter-08)**: `base64-rle-v2` ya disponible vía `?encoding=v2`; default sigue siendo v1 hasta que F3 negocie v2.
+- **flags v2 actuator/wires**: encoder v2 sólo expone bit 0 (`has_frame`). `Tile.flags` raw aún no se descompone en bits 1..5 (actuator, wire_red/blue/green/yellow). Pendiente cuando `wld_parser` exponga campos discretos.
+- **Endpoints v0.2 `GET /tile` y `GET /npcs`**: pendientes. Ver iter 09–10.
+- **OpenAPI snapshot**: `test_openapi_schema_snapshot` skipeado durante iter-08; regeneración del snapshot y `docs/contracts/openapi.json` se hace en iter-011 (B5.1 v0.2).
 
 ### Evolución propuesta para paridad con TerraMap
 
@@ -210,3 +214,12 @@ Tests mínimos futuros (iter-011):
 - `T-31 search con frame_x/frame_y filtra variantes`.
 - `T-32 search con include_containers=false oculta chest y object`.
 - `T-33 OpenAPI snapshot v0.2 actualizado`.
+
+## 16. Decisiones tomadas (iter-08, 2026-05-09)
+
+- DTOs v0.2 añadidos: `WorldMetadataDto` extendido con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`; `NpcDto`, `NpcListDto`, `TileEntityDto`, `TileDetailDto`. `TilesChunkDto.encoding` ahora es `Literal["base64-rle-v1", "base64-rle-v2"]`.
+- `_meta_dto` mapea los nuevos campos de `WorldMetadata` (defaults 0/0.0 preservan retrocompat de fixtures).
+- Encoder `_encode_chunk_v2` implementa el spec del contrato v0.2 §5.2 byte a byte (HEADER "TWv2" + RUNS 10B + FRAME_BLOCK 6B). Endianness little. RLE agrupa tiles iguales en `(tile_id, wall_id, liquid_type, liquid_amount, frame_x, frame_y)`.
+- `GET /api/worlds/{id}/tiles` acepta `?encoding=base64-rle-v1|base64-rle-v2`. Default `v1` (cliente vigente sigue esperando v1). Encoding desconocido → 400 `code:"invalid_encoding"`.
+- `test_openapi_schema_snapshot` marcado `@pytest.mark.skip` durante iter-08 porque la regeneración del snapshot OpenAPI y `docs/contracts/openapi.json` está reservada a iter-011.
+- Tests añadidos: round-trip v2 con tiles diversos (aire/stone/water/lava/framed), header-only en chunk vacío, snapshot bytes v1 sin drift, GET /tiles con v2/default/encoding desconocido, validación pydantic de los nuevos DTOs.

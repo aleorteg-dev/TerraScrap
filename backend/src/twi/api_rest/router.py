@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import base64
 import struct
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from typing import Final
 
 from fastapi import APIRouter, Query, Response, UploadFile
 from fastapi.responses import JSONResponse
@@ -12,6 +13,7 @@ from fastapi.responses import JSONResponse
 from twi.item_catalog import ItemCatalog, ItemCatalogUnavailableError, ItemNotFoundError
 from twi.tile_search import TileSearchEngine
 from twi.wld_parser import (
+    Tile,
     TileGrid,
     UnsupportedWorldVersionError,
     WldParseError,
@@ -72,7 +74,25 @@ def _meta_dto(m: WorldMetadata) -> WorldMetadataDto:
         seed=m.seed,
         size=m.size,
         hardmode=m.hardmode,
+        spawn_x=m.spawn_x,
+        spawn_y=m.spawn_y,
+        world_surface_y=m.world_surface_y,
+        rock_layer_y=m.rock_layer_y,
+        hell_layer_y=m.hell_layer_y,
     )
+
+
+_LIQUID_TYPE_TO_INT: Final[Mapping[str, int]] = {
+    "none": 0,
+    "water": 1,
+    "lava": 2,
+    "honey": 3,
+    "shimmer": 4,
+}
+
+_SUPPORTED_ENCODINGS: Final[frozenset[str]] = frozenset(
+    {"base64-rle-v1", "base64-rle-v2"}
+)
 
 
 def _chunk_bounds(
@@ -125,6 +145,88 @@ def _encode_chunk(
         i += run
 
     return w, h, base64.b64encode(bytes(buf)).decode()
+
+
+def _tile_eq_v2(a: Tile, b: Tile) -> bool:
+    return (
+        a.tile_id == b.tile_id
+        and a.wall_id == b.wall_id
+        and a.liquid_type == b.liquid_type
+        and a.liquid_amount == b.liquid_amount
+        and a.frame_x == b.frame_x
+        and a.frame_y == b.frame_y
+    )
+
+
+def _encode_chunk_v2(
+    tiles: TileGrid,
+    chunk_x: int,
+    chunk_y: int,
+    chunk_size: int,
+) -> tuple[int, int, str]:
+    """Pack a grid chunk as base64-rle-v2.
+
+    Layout: HEADER (8B "TWv2" + frame_count u16LE + reserved u16LE)
+            + RUNS (10B each: tile_id i16, wall_id u16, liquid_type u8,
+                    liquid_amount u8, frame_x_hi u8, flags u8, count u16)
+            + FRAME_BLOCK (6B per entry: run_index u16, frame_x_lo u8,
+                    reserved u8, frame_y u16) when frame_count > 0.
+    flags bit 0 = has_frame. Bits 1..5 (actuator/wires) reserved as 0
+    until raw Tile.flags is decomposed (deuda).
+    """
+    start_x, start_y, w, h = _chunk_bounds(
+        chunk_x, chunk_y, chunk_size, tiles.width, tiles.height
+    )
+
+    flat: list[Tile] = []
+    for y in range(start_y, start_y + h):
+        for x in range(start_x, start_x + w):
+            flat.append(tiles[x][y])
+
+    runs_buf = bytearray()
+    frame_buf = bytearray()
+    frame_count = 0
+    run_idx = 0
+
+    i = 0
+    while i < len(flat):
+        cur = flat[i]
+        run = 1
+        while run < 65535 and i + run < len(flat) and _tile_eq_v2(flat[i + run], cur):
+            run += 1
+
+        tile_id = -1 if cur.tile_id is None else cur.tile_id
+        wall_id = cur.wall_id if cur.wall_id is not None else 0
+        liq_t = _LIQUID_TYPE_TO_INT[cur.liquid_type]
+        liq_a = cur.liquid_amount
+        if cur.frame_x is not None and cur.frame_y is not None:
+            fx_hi = (cur.frame_x >> 8) & 0xFF
+            fx_lo = cur.frame_x & 0xFF
+            flags_byte = 0x01
+            frame_buf.extend(struct.pack("<HBBH", run_idx, fx_lo, 0, cur.frame_y))
+            frame_count += 1
+        else:
+            fx_hi = 0
+            flags_byte = 0
+
+        runs_buf.extend(
+            struct.pack(
+                "<hHBBBBH",
+                tile_id,
+                wall_id,
+                liq_t,
+                liq_a,
+                fx_hi,
+                flags_byte,
+                run,
+            )
+        )
+        i += run
+        run_idx += 1
+
+    header = struct.pack("<4sHH", b"TWv2", frame_count, 0)
+    payload = header + bytes(runs_buf) + bytes(frame_buf)
+    return w, h, base64.b64encode(payload).decode()
 
 
 def create_router(
@@ -206,14 +308,32 @@ def create_router(
         chunk_x: int = Query(default=0, ge=0),
         chunk_y: int = Query(default=0, ge=0),
         chunk_size: int = Query(default=128, ge=1, le=512),
+        encoding: str = Query(default="base64-rle-v1"),
     ) -> Response:
+        if encoding not in _SUPPORTED_ENCODINGS:
+            return _err(
+                400,
+                "invalid_encoding",
+                f"Unsupported encoding '{encoding}'.",
+                {"supported": sorted(_SUPPORTED_ENCODINGS)},
+            )
         try:
             world = repo.get(world_id)
         except WorldNotFoundError:
             return _err(404, "world_not_found", f"World '{world_id}' not found.")
-        w, h, payload = _encode_chunk(world.tiles, chunk_x, chunk_y, chunk_size)
-        return _ok(
-            TilesChunkDto(
+        if encoding == "base64-rle-v2":
+            w, h, payload = _encode_chunk_v2(world.tiles, chunk_x, chunk_y, chunk_size)
+            enc: TilesChunkDto = TilesChunkDto(
+                chunk_x=chunk_x,
+                chunk_y=chunk_y,
+                width=w,
+                height=h,
+                encoding="base64-rle-v2",
+                payload=payload,
+            )
+        else:
+            w, h, payload = _encode_chunk(world.tiles, chunk_x, chunk_y, chunk_size)
+            enc = TilesChunkDto(
                 chunk_x=chunk_x,
                 chunk_y=chunk_y,
                 width=w,
@@ -221,7 +341,7 @@ def create_router(
                 encoding="base64-rle-v1",
                 payload=payload,
             )
-        )
+        return _ok(enc)
 
     @router.get(
         "/worlds/{world_id}/search",
