@@ -438,6 +438,15 @@ def _build_section5(
     return bytes(buf)
 
 
+def _build_section6_footer(name: str, world_id: int) -> bytes:
+    """Footer section: bool(1) + .NET string(name) + int32(world_id)."""
+    buf = bytearray()
+    buf += b"\x01"  # flag = True
+    buf += _net_string(name)
+    buf += struct.pack("<i", world_id)
+    return bytes(buf)
+
+
 # ── main builder ──────────────────────────────────────────────────────────────
 
 _NUM_TILE_TYPES = 623  # cover all Terraria 1.4.x tile IDs
@@ -568,13 +577,14 @@ def build_world(
     s3 = _build_section3(signs)
     s4 = _build_section4(version=version, npcs=npcs)
     s5 = _build_section5(tile_entities)
+    s6 = _build_section6_footer(name, 1)  # world_id=1 matches _build_section0
 
     # Build header (everything before section data)
     magic = b"relogic"
     file_type = bytes([2])  # world
     revision = struct.pack("<I", 0)
     favorites = struct.pack("<Q", 0)
-    num_sections = struct.pack("<h", 6)
+    num_sections = struct.pack("<h", 7)
     num_tile_types = struct.pack("<h", _NUM_TILE_TYPES)
     tfi_bytes = _encode_tfi(_NUM_TILE_TYPES, frame_important_ids)
 
@@ -585,7 +595,7 @@ def build_world(
         + 4  # revision
         + 8  # favorites
         + 2  # num_sections
-        + 4 * 6  # 6 section offsets (int32 each)
+        + 4 * 7  # 7 section offsets (int32 each)
         + 2  # num_tile_types
         + len(tfi_bytes)  # tfi bitfield
     )
@@ -596,8 +606,9 @@ def build_world(
     off3 = off2 + len(s2)
     off4 = off3 + len(s3)
     off5 = off4 + len(s4)
+    off6 = off5 + len(s5)
 
-    offsets = struct.pack("<6i", off0, off1, off2, off3, off4, off5)
+    offsets = struct.pack("<7i", off0, off1, off2, off3, off4, off5, off6)
 
     header = (
         struct.pack("<i", version)
@@ -612,4 +623,4 @@ def build_world(
     )
 
     assert len(header) == header_size, f"{len(header)} != {header_size}"
-    return header + s0 + s1 + s2 + s3 + s4 + s5
+    return header + s0 + s1 + s2 + s3 + s4 + s5 + s6

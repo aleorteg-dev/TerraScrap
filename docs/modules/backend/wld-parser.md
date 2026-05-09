@@ -194,6 +194,10 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-42 test_parse_unknown_tile_entity_type_emits_warning_no_exception` (iter-04)
 - [x] `T-43 test_parse_entities_before_unknown_type_are_kept` (iter-04)
 - [x] `T-44 test_wld_builder_add_tile_entity_round_trip` (iter-04)
+- [x] `T-45 test_parse_multibyte_wall_id_round_trips` (iter-05)
+- [x] `T-46 test_parse_footer_invalid_flag_raises_invalid_footer` (iter-05)
+- [x] `T-47 test_parse_footer_truncated_raises_invalid_footer` (iter-05)
+- [x] `T-48 test_parse_footer_name_mismatch_raises_invalid_footer` (iter-05)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -211,10 +215,20 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `UnsupportedWorldVersionError`: fuera de rango soportado. Expone `version`, `detected_version`, `supported_range` y `details`.
 
 ## 10. Estado
-- **Versión del contrato**: v2.5
-- **Último cierre**: 2026-05-07
-- **Iteración actual**: iter-04
-- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (53/53). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Cobertura B1: ≥90%.
+- **Versión del contrato**: v2.6
+- **Último cierre**: 2026-05-09
+- **Iteración actual**: iter-05
+- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (57/57). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Cobertura B1: ≥90%.
+
+### Decisiones tomadas (iter-05 / 2026-05-09)
+- `Tile` ya exponía `wall_id`, `liquid_type`, `liquid_amount`, `frame_x`, `frame_y`; ningún campo nuevo requerido.
+- Multi-byte `wall_id` (>255): implementación ya correcta (`flags3 & 0x40` + byte alto); añadido T-45 para documentar/garantizar.
+- Footer validado al final de `parse_wld` vía `_validate_footer(r, offsets, metadata.name, world_id)`.
+  - Footer format: `bool(flag=1) + .NET string(name) + int32(world_id)` — offset en `offsets[6]`.
+  - `WldParseError(code="invalid_footer")` en tres casos: `len(offsets) < 7`, datos truncados, o `flag≠1/name≠world_name/id≠world_id`.
+- `_read_world_info` ahora devuelve `tuple[WorldMetadata, int]`; el segundo valor es `world_id` (interno, no expuesto en contrato público).
+- Builder actualizado: emite 7 secciones (`num_sections=7`) con `_build_section6_footer(name, world_id=1)`. `header_size` ajustado (+4 bytes por el offset extra). Todos los tests existentes pasan sin modificación gracias a que el footer se emite y valida correctamente.
+- T-45..T-48 en `test_footer_and_walls.py`. 57 tests totales.
 
 ### Decisiones tomadas (iter-04 / 2026-05-07)
 - `TileEntity` añadido al contrato con `id`, `entity_type`, `x`, `y`, `data: dict[str, int | str]`.
@@ -300,6 +314,7 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   iteración Python sobre listas, sustituir `list[list[Tile]]` por un `ndarray` empaquetado.
 - **NPCs**: ~~sección no parseada~~ **CERRADO iter-03 (2026-05-06)** con T-32..T-34 en `test_npcs.py`.
 - ~~**TileEntities**~~: **CERRADO iter-04 (2026-05-07)** con T-35..T-44 en `test_tile_entities.py`.
+- ~~**Footer**~~: **CERRADO iter-05 (2026-05-09)** — `_validate_footer` en `_parser.py`, sección 6 en builder, T-45..T-48.
 
 ### Evolución propuesta para paridad con TerraMap
 

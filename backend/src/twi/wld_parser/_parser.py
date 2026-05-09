@@ -92,12 +92,13 @@ def _read_file_header(r: Reader) -> tuple[int, list[int], list[bool]]:
 # ── section 0: world info ────────────────────────────────────────────────────
 
 
-def _read_world_info(r: Reader, version: int) -> WorldMetadata:
+def _read_world_info(r: Reader, version: int) -> tuple[WorldMetadata, int]:
+    """Return (WorldMetadata, world_id). world_id is used for footer validation."""
     name = r.read_net_string()
     seed = r.read_net_string()
     _world_gen_version = r.read_uint64()
     _guid = r.read_bytes(16)
-    _world_id = r.read_int32()
+    world_id = r.read_int32()
 
     # Bounds (pixels = tiles * 16)
     _left = r.read_int32()
@@ -198,7 +199,7 @@ def _read_world_info(r: Reader, version: int) -> WorldMetadata:
         world_surface_y=world_surface_y,
         rock_layer_y=rock_layer_y,
         hell_layer_y=hell_layer_y,
-    )
+    ), world_id
 
 
 # ── section 1: tiles ─────────────────────────────────────────────────────────
@@ -611,6 +612,39 @@ def _read_tile_entities(r: Reader) -> list[TileEntity]:
     return entities
 
 
+# ── section 6: footer ────────────────────────────────────────────────────────
+
+
+def _validate_footer(
+    r: Reader, offsets: list[int], world_name: str, world_id: int
+) -> None:
+    """Validate the .wld footer section.
+
+    Footer layout (Terraria format): bool(flag) + .NET string(name) + int32(id).
+    Raises WldParseError(code='invalid_footer') on any mismatch or truncation.
+    """
+    if len(offsets) < 7:
+        raise WldParseError(
+            "Footer section (offsets[6]) is missing.",
+            code="invalid_footer",
+        )
+    r.seek(offsets[6])
+    try:
+        flag = r.read_bool()
+        name = r.read_net_string()
+        wid = r.read_int32()
+    except WldParseError as exc:
+        raise WldParseError(
+            "Footer section is truncated or unreadable.",
+            code="invalid_footer",
+        ) from exc
+    if not flag or name != world_name or wid != world_id:
+        raise WldParseError(
+            f"Footer validation failed: flag={flag}, name={name!r}, id={wid}.",
+            code="invalid_footer",
+        )
+
+
 # ── public entry points ───────────────────────────────────────────────────────
 
 
@@ -619,7 +653,7 @@ def parse_wld(stream: BinaryIO) -> World:
     try:
         version, offsets, tfi = _read_file_header(r)
         r.seek(offsets[0])
-        metadata = _read_world_info(r, version)
+        metadata, world_id = _read_world_info(r, version)
         r.seek(offsets[1])
         tiles = _read_tiles(r, metadata.width, metadata.height, tfi)
         r.seek(offsets[2])
@@ -632,6 +666,7 @@ def parse_wld(stream: BinaryIO) -> World:
         if len(offsets) >= 6:
             r.seek(offsets[5])
             tile_entities = _read_tile_entities(r)
+        _validate_footer(r, offsets, metadata.name, world_id)
     except (WldParseError, UnsupportedWorldVersionError):
         raise
     except Exception as exc:
