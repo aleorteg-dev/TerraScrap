@@ -44,6 +44,13 @@ class Settings(BaseSettings):
 - [x] `T-04 test_cors_header_absent_on_disallowed_origin`
 - [x] `T-05 test_upload_size_middleware_returns_413_over_limit` (fichero dummy grande)
 - [x] `T-06 test_purge_task_runs_on_schedule` (usa clock/scheduler mockeado)
+- [x] `T-07 test_items_endpoint_returns_503_when_catalog_unavailable` (iter-07)
+- [x] `T-07b test_get_item_endpoint_returns_503_when_catalog_unavailable` (iter-07)
+- [x] `T-08 test_request_id_header_generated_when_absent` (iter-07)
+- [x] `T-09 test_request_id_header_respected_from_client` (iter-07)
+- [x] `T-10 test_access_log_is_valid_json_with_required_fields` (iter-07)
+- [x] `T-10b test_access_log_includes_error_code_on_failure` (iter-07)
+- [x] `T-11 test_purge_loop_emits_json_log` (iter-07)
 
 ## 7. Notas de implementación
 - Preferir `FastAPI(lifespan=...)` para arrancar/parar el task de purga.
@@ -57,9 +64,29 @@ class Settings(BaseSettings):
 - Fallo cargando cache de ítems → log warning; el endpoint `/api/items` devolverá 503 hasta que exista.
 
 ## 10. Estado
-- **Versión del contrato**: v0.1.1
-- **Último cierre**: 2026-05-06 (iter-032)
+- **Versión del contrato**: v0.1.2
+- **Último cierre**: 2026-05-09 (iter-07)
 - **Iteración actual**: cerrada
+
+### 10.1. Cambios v0.1.2 (iter-07)
+
+- `RequestContextMiddleware` (en `twi/observability.py`): asigna `X-Request-Id`
+  (UUID v4) por request si no llega del cliente; respeta el id entrante si viene
+  con forma de UUID. Propaga el id a `request.state.request_id` y al header de
+  respuesta. Cubre SP-04.
+- `JsonFormatter` + `configure_logging(level)`: handler único en el root logger
+  con salida JSON line. Campos: `timestamp`, `level`, `logger`, `message`,
+  `request_id`, `method`, `path`, `status`, `duration_ms`, `event`,
+  `error.code` (si aplica), `exc_info` (si aplica). Sin dependencias externas.
+- Loggers nombrados:
+  - `twi.access` — entrada por request (`message = "request_completed"` /
+    `"request_failed"`).
+  - `twi.purge` — entrada por ciclo de purga (`message = "purge_expired"`,
+    `event = "purge"`, `status = <count>`).
+- Header transitorio `X-Error-Code` añadido por `error_response` (B5) y
+  consumido/eliminado por el middleware de contexto antes de devolver la
+  respuesta al cliente; permite enriquecer el access log con `error.code`
+  sin acoplar B5 al logger.
 
 ## 11. Decisiones tomadas en iter-006
 
@@ -80,5 +107,6 @@ class Settings(BaseSettings):
 ## 12. Deuda / follow-ups
 
 - **503 en /api/items sin caché**: resuelto en iter-032. `_NullCatalog.search()` y `_NullCatalog.get()` lanzan `ItemCatalogUnavailableError`; el router B5 captura y devuelve 503 `code:"catalog_unavailable"`. Tests T-27 y T-28 en `test_api_rest.py` verifican.
-- **Logging estructurado (JSON)**: SP-04 parcialmente cubierto (nivel configurable). El formato JSON + `request_id` por request sigue pendiente — requiere middleware de correlación dedicado.
+- **Logging estructurado (JSON)**: resuelto en iter-07. `JsonFormatter` + `configure_logging` instalan handler JSON en el root logger; `RequestContextMiddleware` asigna `X-Request-Id` y emite access log con `request_id, method, path, status, duration_ms, error.code`. Tests T-08..T-11.
 - **`WorldRepository.delete_strict`**: resuelto en iter-032. Implementado en B2 y usado en DELETE endpoint de B5.
+- **503 sin catálogo (vista app-bootstrap)**: cubierto extremo a extremo en iter-07 con tests T-07/T-07b sobre `create_app(...)` configurado con `_NullCatalog`.

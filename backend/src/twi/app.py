@@ -29,6 +29,11 @@ from twi.item_catalog import (
     ItemSummary,
     load_catalog,
 )
+from twi.observability import (
+    PURGE_LOGGER_NAME,
+    RequestContextMiddleware,
+    configure_logging,
+)
 from twi.tile_search import create_tile_search_engine
 from twi.world_repository import WorldRepository, create_in_memory_repository
 
@@ -83,9 +88,14 @@ class _NullCatalog:
 
 
 async def _purge_loop(repo: WorldRepository, interval: int) -> None:
+    purge_logger = logging.getLogger(PURGE_LOGGER_NAME)
     while True:
         await asyncio.sleep(interval)
-        repo.purge_expired()
+        purged = repo.purge_expired()
+        purge_logger.info(
+            "purge_expired",
+            extra={"event": "purge", "status": int(purged)},
+        )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -93,7 +103,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings = Settings()
 
     log_level = _LOG_LEVELS.get(settings.log_level.upper(), logging.INFO)
-    logging.basicConfig(level=log_level, force=True)
+    configure_logging(log_level)
 
     repo = create_in_memory_repository(ttl_seconds=settings.world_ttl_seconds)
 
@@ -147,6 +157,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Outermost: assign request_id and emit structured access logs.
+    fastapi_app.add_middleware(RequestContextMiddleware)
 
     fastapi_app.include_router(router)
 

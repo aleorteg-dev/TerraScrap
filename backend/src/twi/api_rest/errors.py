@@ -24,6 +24,8 @@ UPLOAD_TOO_LARGE_CODE: Final = "upload_too_large"
 VALIDATION_ERROR_CODE: Final = "validation_error"
 INTERNAL_ERROR_CODE: Final = "internal_error"
 
+ERROR_CODE_HEADER: Final = "X-Error-Code"
+
 STATUS_CODE_TO_ERROR_CODE: Final[Mapping[int, str]] = {
     404: "world_not_found",
     413: UPLOAD_TOO_LARGE_CODE,
@@ -65,10 +67,11 @@ def error_response(
     details: ErrorDetails | None = None,
 ) -> JSONResponse:
     body = ErrorDto(error=ErrorDetailDto(code=code, message=message, details=details))
+    headers = {**API_VERSION_HEADERS, ERROR_CODE_HEADER: code}
     return JSONResponse(
         status_code=status_code,
         content=body.model_dump(mode="json"),
-        headers=API_VERSION_HEADERS,
+        headers=headers,
     )
 
 
