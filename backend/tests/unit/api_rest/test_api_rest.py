@@ -27,7 +27,12 @@ from twi.app import Settings, create_app
 from twi.item_catalog import ItemCatalog, ItemDetail, ItemNotFoundError, ItemSummary
 from twi.tile_search import SearchMatch, SearchResult, TileSearchEngine
 from twi.wld_parser import (
+    Chest,
+    ChestItem,
+    Npc,
+    Sign,
     Tile,
+    TileEntity,
     TileGrid,
     UnsupportedWorldVersionError,
     WldParseError,
@@ -1086,3 +1091,219 @@ def test_get_tiles_unknown_encoding_returns_400(
     assert response.status_code == 400
     body = response.json()
     assert body["error"]["code"] == "invalid_encoding"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/worlds/{id}/npcs
+# ---------------------------------------------------------------------------
+
+
+def _make_npc(
+    npc_id: int,
+    name: str,
+    x: float,
+    y: float,
+    *,
+    is_town: bool = True,
+) -> Npc:
+    return Npc(
+        id=npc_id,
+        name=name,
+        position_x=x,
+        position_y=y,
+        is_homeless=False,
+        home_x=int(x),
+        home_y=int(y),
+        is_town_npc=is_town,
+    )
+
+
+def _make_world_with_npcs(npcs: list[Npc]) -> World:
+    base = _make_world()
+    return World(
+        metadata=base.metadata,
+        tiles=base.tiles,
+        chests=(),
+        signs=(),
+        npcs=npcs,
+    )
+
+
+def test_get_npcs_returns_all_npcs(
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    repo = _FakeRepo()
+    npcs = [
+        _make_npc(17, "Guide", 4200.5, 348.0, is_town=True),
+        _make_npc(18, "Merchant", 4205.9, 348.0, is_town=True),
+        _make_npc(37, "Old Man", 100.0, 200.0, is_town=False),
+    ]
+    world_id = repo.store(_make_world_with_npcs(npcs))
+    client = _make_client(repo, catalog, search_engine)
+
+    response = client.get(f"/api/worlds/{world_id}/npcs")
+    assert response.status_code == 200
+    body = response.json()
+    assert "npcs" in body
+    assert len(body["npcs"]) == 3
+    first = body["npcs"][0]
+    assert first == {"id": 17, "name": "Guide", "type": "town", "x": 4200, "y": 348}
+    last = body["npcs"][2]
+    assert last["type"] == "banner"
+
+
+def test_get_npcs_town_only_filters_non_town(
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    repo = _FakeRepo()
+    npcs = [
+        _make_npc(17, "Guide", 10.0, 20.0, is_town=True),
+        _make_npc(37, "Old Man", 100.0, 200.0, is_town=False),
+    ]
+    world_id = repo.store(_make_world_with_npcs(npcs))
+    client = _make_client(repo, catalog, search_engine)
+
+    response = client.get(f"/api/worlds/{world_id}/npcs", params={"town_only": "true"})
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["npcs"]) == 1
+    assert body["npcs"][0]["id"] == 17
+    assert body["npcs"][0]["type"] == "town"
+
+
+def test_get_npcs_empty_world_returns_empty_list(
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    repo = _FakeRepo()
+    world_id = repo.store(_make_world_with_npcs([]))
+    client = _make_client(repo, catalog, search_engine)
+
+    response = client.get(f"/api/worlds/{world_id}/npcs")
+    assert response.status_code == 200
+    assert response.json() == {"npcs": []}
+
+
+def test_get_npcs_unknown_world_returns_404(client: TestClient) -> None:
+    response = client.get("/api/worlds/ghost-id/npcs")
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "world_not_found"
+
+
+# ---------------------------------------------------------------------------
+# T-29..T-32 – GET /api/worlds/{id}/tile?x=&y=
+# ---------------------------------------------------------------------------
+
+
+def _tile_world_with_entity() -> World:
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    framed = Tile(
+        tile_id=21,
+        wall_id=4,
+        liquid_type="water",
+        liquid_amount=128,
+        flags=0,
+        frame_x=300,
+        frame_y=18,
+    )
+    grid = TileGrid([[air, air], [framed, air]])
+    meta = WorldMetadata(
+        name="W",
+        width=2,
+        height=2,
+        version=279,
+        seed="0",
+        size="small",
+        hardmode=False,
+    )
+    chest = Chest(
+        chest_id=12,
+        x=1,
+        y=0,
+        name="",
+        items=tuple(ChestItem(0, 0, 0) for _ in range(40)),
+    )
+    sign = Sign(x=1, y=0, text="hello")
+    entity = TileEntity(id=7, entity_type=0, x=1, y=0, data={})
+    return World(
+        metadata=meta,
+        tiles=grid,
+        chests=(chest,),
+        signs=(sign,),
+        npcs=[],
+        tile_entities=[entity],
+    )
+
+
+def test_get_tile_returns_full_detail_dto(
+    catalog: _FakeCatalog, search_engine: _FakeSearch
+) -> None:
+    repo = _FakeRepo()
+    world_id = repo.store(_tile_world_with_entity())
+    client = _make_client(repo, catalog, search_engine)
+
+    resp = client.get(f"/api/worlds/{world_id}/tile", params={"x": 1, "y": 0})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["x"] == 1
+    assert body["y"] == 0
+    assert body["tile_id"] == 21
+    assert body["wall_id"] == 4
+    assert body["liquid_type"] == "water"
+    assert body["liquid_amount"] == 128
+    assert body["frame_x"] == 300
+    assert body["frame_y"] == 18
+    assert body["chest_id"] == 12
+    assert body["sign_id"] == 0
+    assert body["tile_entity_id"] == 7
+
+
+def test_get_tile_empty_coordinate_returns_nulls(
+    catalog: _FakeCatalog, search_engine: _FakeSearch
+) -> None:
+    repo = _FakeRepo()
+    world_id = repo.store(_tile_world_with_entity())
+    client = _make_client(repo, catalog, search_engine)
+
+    resp = client.get(f"/api/worlds/{world_id}/tile", params={"x": 0, "y": 0})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["x"] == 0
+    assert body["y"] == 0
+    assert body["tile_id"] is None
+    assert body["wall_id"] is None
+    assert body["liquid_type"] == "none"
+    assert body["liquid_amount"] == 0
+    assert body["frame_x"] is None
+    assert body["frame_y"] is None
+    assert body["chest_id"] is None
+    assert body["sign_id"] is None
+    assert body["tile_entity_id"] is None
+
+
+@pytest.mark.parametrize(
+    "x,y",
+    [(-1, 0), (0, -1), (2, 0), (0, 2), (10, 10)],
+)
+def test_get_tile_out_of_bounds_returns_400(
+    x: int, y: int, catalog: _FakeCatalog, search_engine: _FakeSearch
+) -> None:
+    repo = _FakeRepo()
+    world_id = repo.store(_tile_world_with_entity())
+    client = _make_client(repo, catalog, search_engine)
+
+    resp = client.get(f"/api/worlds/{world_id}/tile", params={"x": x, "y": y})
+
+    assert resp.status_code == 400
+    assert resp.json()["error"]["code"] == "coordinates_out_of_bounds"
+
+
+def test_get_tile_unknown_world_returns_404(client: TestClient) -> None:
+    resp = client.get("/api/worlds/ghost/tile", params={"x": 0, "y": 0})
+
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "world_not_found"

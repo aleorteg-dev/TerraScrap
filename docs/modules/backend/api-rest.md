@@ -104,6 +104,10 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 - [x] `T-26 test_x_api_version_header_present_on_2xx`
 - [x] `T-27 test_items_returns_503_when_catalog_unavailable` (iter-032)
 - [x] `T-28 test_get_item_by_id_returns_503_when_catalog_unavailable` (iter-032)
+- [x] `T-29 test_get_tile_returns_full_detail_dto` (iter-09)
+- [x] `T-30 test_get_tile_empty_coordinate_returns_nulls` (iter-09)
+- [x] `T-31 test_get_tile_out_of_bounds_returns_400` (iter-09)
+- [x] `T-32 test_get_tile_unknown_world_returns_404` (iter-09)
 
 ## 7. Notas de implementación
 - Usa un `APIRouter` con prefijo `/api`. El montaje ocurre en `app-bootstrap`.
@@ -126,8 +130,8 @@ Validacion FastAPI: 422 `validation_error` con `details` como lista normalizada.
 Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
-- **Versión del contrato**: v0.2 parcial (DTOs + encoder v2; endpoints `/tile` y `/npcs` pendientes)
-- **Último cierre**: 2026-05-09 (iter-08)
+- **Versión del contrato**: v0.2 parcial (DTOs + encoder v2 + endpoints `/tile` y `/npcs`; OpenAPI snapshot pendiente iter-011)
+- **Último cierre**: 2026-05-09 (iter-09)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -190,7 +194,8 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 - **world-canvas.md spec sync (F3)**: el doc de F3 dice "Uint16Array" pero la implementación usa `Int16Array`. Actualizar en iteración F3.
 - **wall_id / liquid / flags ausentes del payload v1**: encoding `base64-rle-v1` solo transmite `tile_id`. **Cerrado parcialmente (iter-08)**: `base64-rle-v2` ya disponible vía `?encoding=v2`; default sigue siendo v1 hasta que F3 negocie v2.
 - **flags v2 actuator/wires**: encoder v2 sólo expone bit 0 (`has_frame`). `Tile.flags` raw aún no se descompone en bits 1..5 (actuator, wire_red/blue/green/yellow). Pendiente cuando `wld_parser` exponga campos discretos.
-- **Endpoints v0.2 `GET /tile` y `GET /npcs`**: pendientes. Ver iter 09–10.
+- **Endpoint v0.2 `GET /tile`**: cerrado en iter-09 (2026-05-09). Devuelve `TileDetailDto` con `tile_id`, `wall_id`, `liquid_type/amount`, `frame_x/y`, `chest_id` (de `World.chests`), `sign_id` (índice en `World.signs`), `tile_entity_id` (de `World.tile_entities`). 400 `coordinates_out_of_bounds` si `x/y` fuera de `[0, width)` / `[0, height)`. 404 `world_not_found`. Nota: el contrato §5.4 listaba `invalid_coordinates`; se usa `coordinates_out_of_bounds` por instrucción de iter-09 (deuda: alinear contrato si procede).
+- **Endpoint v0.2 `GET /npcs`**: cerrado en iter-10 (2026-05-09). `?town_only=true` filtra por `is_town_npc`. Mapping `is_town_npc → "town" | "banner"`. `position_x/y` (tiles float, ya divididos por 16 en el parser) → `int(...)` para `x/y`.
 - **OpenAPI snapshot**: `test_openapi_schema_snapshot` skipeado durante iter-08; regeneración del snapshot y `docs/contracts/openapi.json` se hace en iter-011 (B5.1 v0.2).
 
 ### Evolución propuesta para paridad con TerraMap
@@ -209,11 +214,15 @@ La implementación de todo lo anterior ocurre en **iter-011** (B5.1 api-rest v0.
 OpenAPI y tipos frontend se regeneran en esa iteración.
 
 Tests mínimos futuros (iter-011):
-- `T-29 GET /tile devuelve TileDetailDto con frame y tile_entity_id`.
-- `T-30 GET /npcs devuelve lista vacía si el mundo no tiene NPCs`.
-- `T-31 search con frame_x/frame_y filtra variantes`.
-- `T-32 search con include_containers=false oculta chest y object`.
-- `T-33 OpenAPI snapshot v0.2 actualizado`.
+- `search con frame_x/frame_y filtra variantes`.
+- `search con include_containers=false oculta chest y object`.
+- `OpenAPI snapshot v0.2 actualizado`.
+
+Tests cerrados en iter-10:
+- `test_get_npcs_returns_all_npcs` — N NPCs → respuesta lista los N con `id/name/type/x/y`.
+- `test_get_npcs_town_only_filters_non_town` — `?town_only=true` solo devuelve `is_town_npc=True`.
+- `test_get_npcs_empty_world_returns_empty_list` — mundo sin NPCs → `{"npcs": []}`.
+- `test_get_npcs_unknown_world_returns_404` — id desconocido → 404 `world_not_found`.
 
 ## 16. Decisiones tomadas (iter-08, 2026-05-09)
 
@@ -223,3 +232,10 @@ Tests mínimos futuros (iter-011):
 - `GET /api/worlds/{id}/tiles` acepta `?encoding=base64-rle-v1|base64-rle-v2`. Default `v1` (cliente vigente sigue esperando v1). Encoding desconocido → 400 `code:"invalid_encoding"`.
 - `test_openapi_schema_snapshot` marcado `@pytest.mark.skip` durante iter-08 porque la regeneración del snapshot OpenAPI y `docs/contracts/openapi.json` está reservada a iter-011.
 - Tests añadidos: round-trip v2 con tiles diversos (aire/stone/water/lava/framed), header-only en chunk vacío, snapshot bytes v1 sin drift, GET /tiles con v2/default/encoding desconocido, validación pydantic de los nuevos DTOs.
+
+## 17. Decisiones tomadas (iter-09, 2026-05-09)
+
+- Endpoint `GET /api/worlds/{world_id}/tile?x=&y=` añadido. Devuelve `TileDetailDto` con `chest_id` resuelto desde `World.chests` (campo `Chest.chest_id`), `sign_id` como índice 0-based en la tupla `World.signs` (el dataclass `Sign` no tiene id propio), y `tile_entity_id` desde `World.tile_entities`.
+- 400 `coordinates_out_of_bounds` cuando `x<0 ∨ y<0 ∨ x>=width ∨ y>=height`, con `details: {x, y, width, height}`. Diverge del contrato §5.4 (`invalid_coordinates`) por instrucción explícita de la iteración.
+- 404 `world_not_found` si `world_id` no existe.
+- Mapping de tile vacío: cuando `Tile.tile_id is None`, todos los campos opcionales (`wall_id`, `frame_x`, `frame_y`) viajan tal cual (None si así fueron poblados); `liquid_type/amount` siempre presentes (default `"none"/0`).

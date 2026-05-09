@@ -30,8 +30,11 @@ from .schemas import (
     ItemDetailDto,
     ItemListDto,
     ItemSummaryDto,
+    NpcDto,
+    NpcListDto,
     SearchMatchDto,
     SearchResultDto,
+    TileDetailDto,
     TilesChunkDto,
     WorldCreatedDto,
     WorldMetadataDto,
@@ -54,6 +57,8 @@ _OkDto = (
     | ItemListDto
     | ItemDetailDto
     | TilesChunkDto
+    | NpcListDto
+    | TileDetailDto
 )
 
 
@@ -342,6 +347,89 @@ def create_router(
                 payload=payload,
             )
         return _ok(enc)
+
+    @router.get(
+        "/worlds/{world_id}/tile",
+        response_model=None,
+        responses={
+            200: {"model": TileDetailDto},
+            400: {"model": ErrorDto},
+            404: {"model": ErrorDto},
+        },
+    )
+    async def get_tile(world_id: str, x: int, y: int) -> Response:
+        try:
+            world = repo.get(world_id)
+        except WorldNotFoundError:
+            return _err(404, "world_not_found", f"World '{world_id}' not found.")
+        w, h = world.tiles.width, world.tiles.height
+        if x < 0 or y < 0 or x >= w or y >= h:
+            return _err(
+                400,
+                "coordinates_out_of_bounds",
+                f"Coordinates ({x}, {y}) are out of bounds for world {w}x{h}.",
+                {"x": x, "y": y, "width": w, "height": h},
+            )
+        tile = world.tiles[x][y]
+        chest_id: int | None = None
+        for c in world.chests:
+            if c.x == x and c.y == y:
+                chest_id = c.chest_id
+                break
+        sign_id: int | None = None
+        for idx, s in enumerate(world.signs):
+            if s.x == x and s.y == y:
+                sign_id = idx
+                break
+        tile_entity_id: int | None = None
+        for te in world.tile_entities:
+            if te.x == x and te.y == y:
+                tile_entity_id = te.id
+                break
+        return _ok(
+            TileDetailDto(
+                x=x,
+                y=y,
+                tile_id=tile.tile_id,
+                wall_id=tile.wall_id,
+                liquid_type=tile.liquid_type,
+                liquid_amount=tile.liquid_amount,
+                frame_x=tile.frame_x,
+                frame_y=tile.frame_y,
+                chest_id=chest_id,
+                sign_id=sign_id,
+                tile_entity_id=tile_entity_id,
+            )
+        )
+
+    @router.get(
+        "/worlds/{world_id}/npcs",
+        response_model=None,
+        responses={
+            200: {"model": NpcListDto},
+            404: {"model": ErrorDto},
+        },
+    )
+    async def get_npcs(
+        world_id: str,
+        town_only: bool = Query(default=False),
+    ) -> Response:
+        try:
+            world = repo.get(world_id)
+        except WorldNotFoundError:
+            return _err(404, "world_not_found", f"World '{world_id}' not found.")
+        npcs = [
+            NpcDto(
+                id=n.id,
+                name=n.name,
+                type="town" if n.is_town_npc else "banner",
+                x=int(n.position_x),
+                y=int(n.position_y),
+            )
+            for n in world.npcs
+            if not town_only or n.is_town_npc
+        ]
+        return _ok(NpcListDto(npcs=npcs))
 
     @router.get(
         "/worlds/{world_id}/search",
