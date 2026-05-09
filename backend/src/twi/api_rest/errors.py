@@ -16,7 +16,7 @@ from starlette.responses import Response
 
 from twi.api_rest.schemas import ErrorDetailDto, ErrorDetails, ErrorDto
 
-API_VERSION: Final = "v0.1.0"
+API_VERSION: Final = "0.2"
 API_VERSION_HEADER: Final = "X-API-Version"
 API_VERSION_HEADERS: Final[Mapping[str, str]] = {API_VERSION_HEADER: API_VERSION}
 

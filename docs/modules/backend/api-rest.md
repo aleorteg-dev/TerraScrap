@@ -130,8 +130,8 @@ Validacion FastAPI: 422 `validation_error` con `details` como lista normalizada.
 Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
-- **Versión del contrato**: v0.2 parcial (DTOs + encoder v2 + endpoints `/tile` y `/npcs`; OpenAPI snapshot pendiente iter-011)
-- **Último cierre**: 2026-05-09 (iter-09)
+- **Versión del contrato**: v0.2 (cerrada — DELETE estricto, search con `frame_x/frame_y`, `X-API-Version: 0.2`, OpenAPI snapshot regenerado).
+- **Último cierre**: 2026-05-09 (iter-11)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -189,14 +189,19 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 12. Deuda / follow-ups
 
-- **`WorldRepository.delete_strict`**: resuelto en iter-032. El endpoint DELETE ahora llama `repo.delete_strict()` directamente.
-- **503 para catálogo no disponible**: resuelto en iter-032. `GET /api/items` y `GET /api/items/{id}` devuelven 503 `code:"catalog_unavailable"` cuando `ItemCatalogUnavailableError`.
+Todas las deudas pendientes de la familia API v0.2 quedan **cerradas en iter-11 (2026-05-09)**.
+
+- **`WorldRepository.delete_strict`**: cerrado iter-032. DELETE invoca `delete_strict()` directamente; 204 si elimina, 404 `world_not_found` si id ausente o expirado.
+- **503 para catálogo no disponible**: cerrado iter-032. `/api/items` y `/api/items/{id}` devuelven 503 `code:"catalog_unavailable"`.
+- **DELETE estricto contractual (iter-11)**: cerrado 2026-05-09. Test `test_delete_world_invokes_delete_strict` verifica la invocación; T-09/T-10 cubren 204/404.
+- **`search` con `frame_x` / `frame_y` (iter-11)**: cerrado 2026-05-09. Query params opcionales filtran matches por frame exacto del tile en `world.tiles[m.x][m.y]`. Si solo se pasa uno, el otro queda libre. Tests: `test_search_filters_by_frame_x_and_frame_y`, `test_search_frame_x_only_filters_correctly`, `test_search_without_frame_filter_returns_all_matches`.
+- **`X-API-Version: 0.2` (iter-11)**: cerrado 2026-05-09. `errors.API_VERSION` promovido de `"v0.1.0"` a `"0.2"`. Header presente en 2xx, 4xx (incluye 404, 413, 422), 5xx, /docs y 503.
+- **OpenAPI snapshot (iter-11)**: cerrado 2026-05-09. `tests/unit/api_rest/openapi_snapshot.json` y `docs/contracts/openapi.json` regenerados. `test_openapi_schema_snapshot` desmarcado (compara schema vs snapshot). Añadido `test_contracts_openapi_json_matches_app_schema` que valida `docs/contracts/openapi.json == twi.app.create_app().openapi()`.
 - **world-canvas.md spec sync (F3)**: el doc de F3 dice "Uint16Array" pero la implementación usa `Int16Array`. Actualizar en iteración F3.
-- **wall_id / liquid / flags ausentes del payload v1**: encoding `base64-rle-v1` solo transmite `tile_id`. **Cerrado parcialmente (iter-08)**: `base64-rle-v2` ya disponible vía `?encoding=v2`; default sigue siendo v1 hasta que F3 negocie v2.
-- **flags v2 actuator/wires**: encoder v2 sólo expone bit 0 (`has_frame`). `Tile.flags` raw aún no se descompone en bits 1..5 (actuator, wire_red/blue/green/yellow). Pendiente cuando `wld_parser` exponga campos discretos.
-- **Endpoint v0.2 `GET /tile`**: cerrado en iter-09 (2026-05-09). Devuelve `TileDetailDto` con `tile_id`, `wall_id`, `liquid_type/amount`, `frame_x/y`, `chest_id` (de `World.chests`), `sign_id` (índice en `World.signs`), `tile_entity_id` (de `World.tile_entities`). 400 `coordinates_out_of_bounds` si `x/y` fuera de `[0, width)` / `[0, height)`. 404 `world_not_found`. Nota: el contrato §5.4 listaba `invalid_coordinates`; se usa `coordinates_out_of_bounds` por instrucción de iter-09 (deuda: alinear contrato si procede).
-- **Endpoint v0.2 `GET /npcs`**: cerrado en iter-10 (2026-05-09). `?town_only=true` filtra por `is_town_npc`. Mapping `is_town_npc → "town" | "banner"`. `position_x/y` (tiles float, ya divididos por 16 en el parser) → `int(...)` para `x/y`.
-- **OpenAPI snapshot**: `test_openapi_schema_snapshot` skipeado durante iter-08; regeneración del snapshot y `docs/contracts/openapi.json` se hace en iter-011 (B5.1 v0.2).
+- **wall_id / liquid / flags ausentes del payload v1**: cerrado parcialmente iter-08; default v1 hasta que F3 negocie v2.
+- **flags v2 actuator/wires**: encoder v2 sólo expone bit 0 (`has_frame`). Pendiente cuando `wld_parser` exponga campos discretos.
+- **Endpoint v0.2 `GET /tile`**: cerrado iter-09 (2026-05-09).
+- **Endpoint v0.2 `GET /npcs`**: cerrado iter-10 (2026-05-09).
 
 ### Evolución propuesta para paridad con TerraMap
 

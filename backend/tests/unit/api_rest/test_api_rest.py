@@ -458,24 +458,24 @@ def test_every_response_includes_api_version_header(
         "/api/worlds",
         files={"file": ("world.wld", b"valid", "application/octet-stream")},
     )
-    assert r_upload.headers.get("x-api-version") == "v0.1.0"
+    assert r_upload.headers.get("x-api-version") == "0.2"
 
     world_id = r_upload.json()["world_id"]
 
     r_get_meta = client.get(f"/api/worlds/{world_id}")
-    assert r_get_meta.headers.get("x-api-version") == "v0.1.0"
+    assert r_get_meta.headers.get("x-api-version") == "0.2"
 
     r_404 = client.get("/api/worlds/nonexistent")
-    assert r_404.headers.get("x-api-version") == "v0.1.0"
+    assert r_404.headers.get("x-api-version") == "0.2"
 
     r_search_400 = client.get(f"/api/worlds/{world_id}/search")
-    assert r_search_400.headers.get("x-api-version") == "v0.1.0"
+    assert r_search_400.headers.get("x-api-version") == "0.2"
 
     r_items = client.get("/api/items", params={"q": ""})
-    assert r_items.headers.get("x-api-version") == "v0.1.0"
+    assert r_items.headers.get("x-api-version") == "0.2"
 
     r_delete = client.delete(f"/api/worlds/{world_id}")
-    assert r_delete.headers.get("x-api-version") == "v0.1.0"
+    assert r_delete.headers.get("x-api-version") == "0.2"
 
 
 def test_413_upload_too_large_has_error_dto_shape(
@@ -505,7 +505,7 @@ def test_413_response_has_x_api_version_header() -> None:
     )
 
     assert response.status_code == 413
-    assert response.headers.get("x-api-version") == "v0.1.0"
+    assert response.headers.get("x-api-version") == "0.2"
 
 
 def test_router_and_middleware_return_same_413_code(
@@ -546,7 +546,7 @@ def test_422_response_has_x_api_version_header(client: TestClient) -> None:
     response = client.get("/api/items", params={"limit": "not-an-int"})
 
     assert response.status_code == 422
-    assert response.headers.get("x-api-version") == "v0.1.0"
+    assert response.headers.get("x-api-version") == "0.2"
 
 
 def test_404_unknown_world_has_error_dto_and_version_header(
@@ -555,7 +555,7 @@ def test_404_unknown_world_has_error_dto_and_version_header(
     response = client.get("/api/worlds/does-not-exist")
 
     assert response.status_code == 404
-    assert response.headers.get("x-api-version") == "v0.1.0"
+    assert response.headers.get("x-api-version") == "0.2"
     body = response.json()
     assert set(body) == {"error"}
     assert _error_code(body) == "world_not_found"
@@ -573,7 +573,7 @@ def test_500_unhandled_exception_returns_error_dto_without_traceback() -> None:
     response = TestClient(app, raise_server_exceptions=False).get("/boom")
 
     assert response.status_code == 500
-    assert response.headers.get("x-api-version") == "v0.1.0"
+    assert response.headers.get("x-api-version") == "0.2"
     assert _error_code(response.json()) == "internal_error"
     text = response.text.lower()
     assert "traceback" not in text
@@ -585,7 +585,7 @@ def test_x_api_version_header_present_on_2xx(client: TestClient) -> None:
     response = client.get("/api/items", params={"q": "zen"})
 
     assert response.status_code == 200
-    assert response.headers.get("x-api-version") == "v0.1.0"
+    assert response.headers.get("x-api-version") == "0.2"
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +593,6 @@ def test_x_api_version_header_present_on_2xx(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="OpenAPI snapshot regenerated in iter-011 (B5.1 v0.2)")
 def test_openapi_schema_snapshot(
     repo: _FakeRepo,
     catalog: _FakeCatalog,
@@ -605,12 +604,18 @@ def test_openapi_schema_snapshot(
     schema = response.json()
 
     snapshot_path = Path(__file__).parent / "openapi_snapshot.json"
-    if not snapshot_path.exists():
-        snapshot_path.write_text(json.dumps(schema, indent=2))
-        pytest.skip("Snapshot created; re-run to validate.")
-
-    expected = json.loads(snapshot_path.read_text())
+    expected = json.loads(snapshot_path.read_text(encoding="utf-8"))
     assert schema == expected
+
+
+def test_contracts_openapi_json_matches_app_schema() -> None:
+    """Public contract artifact mirrors twi.app.create_app() schema."""
+    contracts_path = (
+        Path(__file__).resolve().parents[4] / "docs" / "contracts" / "openapi.json"
+    )
+    app = create_app(Settings(max_upload_mb=200))
+    expected = json.loads(contracts_path.read_text(encoding="utf-8"))
+    assert app.openapi() == expected
 
 
 # ---------------------------------------------------------------------------
@@ -1307,3 +1312,155 @@ def test_get_tile_unknown_world_returns_404(client: TestClient) -> None:
 
     assert resp.status_code == 404
     assert resp.json()["error"]["code"] == "world_not_found"
+
+
+# ---------------------------------------------------------------------------
+# iter-011: DELETE strict + search frame filter + X-API-Version: 0.2
+# ---------------------------------------------------------------------------
+
+
+def test_delete_world_invokes_delete_strict(
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    calls: list[str] = []
+
+    class _SpyRepo(_FakeRepo):
+        def delete_strict(self, world_id: str) -> None:  # type: ignore[override]
+            calls.append(world_id)
+            super().delete_strict(world_id)
+
+    repo = _SpyRepo()
+    world_id = repo.store(_make_world())
+    client = _make_client(repo, catalog, search_engine)
+
+    response = client.delete(f"/api/worlds/{world_id}")
+
+    assert response.status_code == 204
+    assert calls == [world_id]
+
+
+def _frame_search_world() -> tuple[World, list[SearchMatch]]:
+    framed_a = Tile(
+        tile_id=21,
+        wall_id=0,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+        frame_x=300,
+        frame_y=18,
+    )
+    framed_b = Tile(
+        tile_id=21,
+        wall_id=0,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+        frame_x=320,
+        frame_y=18,
+    )
+    framed_c = Tile(
+        tile_id=21,
+        wall_id=0,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+        frame_x=300,
+        frame_y=36,
+    )
+    grid = TileGrid([[framed_a, framed_b, framed_c]])
+    meta = WorldMetadata(
+        name="F",
+        width=1,
+        height=3,
+        version=279,
+        seed="0",
+        size="small",
+        hardmode=False,
+    )
+    world = World(metadata=meta, tiles=grid, chests=(), signs=())
+    matches = [
+        SearchMatch(x=0, y=0, source="block"),
+        SearchMatch(x=0, y=1, source="block"),
+        SearchMatch(x=0, y=2, source="block"),
+    ]
+    return world, matches
+
+
+def test_search_filters_by_frame_x_and_frame_y(
+    catalog: _FakeCatalog,
+) -> None:
+    world, matches = _frame_search_world()
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    engine = _FakeSearch(SearchResult(item_id=21, total=3, matches=tuple(matches)))
+    client = _make_client(repo, catalog, engine)
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/search",
+        params={"item_id": 21, "frame_x": 300, "frame_y": 18},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["matches"] == [
+        {"x": 0, "y": 0, "source": "block", "chest_id": None, "stack": None}
+    ]
+
+
+def test_search_without_frame_filter_returns_all_matches(
+    catalog: _FakeCatalog,
+) -> None:
+    world, matches = _frame_search_world()
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    engine = _FakeSearch(SearchResult(item_id=21, total=3, matches=tuple(matches)))
+    client = _make_client(repo, catalog, engine)
+
+    resp = client.get(f"/api/worlds/{world_id}/search", params={"item_id": 21})
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+
+
+def test_search_frame_x_only_filters_correctly(catalog: _FakeCatalog) -> None:
+    world, matches = _frame_search_world()
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    engine = _FakeSearch(SearchResult(item_id=21, total=3, matches=tuple(matches)))
+    client = _make_client(repo, catalog, engine)
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/search",
+        params={"item_id": 21, "frame_x": 300},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    # frame_x=300 matches (0,0) and (0,2)
+    assert body["total"] == 2
+
+
+def test_x_api_version_header_is_0_2_on_docs(client: TestClient) -> None:
+    resp = client.get("/docs")
+    assert resp.headers.get("x-api-version") == "0.2"
+
+
+def test_x_api_version_header_present_on_503_catalog_unavailable(
+    repo: _FakeRepo,
+    search_engine: _FakeSearch,
+) -> None:
+    from twi.item_catalog import ItemCatalogUnavailableError
+
+    class _NullCat:
+        def search(self, query: str, limit: int = 20) -> list[ItemSummary]:
+            raise ItemCatalogUnavailableError("unavailable")
+
+        def get(self, item_id: int) -> ItemDetail:
+            raise ItemCatalogUnavailableError("unavailable")
+
+    client = _make_client(repo, _NullCat(), search_engine)
+    resp = client.get("/api/items", params={"q": "dirt"})
+    assert resp.status_code == 503
+    assert resp.headers.get("x-api-version") == "0.2"

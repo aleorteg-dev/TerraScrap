@@ -445,6 +445,8 @@ def create_router(
         world_id: str,
         item_id: int | None = Query(default=None),
         include_containers: bool = Query(default=True),
+        frame_x: int | None = Query(default=None),
+        frame_y: int | None = Query(default=None),
     ) -> Response:
         if item_id is None:
             return _err(
@@ -455,6 +457,33 @@ def create_router(
         except WorldNotFoundError:
             return _err(404, "world_not_found", f"World '{world_id}' not found.")
         result = search.search(world, item_id, include_containers)
+        matches = result.matches
+        if frame_x is not None or frame_y is not None:
+            tiles = world.tiles
+            w, h = tiles.width, tiles.height
+            filtered: list[SearchMatchDto] = []
+            for m in matches:
+                if 0 <= m.x < w and 0 <= m.y < h:
+                    t = tiles[m.x][m.y]
+                    if (frame_x is None or t.frame_x == frame_x) and (
+                        frame_y is None or t.frame_y == frame_y
+                    ):
+                        filtered.append(
+                            SearchMatchDto(
+                                x=m.x,
+                                y=m.y,
+                                source=m.source,
+                                chest_id=m.chest_id,
+                                stack=m.stack,
+                            )
+                        )
+            return _ok(
+                SearchResultDto(
+                    item_id=result.item_id,
+                    total=len(filtered),
+                    matches=filtered,
+                )
+            )
         return _ok(
             SearchResultDto(
                 item_id=result.item_id,

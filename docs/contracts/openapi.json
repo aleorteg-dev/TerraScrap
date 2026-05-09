@@ -207,6 +207,16 @@
               "default": 128,
               "title": "Chunk Size"
             }
+          },
+          {
+            "name": "encoding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "base64-rle-v1",
+              "title": "Encoding"
+            }
           }
         ],
         "responses": {
@@ -239,6 +249,142 @@
               }
             },
             "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/worlds/{world_id}/tile": {
+      "get": {
+        "summary": "Get Tile",
+        "operationId": "get_tile_api_worlds__world_id__tile_get",
+        "parameters": [
+          {
+            "name": "world_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "World Id"
+            }
+          },
+          {
+            "name": "x",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "X"
+            }
+          },
+          {
+            "name": "y",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Y"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TileDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worlds/{world_id}/npcs": {
+      "get": {
+        "summary": "Get Npcs",
+        "operationId": "get_npcs_api_worlds__world_id__npcs_get",
+        "parameters": [
+          {
+            "name": "world_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "World Id"
+            }
+          },
+          {
+            "name": "town_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Town Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NpcListDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -281,6 +427,38 @@
               "type": "boolean",
               "default": true,
               "title": "Include Containers"
+            }
+          },
+          {
+            "name": "frame_x",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frame X"
+            }
+          },
+          {
+            "name": "frame_y",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frame Y"
             }
           }
         ],
@@ -627,6 +805,59 @@
         ],
         "title": "ItemSummaryDto"
       },
+      "NpcDto": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "town",
+              "banner"
+            ],
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "NpcDto"
+      },
+      "NpcListDto": {
+        "properties": {
+          "npcs": {
+            "items": {
+              "$ref": "#/components/schemas/NpcDto"
+            },
+            "type": "array",
+            "title": "Npcs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "npcs"
+        ],
+        "title": "NpcListDto"
+      },
       "SearchMatchDto": {
         "properties": {
           "x": {
@@ -704,6 +935,120 @@
         ],
         "title": "SearchResultDto"
       },
+      "TileDetailDto": {
+        "properties": {
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          },
+          "tile_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tile Id"
+          },
+          "wall_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wall Id"
+          },
+          "liquid_type": {
+            "type": "string",
+            "enum": [
+              "none",
+              "water",
+              "lava",
+              "honey",
+              "shimmer"
+            ],
+            "title": "Liquid Type"
+          },
+          "liquid_amount": {
+            "type": "integer",
+            "title": "Liquid Amount"
+          },
+          "frame_x": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frame X"
+          },
+          "frame_y": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frame Y"
+          },
+          "chest_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chest Id"
+          },
+          "sign_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sign Id"
+          },
+          "tile_entity_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tile Entity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "tile_id",
+          "wall_id",
+          "liquid_type",
+          "liquid_amount"
+        ],
+        "title": "TileDetailDto"
+      },
       "TilesChunkDto": {
         "properties": {
           "chunk_x": {
@@ -724,7 +1069,10 @@
           },
           "encoding": {
             "type": "string",
-            "const": "base64-rle-v1",
+            "enum": [
+              "base64-rle-v1",
+              "base64-rle-v2"
+            ],
             "title": "Encoding"
           },
           "payload": {
@@ -834,6 +1182,26 @@
           "hardmode": {
             "type": "boolean",
             "title": "Hardmode"
+          },
+          "spawn_x": {
+            "type": "integer",
+            "title": "Spawn X"
+          },
+          "spawn_y": {
+            "type": "integer",
+            "title": "Spawn Y"
+          },
+          "world_surface_y": {
+            "type": "number",
+            "title": "World Surface Y"
+          },
+          "rock_layer_y": {
+            "type": "number",
+            "title": "Rock Layer Y"
+          },
+          "hell_layer_y": {
+            "type": "number",
+            "title": "Hell Layer Y"
           }
         },
         "type": "object",
@@ -844,7 +1212,12 @@
           "version",
           "seed",
           "size",
-          "hardmode"
+          "hardmode",
+          "spawn_x",
+          "spawn_y",
+          "world_surface_y",
+          "rock_layer_y",
+          "hell_layer_y"
         ],
         "title": "WorldMetadataDto"
       }
