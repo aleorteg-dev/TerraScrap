@@ -52,6 +52,7 @@ def create_in_memory_repository(
 - [x] `T-09 test_delete_strict_removes_existing_world` (iter-032)
 - [x] `T-09b test_delete_strict_raises_on_unknown_id` (iter-032)
 - [x] `T-09c test_delete_strict_raises_on_expired_world` (iter-032)
+- [x] `T-09d test_delete_strict_concurrent_deletes_no_race_condition` (iter-06)
 
 ## 7. Notas de implementación
 - Implementación base: `dict[str, tuple[World, datetime]]` + `threading.RLock`.
@@ -67,7 +68,7 @@ def create_in_memory_repository(
 
 ## 10. Estado
 - **Versión del contrato**: v1.1
-- **Último cierre**: 2026-05-06 (iter-032)
+- **Último cierre**: 2026-05-09 (iter-06)
 - **Iteración actual**: cerrada
 
 ### Decisiones tomadas
@@ -76,6 +77,7 @@ def create_in_memory_repository(
 - Clock inyectado como `Callable[[], datetime]`; default `_utcnow` usa `datetime.now(UTC)` (evita `utcnow` deprecado en Python 3.12+).
 - Nombres de tests adaptados a N802 (ruff): `WorldNotFoundError` → `world_not_found_error` en el nombre de función.
 - `delete_strict` (iter-032): lanza `WorldNotFoundError` si el id no existe o ha expirado; elimina en un único lock. Usa el router DELETE para eliminar el `get()+delete()` antipattern anterior.
+- Thread-safety de `delete_strict` (iter-06): T-09d verifica que 10 threads concurrentes sobre el mismo id → exactamente 1 éxito, 9 `WorldNotFoundError`, sin crash.
 
 ### Deuda / follow-ups
 - `purge_expired` no se auto-ejecuta; `app-bootstrap` (B6) lo arranca periódicamente vía lifespan task (ya implementado).

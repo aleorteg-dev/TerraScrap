@@ -231,3 +231,36 @@ def test_delete_strict_raises_on_expired_world() -> None:
     with pytest.raises(WorldNotFoundError) as exc_info:
         repo.delete_strict(world_id)
     assert exc_info.value.world_id == world_id
+
+
+# ---------------------------------------------------------------------------
+# T-09d – thread-safety for delete_strict
+# ---------------------------------------------------------------------------
+
+
+def test_delete_strict_concurrent_deletes_no_race_condition() -> None:
+    """Exactly one thread succeeds; all others raise WorldNotFoundError; no crash."""
+    repo = create_in_memory_repository()
+    world_id = repo.store(_make_world())
+
+    successes: list[int] = []
+    not_found: list[int] = []
+    lock = threading.Lock()
+
+    def try_delete() -> None:
+        try:
+            repo.delete_strict(world_id)
+            with lock:
+                successes.append(1)
+        except WorldNotFoundError:
+            with lock:
+                not_found.append(1)
+
+    threads = [threading.Thread(target=try_delete) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(successes) == 1
+    assert len(not_found) == 9
