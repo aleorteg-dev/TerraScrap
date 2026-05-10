@@ -1,0 +1,46 @@
+{
+  "schema": 2,
+  "version": 2,
+  "items": [
+    {
+      "id": 1,
+      "name": "Iron Pickaxe",
+      "sprite_url": "https://terraria.wiki.gg/images/Iron_Pickaxe.png",
+      "category": "tool",
+      "rarity": 0,
+      "tooltip": null
+    },
+    {
+      "id": 2,
+      "name": "Dirt Block",
+      "sprite_url": "https://terraria.wiki.gg/images/Dirt_Block.png",
+      "category": "block",
+      "rarity": 0,
+      "tooltip": null
+    },
+    {
+      "id": 3,
+      "name": "Stone Block",
+      "sprite_url": "https://terraria.wiki.gg/images/Stone_Block.png",
+      "category": "block",
+      "rarity": 0,
+      "tooltip": null
+    },
+    {
+      "id": 521,
+      "name": "Chlorophyte Ore",
+      "sprite_url": "https://terraria.wiki.gg/images/Chlorophyte_Ore.png",
+      "category": "material",
+      "rarity": 4,
+      "tooltip": null
+    },
+    {
+      "id": 4956,
+      "name": "Zenith",
+      "sprite_url": "https://terraria.wiki.gg/images/Zenith.png",
+      "category": "weapon",
+      "rarity": 10,
+      "tooltip": "Forged from the legends of every era"
+    }
+  ]
+}

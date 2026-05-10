@@ -10,7 +10,8 @@ from typing import Any, Protocol
 
 _logger = logging.getLogger(__name__)
 
-_SUPPORTED_SCHEMA: int = 1
+_SUPPORTED_SCHEMAS: frozenset[int] = frozenset({1, 2})
+_LATEST_SCHEMA: int = 2
 
 
 @dataclass(frozen=True)
@@ -108,10 +109,11 @@ def create_catalog_from_cache(cache_path: Path) -> ItemCatalog:
     Raises ValueError if the schema version is unsupported.
     """
     data: dict[str, Any] = json.loads(cache_path.read_text(encoding="utf-8"))
-    if data.get("schema") != _SUPPORTED_SCHEMA:
+    schema = data.get("schema")
+    if schema not in _SUPPORTED_SCHEMAS:
         raise ValueError(
-            f"Unsupported cache schema {data.get('schema')!r}; "
-            f"expected {_SUPPORTED_SCHEMA}"
+            f"Unsupported cache schema {schema!r}; "
+            f"supported: {sorted(_SUPPORTED_SCHEMAS)}"
         )
     items = [
         ItemDetail(

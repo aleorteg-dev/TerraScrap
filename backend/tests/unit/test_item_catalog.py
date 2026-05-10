@@ -33,11 +33,14 @@ import httpx
 import pytest
 
 import twi.item_catalog.refresh as refresh_cli
+import twi.item_catalog.scraper as scraper_mod
 from twi.item_catalog import (
     ItemCatalog,
     ItemCatalogUnavailableError,
     ItemDetail,
     ItemNotFoundError,
+    WikiSchemaChangedError,
+    WikiUnavailableError,
     create_catalog_from_cache,
     load_catalog,
     refresh_cache_from_wiki,
@@ -279,7 +282,7 @@ async def test_refresh_cache_writes_versioned_json(tmp_path: Path) -> None:
     await refresh_cache_from_wiki(cache_path, _FakeHttpClient(html))
 
     data: dict[str, object] = json.loads(cache_path.read_text(encoding="utf-8"))
-    assert data["schema"] == 1
+    assert data["schema"] == 2
     assert isinstance(data["items"], list)
 
 
@@ -314,7 +317,7 @@ def test_refresh_cli_creates_output_parent_and_runs(
     output = tmp_path / "nested" / "items.json"
     calls: list[Path] = []
 
-    async def fake_run(path: Path) -> None:
+    async def fake_run(path: Path, *, enrich: bool = False) -> None:
         calls.append(path)
 
     monkeypatch.setattr(refresh_cli, "_run", fake_run)
@@ -392,3 +395,192 @@ def test_load_catalog_falls_back_to_seed_when_cache_invalid_schema(
 def test_load_catalog_raises_when_no_seed_and_cache_absent(tmp_path: Path) -> None:
     with pytest.raises(ItemCatalogUnavailableError):
         load_catalog(tmp_path / "nonexistent.json")
+
+
+# ---------------------------------------------------------------------------
+# T-23..T-30  Iter-13 hardening: retry, error classes, enrichment, versioning.
+# ---------------------------------------------------------------------------
+
+
+_LIST_HTML = """\
+<html><body>
+<table class="terraria">
+<tr><th>ID</th><th>Name</th></tr>
+<tr><td>1</td><td><a href="/wiki/Iron_Pickaxe">Iron Pickaxe</a></td></tr>
+<tr><td>4956</td><td><a href="/wiki/Zenith">Zenith</a></td></tr>
+</table></body></html>
+"""
+
+_DETAIL_HTML = """\
+<html><body>
+<div class="infobox">
+  <img class="item-sprite" src="/images/Zenith.png" />
+  <div class="item-category" data-category="weapon">Weapon</div>
+  <div data-rarity="10">Rarity 10</div>
+  <div class="item-tooltip">Forged from the legends of every era</div>
+</div>
+</body></html>
+"""
+
+
+class _RoutedClient:
+    """Mock HttpClient that returns canned responses per URL."""
+
+    def __init__(
+        self,
+        routes: dict[str, httpx.Response | Exception],
+        *,
+        record: list[str] | None = None,
+    ) -> None:
+        self._routes = routes
+        self._record = record if record is not None else []
+
+    async def get(self, url: str) -> httpx.Response:
+        self._record.append(url)
+        result = self._routes.get(url)
+        if result is None:
+            raise AssertionError(f"Unexpected URL fetched in test: {url}")
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+def _resp(status: int, text: str = "") -> httpx.Response:
+    return httpx.Response(status, text=text, request=httpx.Request("GET", "http://t"))
+
+
+# T-23  scraper enriches catalog with sprite_url/category/rarity/tooltip.
+async def test_scraper_enriches_items_with_extended_fields(tmp_path: Path) -> None:
+    routes: dict[str, httpx.Response | Exception] = {
+        "https://terraria.wiki.gg/wiki/Item_IDs": _resp(200, _LIST_HTML),
+        "https://terraria.wiki.gg/wiki/Iron_Pickaxe": _resp(200, _DETAIL_HTML),
+        "https://terraria.wiki.gg/wiki/Zenith": _resp(200, _DETAIL_HTML),
+    }
+    cache_path = tmp_path / "items.json"
+    await refresh_cache_from_wiki(cache_path, _RoutedClient(routes), enrich=True)
+
+    catalog = create_catalog_from_cache(cache_path)
+    zen = catalog.get(4956)
+    assert zen.sprite_url.endswith("/images/Zenith.png")
+    assert zen.category == "weapon"
+    assert zen.rarity == 10
+    assert zen.tooltip == "Forged from the legends of every era"
+
+
+# T-24  timeout retried 3 times → WikiUnavailableError.
+async def test_scraper_timeout_retries_then_raises_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sleeps: list[float] = []
+
+    async def fake_sleep(s: float) -> None:
+        sleeps.append(s)
+
+    monkeypatch.setattr(scraper_mod.asyncio, "sleep", fake_sleep)
+
+    record: list[str] = []
+    timeout = httpx.TimeoutException("boom")
+    routes: dict[str, httpx.Response | Exception] = {
+        "https://terraria.wiki.gg/wiki/Item_IDs": timeout,
+    }
+    cache_path = tmp_path / "items.json"
+    with pytest.raises(WikiUnavailableError):
+        await refresh_cache_from_wiki(cache_path, _RoutedClient(routes, record=record))
+
+    assert record.count("https://terraria.wiki.gg/wiki/Item_IDs") == 3
+    assert sleeps == [1.0, 2.0]
+    assert not cache_path.exists()
+
+
+# T-25  per-item 404 → log + skip, refresh completes; cache written.
+async def test_scraper_per_item_404_skips_and_continues(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    routes: dict[str, httpx.Response | Exception] = {
+        "https://terraria.wiki.gg/wiki/Item_IDs": _resp(200, _LIST_HTML),
+        "https://terraria.wiki.gg/wiki/Iron_Pickaxe": _resp(404, ""),
+        "https://terraria.wiki.gg/wiki/Zenith": _resp(200, _DETAIL_HTML),
+    }
+    cache_path = tmp_path / "items.json"
+    with caplog.at_level(logging.WARNING):
+        await refresh_cache_from_wiki(cache_path, _RoutedClient(routes), enrich=True)
+
+    catalog = create_catalog_from_cache(cache_path)
+    pickaxe = catalog.get(1)
+    assert pickaxe.sprite_url == ""
+    zen = catalog.get(4956)
+    assert zen.category == "weapon"
+    assert any("404" in rec.getMessage() for rec in caplog.records)
+
+
+# T-26  5xx on list → WikiUnavailableError, cache NOT overwritten.
+async def test_scraper_5xx_raises_unavailable_does_not_write_cache(
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "items.json"
+    pre_existing = '{"schema": 1, "items": []}'
+    cache_path.write_text(pre_existing, encoding="utf-8")
+
+    routes: dict[str, httpx.Response | Exception] = {
+        "https://terraria.wiki.gg/wiki/Item_IDs": _resp(503, ""),
+    }
+    with pytest.raises(WikiUnavailableError):
+        await refresh_cache_from_wiki(cache_path, _RoutedClient(routes))
+
+    assert cache_path.read_text(encoding="utf-8") == pre_existing
+
+
+# T-27  selector failure → WikiSchemaChangedError.
+async def test_scraper_table_missing_raises_schema_changed(tmp_path: Path) -> None:
+    routes: dict[str, httpx.Response | Exception] = {
+        "https://terraria.wiki.gg/wiki/Item_IDs": _resp(
+            200, "<html><body><p>no table here</p></body></html>"
+        ),
+    }
+    cache_path = tmp_path / "items.json"
+    with pytest.raises(WikiSchemaChangedError):
+        await refresh_cache_from_wiki(cache_path, _RoutedClient(routes))
+    assert not cache_path.exists()
+
+
+# T-28  load_catalog falls back to seed when scraping fails.
+async def test_load_catalog_uses_seed_when_scraping_fails(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    cache_path = tmp_path / "cache.json"
+    seed_path = tmp_path / "seed.json"
+    seed_path.write_text(json.dumps(_VALID_CACHE), encoding="utf-8")
+
+    routes: dict[str, httpx.Response | Exception] = {
+        "https://terraria.wiki.gg/wiki/Item_IDs": _resp(503, ""),
+    }
+    with pytest.raises(WikiUnavailableError):
+        await refresh_cache_from_wiki(cache_path, _RoutedClient(routes))
+
+    with caplog.at_level(logging.WARNING):
+        catalog = load_catalog(cache_path, seed_path=seed_path)
+    assert catalog.get(4956).name == "Zenith"
+
+
+# T-29  refresh writes versioned filename and version field.
+async def test_refresh_writes_versioned_seed_file(tmp_path: Path) -> None:
+    output = tmp_path / "items_seed.v2.json"
+    routes: dict[str, httpx.Response | Exception] = {
+        "https://terraria.wiki.gg/wiki/Item_IDs": _resp(200, _LIST_HTML),
+    }
+    await refresh_cache_from_wiki(output, _RoutedClient(routes))
+
+    assert output.name == "items_seed.v2.json"
+    data: dict[str, object] = json.loads(output.read_text(encoding="utf-8"))
+    assert data["schema"] == 2
+    assert data["version"] == 2
+
+
+# T-30  bundled v2 seed loads cleanly via load_catalog.
+def test_bundled_v2_seed_loads(tmp_path: Path) -> None:
+    bundled = Path(refresh_cli.__file__).parent / "data" / "items_seed.v2.json"
+    assert bundled.exists(), "bundled v2 seed must ship with the package"
+    catalog = load_catalog(tmp_path / "absent.json", seed_path=bundled)
+    zen = catalog.get(4956)
+    assert zen.name == "Zenith"
+    assert zen.sprite_url != ""

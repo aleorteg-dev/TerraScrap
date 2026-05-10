@@ -9,7 +9,12 @@ from twi.item_catalog.catalog import (
     create_catalog_from_cache,
     load_catalog,
 )
-from twi.item_catalog.scraper import HttpClient, refresh_cache_from_wiki
+from twi.item_catalog.scraper import (
+    HttpClient,
+    WikiSchemaChangedError,
+    WikiUnavailableError,
+    refresh_cache_from_wiki,
+)
 
 __all__ = [
     "HttpClient",
@@ -18,6 +23,8 @@ __all__ = [
     "ItemDetail",
     "ItemNotFoundError",
     "ItemSummary",
+    "WikiSchemaChangedError",
+    "WikiUnavailableError",
     "create_catalog_from_cache",
     "load_catalog",
     "refresh_cache_from_wiki",

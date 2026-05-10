@@ -27,7 +27,12 @@ class ItemCatalogUnavailableError(Exception): ...
 
 def create_catalog_from_cache(cache_path: Path) -> ItemCatalog: ...
 def load_catalog(cache_path: Path, seed_path: Path | None = None) -> ItemCatalog: ...
-async def refresh_cache_from_wiki(cache_path: Path, client: HttpClient) -> None: ...
+async def refresh_cache_from_wiki(
+    cache_path: Path, client: HttpClient, *, enrich: bool = False
+) -> None: ...
+
+class WikiUnavailableError(Exception): ...   # 5xx o timeout agotado tras 3 reintentos
+class WikiSchemaChangedError(Exception): ... # tabla / selector roto en el HTML
 ```
 
 ### Búsqueda (`search`)
@@ -101,6 +106,14 @@ Seed bundled: `backend/src/twi/item_catalog/data/items.seed.json` (schema v1, ~1
 - [x] `T-20 test_search_negative_or_overflow_falls_back_to_name`
 - [x] `T-21 test_search_mixed_alphanumeric_uses_name_branch`
 - [x] `T-22 test_refresh_cli_creates_output_parent_and_runs`
+- [x] `T-23 test_scraper_enriches_items_with_extended_fields`
+- [x] `T-24 test_scraper_timeout_retries_then_raises_unavailable`
+- [x] `T-25 test_scraper_per_item_404_skips_and_continues`
+- [x] `T-26 test_scraper_5xx_raises_unavailable_does_not_write_cache`
+- [x] `T-27 test_scraper_table_missing_raises_schema_changed`
+- [x] `T-28 test_load_catalog_uses_seed_when_scraping_fails`
+- [x] `T-29 test_refresh_writes_versioned_seed_file`
+- [x] `T-30 test_bundled_v2_seed_loads`
 
 ### Tests de integración (separados, no en ciclo TDD)
 - [x] `IT-01 test_items_query_dirt_returns_results_from_seed` (`tests/integration/test_item_catalog_seed.py`)
@@ -122,9 +135,21 @@ Seed bundled: `backend/src/twi/item_catalog/data/items.seed.json` (schema v1, ~1
 - `httpx.HTTPError` propagado desde `refresh_cache_from_wiki`.
 
 ## 10. Estado
-- **Versión del contrato**: v1.2
-- **Último cierre**: 2026-05-05 (iter-028)
+- **Versión del contrato**: v1.3
+- **Último cierre**: 2026-05-10 (iter-13)
 - **Iteración actual**: cerrada
+- **Cambios iter-13**:
+  - Scraper endurecido: `WikiUnavailableError` (5xx o timeout tras 3 reintentos con backoff 1s/2s/4s) y `WikiSchemaChangedError` (selector de tabla roto). Ambos exportados desde `twi.item_catalog`.
+  - `refresh_cache_from_wiki(..., enrich=False)`: si `enrich=True` recorre la página de cada ítem y enriquece `sprite_url`/`category`/`rarity`/`tooltip`. 404 por ítem → log + skip. 5xx por ítem → `WikiUnavailableError` (no escribe cache).
+  - 5xx en la página de listado tampoco sobrescribe la cache existente (idempotencia ante fallo).
+  - Cache schema bumped a **v2** (`{"schema": 2, "version": 2, "items": [...]}`); loader sigue aceptando schema 1 (retrocompatible).
+  - Seed bundled versionado: `data/items_seed.v2.json` (5 ítems demo). `refresh.py` por defecto escribe en este fichero versionado y sale con código 1 si la wiki no responde, dejando el seed previo intacto.
+  - 8 tests nuevos T-23..T-30 (mock `_RoutedClient`, sin red real).
+- **Cambios iter-028**:
+  - `search(query)` ahora distingue query vacía, búsqueda exacta por `item_id` positivo y búsqueda por nombre normalizado.
+  - Se añadió soporte para IDs con ceros a la izquierda (`"0001"` -> `id=1`).
+  - Enteros negativos, overflow de la rama de id y queries mixtas alfanuméricas caen a búsqueda por nombre.
+  - El índice `dict[int, ItemDetail]` queda documentado como índice precomputado para `get` y búsqueda exacta por id.
 - **Cambios iter-028**:
   - `search(query)` ahora distingue query vacía, búsqueda exacta por `item_id` positivo y búsqueda por nombre normalizado.
   - Se añadió soporte para IDs con ceros a la izquierda (`"0001"` -> `id=1`).
@@ -137,7 +162,7 @@ Seed bundled: `backend/src/twi/item_catalog/data/items.seed.json` (schema v1, ~1
   - Fixture `sample_wiki_items.html` actualizado a estructura real de la wiki.
   - T-09 actualizado (id=1 es "Iron Pickaxe", se eliminó aserción de sprite_url).
 - **Deuda / follow-ups**:
-  - sprite_url siempre vacío (wiki eliminó columna de sprites). Si se quieren sprites, habría que scrapear páginas individuales por ítem — fuera de alcance v1.
-  - category/rarity/tooltip siempre vacíos/defaults — misma causa. Impacto: `GET /api/items/{id}` devuelve rarity=0 y tooltip=null para todos.
-  - `refresh_cache_from_wiki` propaga `httpx.HTTPError` ante wiki caída; en primer arranque sin red solo cuenta el seed bundled.
-  - Seed debe regenerarse (`python -m twi.item_catalog.refresh`) si la wiki añade nuevos ítems.
+  - **(cerrada iter-13, 2026-05-10, T-23/T-25)** sprite_url/category/rarity/tooltip enriquecidos vía `refresh_cache_from_wiki(..., enrich=True)` que scrapea la página de cada ítem; el seed bundled `items_seed.v2.json` ya transporta los campos.
+  - **(cerrada iter-13, 2026-05-10, T-24/T-26)** `refresh_cache_from_wiki` ya no propaga `httpx.HTTPError` desnudo: 5xx → `WikiUnavailableError`, timeout reintentado 3× → `WikiUnavailableError`, selector roto → `WikiSchemaChangedError`. La cache previa se preserva.
+  - Seed debe regenerarse (`python -m twi.item_catalog.refresh [--enrich]`) si la wiki añade nuevos ítems o cambian sprites.
+  - `app.py` (B6) sigue cargando `items.seed.json` (legado). Migrar a `items_seed.v2.json` requiere tocar B6 y queda como follow-up de la próxima iteración de B6.
