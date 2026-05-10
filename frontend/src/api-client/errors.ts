@@ -29,6 +29,10 @@ export class WorldNotFoundError extends ApiError {}
 export class ItemNotFoundError extends ApiError {}
 export class ValidationError extends ApiError {}
 export class InternalApiError extends ApiError {}
+export class CatalogUnavailableError extends ApiError {}
+export class InvalidEncodingError extends ApiError {}
+export class CoordinatesOutOfBoundsError extends ApiError {}
+export class ApiVersionMismatchError extends ApiError {}
 
 // ── Code → class map (single point of extension) ─────────────────────────────
 
@@ -46,6 +50,10 @@ const ERROR_CODE_MAP: Partial<Record<CanonicalCode, ApiErrorCtor>> = {
   item_not_found: ItemNotFoundError,
   validation_error: ValidationError,
   internal_error: InternalApiError,
+  catalog_unavailable: CatalogUnavailableError,
+  invalid_encoding: InvalidEncodingError,
+  coordinates_out_of_bounds: CoordinatesOutOfBoundsError,
+  invalid_coordinates: CoordinatesOutOfBoundsError,
 };
 
 // ── parseError ────────────────────────────────────────────────────────────────

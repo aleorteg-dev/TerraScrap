@@ -16,7 +16,7 @@ export interface TilesChunk {
   chunk_y: number;
   width: number;
   height: number;
-  encoding: 'base64-rle-v1';
+  encoding: 'base64-rle-v1' | 'base64-rle-v2';
   payload: string;
 }
 

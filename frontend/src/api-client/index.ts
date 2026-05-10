@@ -5,14 +5,23 @@ export {
   ItemNotFoundError,
   ValidationError,
   InternalApiError,
+  CatalogUnavailableError,
+  InvalidEncodingError,
+  CoordinatesOutOfBoundsError,
+  ApiVersionMismatchError,
   parseError,
 } from './errors';
-export { createApiClient } from './client';
+export { createApiClient, EXPECTED_API_VERSION } from './client';
 export type {
   ApiClient,
   ApiClientOptions,
+  UploadOptions,
   WorldMetadata,
   TilesChunk,
+  TilesEncoding,
+  TileDetail,
+  Npc,
+  NpcList,
   SearchResult,
   SearchMatch,
   ItemSummary,

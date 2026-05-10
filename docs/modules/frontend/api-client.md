@@ -86,7 +86,7 @@ Salida: `src/api-client/__generated__/schema.d.ts` — **no editar a mano**.
 - **SP-05** `uploadWorld` usa `multipart/form-data` y reporta progreso opcional (v2).
 - **SP-06** `deleteWorld` tolera 404 sin lanzar (`idempotente`) — decisión UX.
 
-## 8. Códigos de error canónicos (api-contract.md v0.1.0)
+## 8. Códigos de error canónicos (api-contract.md v0.2)
 
 | Código | Subclase | HTTP |
 |---|---|---|
@@ -95,6 +95,10 @@ Salida: `src/api-client/__generated__/schema.d.ts` — **no editar a mano**.
 | `item_not_found` | `ItemNotFoundError` | 404 |
 | `validation_error` | `ValidationError` | 422 |
 | `internal_error` | `InternalApiError` | 500 |
+| `catalog_unavailable` | `CatalogUnavailableError` | 503 |
+| `invalid_encoding` | `InvalidEncodingError` | 400 |
+| `coordinates_out_of_bounds` / `invalid_coordinates` | `CoordinatesOutOfBoundsError` | 400 |
+| `api_version_mismatch` (cliente) | `ApiVersionMismatchError` | * |
 | otros | `ApiError` (base) | variable |
 
 Map vive en `src/api-client/errors.ts → ERROR_CODE_MAP`.
@@ -138,9 +142,9 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 - Evitar leer `response.text()` antes del JSON para no doblar memoria con payloads grandes (tiles).
 
 ## 13. Estado
-- **Versión del contrato consumida**: api-contract.md v0.1.1
-- **Versión OpenAPI**: snapshot en `docs/contracts/openapi.json`
-- **Último cierre**: 2026-05-06 (iter-032)
+- **Versión del contrato consumida**: api-contract.md v0.2
+- **Versión OpenAPI**: snapshot v0.2 en `docs/contracts/openapi.json` (iter-11)
+- **Último cierre**: 2026-05-10 (iter-14)
 - **Iteración actual**: cerrada
 
 ## 14. Decisiones tomadas
@@ -161,17 +165,26 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 - `makeFetch` en tests actualizado para incluir `headers.get()` mock, necesario tras centralizar el parseo en `parseError`.
 
 ## 15. Deuda / follow-ups
-- `getItem(itemId: number): Promise<ItemDetail>` implementado en iter-032. Disponible en `ApiClient` interface.
-- `uploadWorld` no reporta progreso (SP-05 marcado como "v2"). Añadir cuando ui-upload lo requiera.
-- Validar `X-API-Version` en `parseError` y lanzar si hay mismatch: follow-up para iteración posterior.
 - `npm install --legacy-peer-deps`: actualizar `openapi-typescript` cuando publique soporte oficial para TypeScript 6.
+- `searchInWorld` aún no admite `frameX/frameY` opcionales (el backend ya los acepta tras iter-11). Pendiente para iteración futura.
+- F3 `world-canvas/types.ts`: la interfaz provisional `TilesChunk.encoding` se ha ampliado a `'base64-rle-v1' | 'base64-rle-v2'` para mantener compatibilidad estructural con el contrato F1 v0.2 (1 línea, sin cambio de comportamiento). El decoder real de v2 sigue pendiente como deuda en F3.
+- `uploadWorld` con `onProgress` usa `XMLHttpRequest` (fetch no soporta upload progress). Cuando F2 (ui-upload) consuma el callback, su test puede inyectar `xhrFactory` igual que el test T-14a.
 
-### Evolución propuesta para paridad con TerraMap
+### Deuda cerrada en iter-14 (2026-05-10)
 
-Cuando `api-contract.md` evolucione a v0.2, F1 debe exponer los métodos nuevos antes de tocar F6:
-- `getTileDetail(worldId: string, x: number, y: number): Promise<TileDetail>` → `GET /worlds/{id}/tile?x=&y=`. Mapea 404 a `WorldNotFoundError`, 400 a `ApiError("invalid_coordinates")`.
-- `getNpcs(worldId: string): Promise<NpcSummary[]>` → `GET /worlds/{id}/npcs`. Desenvuelve `NpcListDto.npcs`.
-- `searchInWorld` extendido con `frameX?: number`, `frameY?: number`.
-- `getTilesChunk` soporte encoding `base64-rle-v2` sin romper `base64-rle-v1`.
+| Ítem | Test |
+|------|------|
+| `getItem(itemId)` ya existía (iter-032); ahora 503 → `CatalogUnavailableError` tipado | T-10b |
+| `listNpcs(worldId, opts?: {townOnly?})` → `GET /worlds/{id}/npcs` | T-11, T-11b |
+| `getTileDetail(worldId, x, y)` → `GET /worlds/{id}/tile?x=&y=`; 400 `coordinates_out_of_bounds` → `CoordinatesOutOfBoundsError` | T-12, T-12b |
+| `getTilesChunk` 5º parámetro opcional `encoding`; 400 `invalid_encoding` → `InvalidEncodingError` | T-13, T-13b |
+| `deleteWorld` ahora estricto: 404 → `WorldNotFoundError` (alineado con v0.2 backend iter-032) | T-07 |
+| `uploadWorld(file, { onProgress })` con XHR; callback recibe valores monotónicos 0..100, fuerza 100 al `onload` | T-14a |
+| `X-API-Version` validado en `doRequest` y XHR `onload`; mismatch → `ApiVersionMismatchError`; ausente → tolerante | T-15a, T-15b, T-15c |
 
-Estado: planificado, no implementado.
+### Evolución propuesta para paridad con TerraMap (estado)
+
+- `getTileDetail` ✅ implementado (iter-14).
+- `listNpcs` ✅ implementado (iter-14).
+- `getTilesChunk` con `encoding` opcional ✅ implementado (iter-14).
+- `searchInWorld` con `frameX/frameY`: pendiente (deuda activa).

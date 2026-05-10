@@ -1,9 +1,19 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createApiClient, ApiError } from '../../src/api-client/index';
+import {
+  createApiClient,
+  ApiError,
+  WorldNotFoundError,
+  CatalogUnavailableError,
+  InvalidEncodingError,
+  CoordinatesOutOfBoundsError,
+  ApiVersionMismatchError,
+} from '../../src/api-client/index';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function makeFetch(status: number, body: unknown, headers: Record<string, string> = {}) {
+const V02 = { 'X-API-Version': '0.2' };
+
+function makeFetch(status: number, body: unknown, headers: Record<string, string> = V02) {
   return vi.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
@@ -30,6 +40,11 @@ const WORLD_META = {
   seed: '42',
   size: 'small' as const,
   hardmode: false,
+  spawn_x: 2100,
+  spawn_y: 350,
+  world_surface_y: 320,
+  rock_layer_y: 900,
+  hell_layer_y: 1100,
 };
 
 // ── T-01 ─────────────────────────────────────────────────────────────────────
@@ -61,6 +76,72 @@ describe('uploadWorld', () => {
       code: 'invalid_wld',
       status: 400,
     });
+  });
+
+  it('T-14a uploadWorld onProgress callback receives monotonic 0..100 values', async () => {
+    type Listener = (ev: ProgressEvent) => void;
+    const upload = {
+      onprogress: null as Listener | null,
+      onerror: null as (() => void) | null,
+    };
+    const xhr: Partial<XMLHttpRequest> & {
+      upload: typeof upload;
+      onload: (() => void) | null;
+      onerror: (() => void) | null;
+      open: ReturnType<typeof vi.fn>;
+      send: ReturnType<typeof vi.fn>;
+      getResponseHeader: (n: string) => string | null;
+      status: number;
+      responseText: string;
+      responseType: string;
+    } = {
+      upload,
+      onload: null,
+      onerror: null,
+      status: 200,
+      responseText: JSON.stringify({ world_id: 'wid', metadata: WORLD_META }),
+      responseType: 'text',
+      open: vi.fn(),
+      send: vi.fn().mockImplementation(function (this: typeof xhr) {
+        // Simulate three progress events then load.
+        const fire = (loaded: number): void => {
+          upload.onprogress?.({
+            lengthComputable: true,
+            loaded,
+            total: 1000,
+          } as unknown as ProgressEvent);
+        };
+        fire(250);
+        fire(500);
+        fire(990);
+        this.onload?.();
+      }),
+      getResponseHeader: (name: string) => (name.toLowerCase() === 'x-api-version' ? '0.2' : null),
+    };
+    const client = createApiClient({
+      fetchImpl: asFetch(vi.fn()),
+      xhrFactory: () => xhr as unknown as XMLHttpRequest,
+    });
+
+    const calls: number[] = [];
+    const onProgress = (pct: number): void => {
+      calls.push(pct);
+    };
+
+    const result = await client.uploadWorld(new File(['x'], 'w.wld'), { onProgress });
+
+    expect(result.worldId).toBe('wid');
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < calls.length; i++) {
+      const prev = calls[i - 1] ?? 0;
+      const cur = calls[i] ?? 0;
+      expect(cur).toBeGreaterThanOrEqual(prev);
+    }
+    for (const v of calls) {
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(100);
+    }
+    expect(calls[calls.length - 1]).toBe(100);
   });
 });
 
@@ -138,11 +219,11 @@ describe('network errors', () => {
 // ── T-07 ─────────────────────────────────────────────────────────────────────
 
 describe('deleteWorld', () => {
-  it('T-07 deleteWorld swallows 404', async () => {
+  it('T-07 deleteWorld throws WorldNotFoundError on 404 (v0.2 strict)', async () => {
     const mock = makeFetch(404, { error: { code: 'world_not_found', message: 'Not found' } });
     const client = createApiClient({ fetchImpl: asFetch(mock) });
 
-    await expect(client.deleteWorld('non-existent')).resolves.toBeUndefined();
+    await expect(client.deleteWorld('non-existent')).rejects.toBeInstanceOf(WorldNotFoundError);
   });
 
   it('T-07b deleteWorld resolves on 204', async () => {
@@ -150,7 +231,7 @@ describe('deleteWorld', () => {
       ok: true,
       status: 204,
       json: vi.fn(),
-      headers: { get: (): null => null },
+      headers: { get: (n: string): string | null => (V02 as Record<string, string>)[n] ?? null },
     });
     const client = createApiClient({ fetchImpl: asFetch(mock) });
 
@@ -171,5 +252,155 @@ describe('baseUrl', () => {
     await client.getWorldMetadata('wid');
 
     expect(mock).toHaveBeenCalledWith(expect.stringContaining('http://custom:9000/api'), undefined);
+  });
+});
+
+// ── T-10 getItem ─────────────────────────────────────────────────────────────
+
+describe('getItem', () => {
+  it('T-10 getItem returns ItemDetail on 200', async () => {
+    const detail = { id: 757, name: 'Zenith', sprite_url: '', category: 'weapon', rarity: 10 };
+    const mock = makeFetch(200, detail);
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    const result = await client.getItem(757);
+
+    expect(result).toEqual(detail);
+    expect(mock).toHaveBeenCalledWith(expect.stringContaining('/api/items/757'), undefined);
+  });
+
+  it('T-10b getItem on 503 throws CatalogUnavailableError', async () => {
+    const mock = makeFetch(503, {
+      error: { code: 'catalog_unavailable', message: 'Catalog unavailable' },
+    });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await expect(client.getItem(1)).rejects.toBeInstanceOf(CatalogUnavailableError);
+  });
+});
+
+// ── T-11 listNpcs ────────────────────────────────────────────────────────────
+
+describe('listNpcs', () => {
+  it('T-11 listNpcs returns Npc[] from NpcListDto', async () => {
+    const npcs = [
+      { id: 17, name: 'Guide', type: 'town', x: 4200, y: 348 },
+      { id: 18, name: 'Merchant', type: 'town', x: 4205, y: 348 },
+    ];
+    const mock = makeFetch(200, { npcs });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    const result = await client.listNpcs('w1');
+
+    expect(result).toEqual(npcs);
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/worlds\/w1\/npcs(\?|$)/),
+      undefined
+    );
+  });
+
+  it('T-11b listNpcs sends town_only=true when opts.townOnly=true', async () => {
+    const mock = makeFetch(200, { npcs: [] });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await client.listNpcs('w1', { townOnly: true });
+
+    expect(mock).toHaveBeenCalledWith(expect.stringContaining('town_only=true'), undefined);
+  });
+});
+
+// ── T-12 getTileDetail ───────────────────────────────────────────────────────
+
+describe('getTileDetail', () => {
+  it('T-12 getTileDetail returns TileDetail and sends x/y query', async () => {
+    const tile = {
+      x: 10,
+      y: 20,
+      tile_id: 1,
+      wall_id: 0,
+      liquid_type: 'none',
+      liquid_amount: 0,
+      frame_x: null,
+      frame_y: null,
+      chest_id: null,
+      sign_id: null,
+      tile_entity_id: null,
+    };
+    const mock = makeFetch(200, tile);
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    const result = await client.getTileDetail('w1', 10, 20);
+
+    expect(result).toEqual(tile);
+    expect(mock).toHaveBeenCalledWith(expect.stringContaining('/api/worlds/w1/tile?'), undefined);
+    expect(mock).toHaveBeenCalledWith(expect.stringContaining('x=10'), undefined);
+    expect(mock).toHaveBeenCalledWith(expect.stringContaining('y=20'), undefined);
+  });
+
+  it('T-12b getTileDetail on 400 invalid_coordinates throws CoordinatesOutOfBoundsError', async () => {
+    const mock = makeFetch(400, {
+      error: { code: 'coordinates_out_of_bounds', message: 'Out of bounds' },
+    });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await expect(client.getTileDetail('w1', -1, 0)).rejects.toBeInstanceOf(
+      CoordinatesOutOfBoundsError
+    );
+  });
+});
+
+// ── T-13 getTilesChunk encoding ──────────────────────────────────────────────
+
+describe('getTilesChunk encoding', () => {
+  it('T-13 getTilesChunk passes encoding=base64-rle-v2 query when provided', async () => {
+    const mock = makeFetch(200, {
+      chunk_x: 0,
+      chunk_y: 0,
+      width: 128,
+      height: 128,
+      encoding: 'base64-rle-v2',
+      payload: '',
+    });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await client.getTilesChunk('w1', 0, 0, 128, 'base64-rle-v2');
+
+    expect(mock).toHaveBeenCalledWith(expect.stringContaining('encoding=base64-rle-v2'), undefined);
+  });
+
+  it('T-13b getTilesChunk on 400 invalid_encoding throws InvalidEncodingError', async () => {
+    const mock = makeFetch(400, {
+      error: { code: 'invalid_encoding', message: 'Unknown encoding' },
+    });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await expect(client.getTilesChunk('w1', 0, 0, 128, 'base64-rle-v1')).rejects.toBeInstanceOf(
+      InvalidEncodingError
+    );
+  });
+});
+
+// ── T-15 X-API-Version validation ────────────────────────────────────────────
+
+describe('X-API-Version validation', () => {
+  it('T-15a happy path with X-API-Version 0.2 does not throw', async () => {
+    const mock = makeFetch(200, WORLD_META, { 'X-API-Version': '0.2' });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await expect(client.getWorldMetadata('w1')).resolves.toEqual(WORLD_META);
+  });
+
+  it('T-15b mismatched X-API-Version 0.1 throws ApiVersionMismatchError', async () => {
+    const mock = makeFetch(200, WORLD_META, { 'X-API-Version': '0.1' });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await expect(client.getWorldMetadata('w1')).rejects.toBeInstanceOf(ApiVersionMismatchError);
+  });
+
+  it('T-15c absent X-API-Version does not throw (lenient)', async () => {
+    const mock = makeFetch(200, WORLD_META, {});
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await expect(client.getWorldMetadata('w1')).resolves.toEqual(WORLD_META);
   });
 });
