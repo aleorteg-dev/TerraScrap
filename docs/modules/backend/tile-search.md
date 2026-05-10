@@ -49,32 +49,36 @@ def create_tile_search_engine(
 
 ## 4. Formato de `item_world_map.json`
 
-Version actual documentada: `1.0.0`.
+Version actual documentada: `2.0.0` (iter-12).
 
 ```json
 {
+  "schema_version": "2.0.0",
   "items": {
-    "<item_id>": {
-      "category": "block | wall | object",
-      "tile_id": 0,
-      "wall_id": 0,
-      "frame_xy": [0, 0]
-    }
-  },
-  "version": "1.0.0"
+    "<item_id>": [
+      { "category": "block", "tile_id": 0 },
+      { "category": "wall", "wall_id": 1 },
+      { "category": "wall", "wall_ids": [10, 20, 30] },
+      { "category": "object", "tile_id": 105, "frame_xy": [72, 0] },
+      { "category": "object", "tile_id": 250, "frame_xys": [[0, 0], [18, 0]] }
+    ]
+  }
 }
 ```
 
 Reglas:
 
-- La raiz solo admite `items` y `version`.
-- `version` usa semver `MAJOR.MINOR.PATCH`.
+- La raiz solo admite `items` y `schema_version`.
+- `schema_version` debe coincidir exactamente con la constante `SCHEMA_VERSION` (`"2.0.0"`); cualquier otra cosa lanza `MappingStaleError` al cargar.
 - Las claves de `items` son `item_id` numericos como string.
-- `category="block"` requiere `tile_id` y prohibe `wall_id`.
-- `category="wall"` requiere `wall_id` y prohibe `tile_id` y `frame_xy`.
-- `category="object"` requiere `tile_id`; `frame_xy` es opcional y representa la esquina superior izquierda del frame en coordenadas `U/V` guardadas por B1 como `Tile.frame_x/frame_y`.
-- No se permiten claves desconocidas.
-- No se permite que dos `item_id` distintos compartan `(category, tile_id)` o `(category, wall_id)` si alguno de ellos no tiene `frame_xy`. Esto evita falsos positivos en tiles con multiples variantes.
+- Cada `item_id` mapea a una lista NO vacia de matchers (alias: un mismo item puede mapear a varios `(tile_id, frame)` distintos, p.ej. Mana Crystal -> tile 29 y tile 639).
+- Cada matcher define una `category` y los campos pertinentes:
+  - `category="block"` requiere `tile_id`. Prohibe `wall_id`/`wall_ids`/`frame_xy`/`frame_xys`.
+  - `category="wall"` requiere exactamente uno de `wall_id` (single) o `wall_ids` (lista no vacia, multi-wall). Prohibe `tile_id`/`frame_xy`/`frame_xys`.
+  - `category="object"` requiere `tile_id` y admite a lo sumo uno de `frame_xy` (single) o `frame_xys` (lista no vacia, multi-frame). Si no se da ninguno, el motor deduce la esquina superior izquierda por continuidad de frames.
+- No se permiten claves desconocidas en root ni en matcher.
+- Colisiones detectadas al cargar: dos items distintos compartiendo el mismo `block tile_id`, el mismo `wall_id`, o el mismo `object tile_id` sin `frame_*`.
+- `MappingStaleError` extiende `ValueError`; se importa desde `twi.tile_search._mapping` y permite a callers diferenciar JSON desactualizado de errores semanticos.
 
 ## 5. Alcance de datos de esta iteracion
 
@@ -121,6 +125,13 @@ Notas de datos:
 - [x] `test_data_file_has_minimum_coverage`
 - [x] `test_data_file_schema_valid`
 - [x] `test_object_with_multiple_frames_uses_frame_xy`
+- [x] `test_engine_multi_wall_match` (iter-12: cierra MULTI-WALL-ID).
+- [x] `test_engine_multi_frame_match` (iter-12: cierra MULTI-FRAME-ITEM).
+- [x] `test_engine_alias_multi_matchers` (iter-12: cierra OBJECT-ALIAS-01).
+- [x] `test_match_source_field_per_kind` (iter-12: source per kind).
+- [x] `test_load_stale_schema_version_raises`, `test_load_missing_schema_version_raises`, `test_load_wrong_schema_version_raises` (iter-12: cierra STALE-JSON, JSON v2.0.0 con `MappingStaleError`).
+- [x] `test_default_world_map_uses_current_schema_version` (iter-12).
+- [x] `test_search_one_million_tiles_under_500_ms` (iter-12: budget 500 ms a 1M tiles, medido ~70 ms).
 - [x] Regresiones existentes de pureza, orden, chests apilados, no contaminacion block/wall y performance.
 
 ## 8. Notas de implementacion
@@ -134,7 +145,10 @@ Notas de datos:
 ## 9. Performance
 
 - Target historico: world large (8400x2400 aprox. 20M tiles) + 1000 chests < 500 ms.
-- Estado actual: loop Python O(W*H), guardia de regresion en 3.5 s. RNF-03 real requiere vectorizacion o arrays auxiliares en B1.
+- Estado actual (iter-12): single-pass combinado para block+wall, set-lookup O(1) por target. Mediciones locales:
+  - 1000x1000 (1M tiles), Dirt: ~70 ms (budget 500 ms). 5 corridas: 69.7, 65.4, 65.7, 77.9, 69.9 ms.
+  - 8400x2400 (20.16M tiles), tile sintetico: ~1.4 s (budget 3.5 s).
+- RNF-03 (< 500 ms para Large) sigue requiriendo vectorizacion o arrays auxiliares en B1: deuda PERF-01.
 
 ## 10. Errores
 
@@ -143,24 +157,26 @@ Notas de datos:
 
 ## 11. Estado
 
-- **Version del contrato**: v3
-- **Ultimo cierre**: 2026-05-05
-- **Iteracion actual**: cerrada
-- **Version JSON**: `1.0.0`
-- **Conteo cubierto**: 59 items total; 33 `block`, 16 `wall`, 10 `object`.
-- **Verificacion**:
-  - `python -m pytest tests/unit/tile_search/test_tile_search.py -q`: 24 passed.
-  - `python -m coverage run --source=src/twi/tile_search -m pytest tests/unit/tile_search/test_tile_search.py -q` + `python -m coverage report --fail-under=80`: 83%.
-  - `python -m mypy src/twi --strict`: sin errores.
-  - `python -m ruff check src/ tests/`: sin errores.
-  - `python -m ruff format src/ tests/ --check`: 40 files already formatted.
-  - `python -m pytest`: bloqueado fuera de B4 por `PermissionError` creando/leeyendo `tmp_path`/basetemp en este sandbox; B4 completo pasa.
+- **Version del contrato**: v4 (iter-12)
+- **Ultimo cierre**: 2026-05-10
+- **Iteracion actual**: cerrada (iter-12)
+- **Version JSON**: `2.0.0` (root key `schema_version`, items mapean a lista de matchers).
+- **Conteo cubierto**: 59 items totales; 33 `block`, 16 `wall`, 10 `object`. Item `109` (Mana Crystal) lleva 2 matchers (alias `tile_id=29` + `tile_id=639`).
+- **Verificacion** (2026-05-10):
+  - `python -m pytest tests/unit/tile_search/test_tile_search.py -q`: 33 passed.
+  - `python -m pytest tests/unit/api_rest -q`: 58 passed (sin regresiones).
+  - `python -m coverage run --source=src/twi/tile_search -m pytest tests/unit/tile_search/test_tile_search.py -q` + `python -m coverage report --fail-under=80`: 89%.
+  - `python -m mypy src/twi/tile_search --strict`: sin errores.
+  - `python -m ruff check src/twi/tile_search tests/unit/tile_search`: All checks passed.
+  - `python -m ruff format src/twi/tile_search tests/unit/tile_search --check`: 6 files already formatted.
+  - Perf real: 1M tiles 65-78 ms (budget 500 ms); 20M tiles 1.4 s (budget 3.5 s).
 - **Deuda / follow-ups**:
-  - **VERIFY-EXT-01**: resolver permisos de pytest tmp/cache en el entorno Windows para poder cerrar la suite completa sin `--ignore` ni workarounds.
-  - **MULTI-WALL-ID**: soportar varios `wall_id` por item para safe/unsafe y variantes naturales/colocadas.
-  - **MULTI-FRAME-ITEM**: soportar varios `frame_xy` por item para orientaciones left/right y estilos alternos de un mismo objeto.
-  - **OBJECT-ALIAS-01**: revisar el alias `Mana Crystal -> tile_id 639` cuando B3 exponga relacion explicita con `Repaired Mana Crystal`.
-  - **DATA-EXPAND-01**: ampliar muebles, decoracion, objetos de eventos, NPC-related tiles, bioma desert/ocean/glowing moss y variantes modernas fuera de la lista minima.
-  - **API-DOCS-OBJECT**: `docs/contracts/api-contract.md` y `docs/modules/backend/api-rest.md` aun describen `object` como tile entity con inventario. No se toca api-rest en esta iteracion.
-  - **STALE-JSON**: `data/item_tile_map.json` queda obsoleto.
-  - **PERF-01**: RNF-03 (< 500 ms) requiere arrays vectorizables desde B1.
+  - **VERIFY-EXT-01**: resolver permisos de pytest tmp/cache en el entorno Windows para poder cerrar la suite completa sin `--ignore` ni workarounds. Iter-12 evita `os.chmod` en tests; sigue abierto a nivel de suite global.
+  - ~~**MULTI-WALL-ID**~~: cerrado iter-12 (2026-05-10). Schema v2 admite `wall_ids: [int, ...]`. Cubierto por `test_engine_multi_wall_match`.
+  - ~~**MULTI-FRAME-ITEM**~~: cerrado iter-12 (2026-05-10). Schema v2 admite `frame_xys: [[int, int], ...]`. Cubierto por `test_engine_multi_frame_match`.
+  - ~~**OBJECT-ALIAS-01**~~: cerrado iter-12 (2026-05-10). Cada `item_id` mapea a una lista de matchers; Mana Crystal (item 109) declara dos matchers (`tile_id=29` + `tile_id=639`). Cubierto por `test_engine_alias_multi_matchers`.
+  - **DATA-EXPAND-01**: ampliar muebles, decoracion, objetos de eventos, NPC-related tiles, bioma desert/ocean/glowing moss y variantes modernas fuera de la lista minima de 50+ items. Iter-12 no introduce items nuevos: el set base ya contiene 59 items por encima del minimo.
+  - **API-DOCS-OBJECT**: `docs/contracts/api-contract.md` y `docs/modules/backend/api-rest.md` aun describen `object` como tile entity con inventario. No se toca api-rest en iter-12.
+  - ~~**STALE-JSON**~~: cerrado iter-12 (2026-05-10). `schema_version` obligatorio + `MappingStaleError` lanzada si difiere. Cubierto por `test_load_stale_schema_version_raises`, `test_load_missing_schema_version_raises`, `test_load_wrong_schema_version_raises`. `data/item_tile_map.json` permanece como fichero legacy sin uso por el motor; se mantiene sincronizado con `block tile_id`s.
+  - **PERF-01**: RNF-03 (< 500 ms) en world Large requiere arrays vectorizables desde B1; iter-12 mejora el caso 1M tiles (65-78 ms) pero el caso 20M sigue alrededor de 1.4 s.
+  - **SOURCE-TILE_ENTITY**: el contrato API v0.2 mantiene `source ∈ {block, wall, chest, object}`. El task de iter-12 menciona `tile_entity` como source extra; no se introduce porque el contrato esta cerrado en iter-11. Pendiente: alinear contrato + engine cuando B1/B5 expongan tile entities.

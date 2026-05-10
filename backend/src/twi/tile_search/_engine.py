@@ -1,4 +1,4 @@
-"""B4 – tile-search: engine implementation (pure domain, no FastAPI)."""
+"""B4 - tile-search: engine implementation (pure domain, no FastAPI)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import Protocol
 
 from twi.tile_search._mapping import (
+    SCHEMA_VERSION,
+    ItemMatcher,
     ItemWorldMap,
-    WorldMapEntry,
     create_item_world_map,
     load_item_world_map,
 )
@@ -31,11 +32,8 @@ class TileSearchEngine(Protocol):
 class _Engine:
     """Concrete search engine.  Stateless between calls (SP-07)."""
 
-    def __init__(
-        self,
-        item_world_map: ItemWorldMap,
-    ) -> None:
-        self._entries: dict[int, WorldMapEntry] = dict(item_world_map.entries)
+    def __init__(self, item_world_map: ItemWorldMap) -> None:
+        self._entries: dict[int, tuple[ItemMatcher, ...]] = dict(item_world_map.entries)
 
     def search(
         self,
@@ -45,14 +43,23 @@ class _Engine:
     ) -> SearchResult:
         matches: list[SearchMatch] = []
 
-        entry = self._entries.get(item_id)
-        if entry is not None:
-            if entry.category == "block" and entry.tile_id is not None:
-                _append_block_matches(world, entry.tile_id, matches)
-            elif entry.category == "wall" and entry.wall_id is not None:
-                _append_wall_matches(world, entry.wall_id, matches)
-            elif entry.category == "object":
-                _append_object_matches(world, entry, matches)
+        matchers = self._entries.get(item_id, ())
+        block_targets: set[int] = set()
+        wall_targets: set[int] = set()
+        object_matchers: list[ItemMatcher] = []
+        for matcher in matchers:
+            if matcher.category == "block" and matcher.tile_id is not None:
+                block_targets.add(matcher.tile_id)
+            elif matcher.category == "wall":
+                wall_targets.update(matcher.wall_ids)
+            elif matcher.category == "object":
+                object_matchers.append(matcher)
+
+        if block_targets or wall_targets:
+            _scan_blocks_and_walls(world, block_targets, wall_targets, matches)
+
+        for matcher in object_matchers:
+            _append_object_matches(world, matcher, matches)
 
         if include_containers:
             for chest in world.chests:
@@ -77,60 +84,60 @@ class _Engine:
         )
 
 
-def _append_block_matches(
+def _scan_blocks_and_walls(
     world: World,
-    tile_id_target: int,
+    block_targets: set[int],
+    wall_targets: set[int],
     matches: list[SearchMatch],
 ) -> None:
     append = matches.append
-    for x in range(world.tiles.width):
+    width = world.tiles.width
+    has_blocks = bool(block_targets)
+    has_walls = bool(wall_targets)
+    for x in range(width):
         col = world.tiles[x]
         for y, tile in enumerate(col):
-            if tile.tile_id == tile_id_target:
-                append(SearchMatch(x=x, y=y, source="block"))
-
-
-def _append_wall_matches(
-    world: World,
-    wall_id_target: int,
-    matches: list[SearchMatch],
-) -> None:
-    append = matches.append
-    for x in range(world.tiles.width):
-        col = world.tiles[x]
-        for y, tile in enumerate(col):
-            if tile.wall_id == wall_id_target:
-                append(SearchMatch(x=x, y=y, source="wall"))
+            if has_blocks:
+                tile_id = tile.tile_id
+                if tile_id is not None and tile_id in block_targets:
+                    append(SearchMatch(x=x, y=y, source="block"))
+            if has_walls:
+                wall_id = tile.wall_id
+                if wall_id is not None and wall_id in wall_targets:
+                    append(SearchMatch(x=x, y=y, source="wall"))
 
 
 def _append_object_matches(
     world: World,
-    entry: WorldMapEntry,
+    matcher: ItemMatcher,
     matches: list[SearchMatch],
 ) -> None:
-    tile_id_target = entry.tile_id
+    tile_id_target = matcher.tile_id
     if tile_id_target is None:
         return
-
+    target_frames: set[tuple[int, int]] | None = (
+        set(matcher.frame_xys) if matcher.frame_xys else None
+    )
     append = matches.append
-    for x in range(world.tiles.width):
+    width = world.tiles.width
+    for x in range(width):
         col = world.tiles[x]
         for y, tile in enumerate(col):
-            if tile.tile_id == tile_id_target and _is_object_frame_match(
-                world, x, y, tile, entry
-            ):
+            if tile.tile_id != tile_id_target:
+                continue
+            if _is_object_match(world, x, y, tile, target_frames):
                 append(SearchMatch(x=x, y=y, source="object"))
 
 
-def _is_object_frame_match(
+def _is_object_match(
     world: World,
     x: int,
     y: int,
     tile: Tile,
-    entry: WorldMapEntry,
+    target_frames: set[tuple[int, int]] | None,
 ) -> bool:
-    if entry.frame_xy is not None:
-        return (tile.frame_x, tile.frame_y) == entry.frame_xy
+    if target_frames is not None:
+        return (tile.frame_x, tile.frame_y) in target_frames
     return _is_object_top_left(world, x, y, tile)
 
 
@@ -193,19 +200,19 @@ def _create_world_map_from_mappings(
     item_to_object_mapping: Mapping[int, int] | None,
     item_to_object_frame_mapping: Mapping[int, tuple[int, int]] | None,
 ) -> ItemWorldMap:
-    entries: dict[int, WorldMapEntry] = {}
+    entries: dict[int, tuple[ItemMatcher, ...]] = {}
 
     for item_id, tile_id in (item_to_tile_mapping or {}).items():
-        entries[item_id] = WorldMapEntry(category="block", tile_id=tile_id)
+        entries[item_id] = (ItemMatcher(category="block", tile_id=tile_id),)
     for item_id, wall_id in (item_to_wall_mapping or {}).items():
-        entries[item_id] = WorldMapEntry(category="wall", wall_id=wall_id)
+        entries[item_id] = (ItemMatcher(category="wall", wall_ids=(wall_id,)),)
 
     object_frame_mapping = dict(item_to_object_frame_mapping or {})
     for item_id, tile_id in (item_to_object_mapping or {}).items():
-        entries[item_id] = WorldMapEntry(
-            category="object",
-            tile_id=tile_id,
-            frame_xy=object_frame_mapping.pop(item_id, None),
+        frame = object_frame_mapping.pop(item_id, None)
+        frame_xys: tuple[tuple[int, int], ...] = (frame,) if frame is not None else ()
+        entries[item_id] = (
+            ItemMatcher(category="object", tile_id=tile_id, frame_xys=frame_xys),
         )
 
     if object_frame_mapping:
@@ -214,7 +221,7 @@ def _create_world_map_from_mappings(
             f"object frame mappings without object tile mapping: {item_ids}"
         )
 
-    return create_item_world_map(version="0.0.0", entries=entries)
+    return create_item_world_map(schema_version=SCHEMA_VERSION, entries=entries)
 
 
 def create_tile_search_engine(
@@ -222,7 +229,10 @@ def create_tile_search_engine(
     item_to_wall_mapping: Mapping[int, int] | None = None,
     item_to_object_mapping: Mapping[int, int] | None = None,
     item_to_object_frame_mapping: Mapping[int, tuple[int, int]] | None = None,
+    world_map_path: Path | None = None,
 ) -> TileSearchEngine:
+    if world_map_path is not None:
+        return _Engine(load_item_world_map(world_map_path))
     if (
         item_to_tile_mapping is None
         and item_to_wall_mapping is None

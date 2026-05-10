@@ -1,4 +1,4 @@
-"""Tests for B4 – tile-search (T-01 … T-08 + SP-08)."""
+"""Tests for B4 - tile-search."""
 
 from __future__ import annotations
 
@@ -11,6 +11,11 @@ from pathlib import Path
 import pytest
 
 from twi.tile_search import SearchMatch, SearchResult, create_tile_search_engine
+from twi.tile_search._mapping import (
+    SCHEMA_VERSION,
+    MappingStaleError,
+    load_item_world_map,
+)
 from twi.wld_parser import Chest, ChestItem, Tile, TileGrid, World, WorldMetadata
 
 # ---------------------------------------------------------------------------
@@ -191,6 +196,16 @@ def _world_map_json() -> dict[str, object]:
     return raw
 
 
+def _write_world_map(tmp_path: Path, items: dict[str, object]) -> Path:
+    payload: dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "items": items,
+    }
+    target = tmp_path / "world_map.json"
+    target.write_text(json.dumps(payload), encoding="utf-8")
+    return target
+
+
 # ---------------------------------------------------------------------------
 # Iteration B4 object/world-map coverage
 # ---------------------------------------------------------------------------
@@ -303,67 +318,118 @@ def test_data_file_has_minimum_coverage() -> None:
     assert isinstance(items, dict)
 
     for category, item_ids in MINIMUM_ITEM_COVERAGE.items():
-        missing = {
-            item_id
-            for item_id in item_ids
-            if not (
-                isinstance(items.get(str(item_id)), dict)
-                and items[str(item_id)].get("category") == category
-            )
-        }
+        missing: set[int] = set()
+        for item_id in item_ids:
+            entry = items.get(str(item_id))
+            if not isinstance(entry, list):
+                missing.add(item_id)
+                continue
+            if not any(
+                isinstance(m, dict) and m.get("category") == category for m in entry
+            ):
+                missing.add(item_id)
         assert not missing, f"missing {category} mappings: {sorted(missing)}"
 
 
 def test_data_file_schema_valid() -> None:
     data = _world_map_json()
 
-    assert set(data) == {"items", "version"}
-    version = data["version"]
-    assert isinstance(version, str)
-    version_parts = version.split(".")
-    assert len(version_parts) == 3
-    assert all(part.isdigit() for part in version_parts)
+    assert set(data) == {"items", "schema_version"}
+    assert data["schema_version"] == SCHEMA_VERSION
 
     items = data["items"]
     assert isinstance(items, dict)
 
     allowed_categories = {"block", "wall", "object"}
-    allowed_keys = {"category", "tile_id", "wall_id", "frame_xy"}
-    seen_without_frame: dict[tuple[str, int], str] = {}
+    allowed_keys = {
+        "category",
+        "tile_id",
+        "wall_id",
+        "wall_ids",
+        "frame_xy",
+        "frame_xys",
+    }
+    block_owner: dict[int, str] = {}
+    wall_owner: dict[int, str] = {}
+    object_unframed_owner: dict[int, str] = {}
 
     for item_id, entry in items.items():
         assert isinstance(item_id, str)
         assert item_id.isdecimal()
-        assert isinstance(entry, dict)
-        assert set(entry) <= allowed_keys
+        assert isinstance(entry, list)
+        assert entry, f"item {item_id} must have at least one matcher"
 
-        category = entry.get("category")
-        assert category in allowed_categories
+        for matcher in entry:
+            assert isinstance(matcher, dict)
+            assert set(matcher) <= allowed_keys
+            category = matcher.get("category")
+            assert category in allowed_categories
 
-        frame_xy = entry.get("frame_xy")
-        if category == "wall":
-            assert set(entry) == {"category", "wall_id"}
-            world_id = entry["wall_id"]
-        else:
-            assert "tile_id" in entry
-            assert "wall_id" not in entry
-            world_id = entry["tile_id"]
+            if category == "wall":
+                assert "tile_id" not in matcher
+                assert "frame_xy" not in matcher
+                assert "frame_xys" not in matcher
+                wall_ids = _extract_wall_ids(matcher)
+                for wall_id in wall_ids:
+                    previous = wall_owner.get(wall_id)
+                    assert previous is None or previous == item_id, (
+                        f"collision wall_id={wall_id}: items {previous} and {item_id}"
+                    )
+                    wall_owner[wall_id] = item_id
+                continue
 
-        assert isinstance(world_id, int)
+            assert "wall_id" not in matcher
+            assert "wall_ids" not in matcher
+            tile_id = matcher.get("tile_id")
+            assert isinstance(tile_id, int)
 
-        if frame_xy is not None:
-            assert category == "object"
-            assert isinstance(frame_xy, list)
-            assert len(frame_xy) == 2
-            assert all(isinstance(value, int) for value in frame_xy)
-            continue
+            if category == "block":
+                assert "frame_xy" not in matcher
+                assert "frame_xys" not in matcher
+                previous = block_owner.get(tile_id)
+                assert previous is None or previous == item_id, (
+                    f"collision block tile_id={tile_id}: items {previous} and {item_id}"
+                )
+                block_owner[tile_id] = item_id
+                continue
 
-        collision_key = (category, world_id)
-        previous = seen_without_frame.get(collision_key)
-        assert previous is None, (
-            f"collision for {collision_key}: item {previous} and item {item_id}"
-        )
-        seen_without_frame[collision_key] = item_id
+            frame_xy = matcher.get("frame_xy")
+            frame_xys = matcher.get("frame_xys")
+            assert not (frame_xy is not None and frame_xys is not None)
+            if frame_xy is not None:
+                assert isinstance(frame_xy, list)
+                assert len(frame_xy) == 2
+                assert all(isinstance(v, int) for v in frame_xy)
+            elif frame_xys is not None:
+                assert isinstance(frame_xys, list)
+                assert frame_xys
+                for pair in frame_xys:
+                    assert isinstance(pair, list)
+                    assert len(pair) == 2
+                    assert all(isinstance(v, int) for v in pair)
+            else:
+                previous = object_unframed_owner.get(tile_id)
+                msg = (
+                    f"collision object tile_id={tile_id}: "
+                    f"items {previous} and {item_id}"
+                )
+                assert previous is None or previous == item_id, msg
+                object_unframed_owner[tile_id] = item_id
+
+
+def _extract_wall_ids(matcher: dict[str, object]) -> list[int]:
+    if "wall_id" in matcher:
+        wall_id = matcher["wall_id"]
+        assert isinstance(wall_id, int)
+        return [wall_id]
+    raw = matcher["wall_ids"]
+    assert isinstance(raw, list)
+    assert raw
+    out: list[int] = []
+    for value in raw:
+        assert isinstance(value, int)
+        out.append(value)
+    return out
 
 
 def test_object_with_multiple_frames_uses_frame_xy() -> None:
@@ -404,6 +470,210 @@ def test_object_with_multiple_frames_uses_frame_xy() -> None:
 
     assert first_result.matches == (SearchMatch(x=1, y=1, source="object"),)
     assert second_result.matches == (SearchMatch(x=5, y=1, source="object"),)
+
+
+# ---------------------------------------------------------------------------
+# Iteration 12: multi-wall, multi-frame, alias, source, stale, perf
+# ---------------------------------------------------------------------------
+
+
+def test_engine_multi_wall_match(tmp_path: Path) -> None:
+    """An item mapped to N wall_ids must match all of them as source='wall'."""
+    path = _write_world_map(
+        tmp_path,
+        {"500": [{"category": "wall", "wall_ids": [10, 20, 30]}]},
+    )
+    world = _world(
+        width=5,
+        height=4,
+        tile_overrides={
+            (0, 0): _tile(None, wall_id=10),
+            (1, 1): _tile(None, wall_id=20),
+            (2, 2): _tile(None, wall_id=30),
+            (3, 3): _tile(None, wall_id=99),
+        },
+    )
+    engine = create_tile_search_engine(world_map_path=path)
+
+    result = engine.search(world, item_id=500)
+
+    assert result.total == 3
+    assert {(m.x, m.y) for m in result.matches} == {(0, 0), (1, 1), (2, 2)}
+    assert all(m.source == "wall" for m in result.matches)
+
+
+def test_engine_multi_frame_match(tmp_path: Path) -> None:
+    """Object item with N frames must match each frame; ignore other frames."""
+    path = _write_world_map(
+        tmp_path,
+        {
+            "600": [
+                {
+                    "category": "object",
+                    "tile_id": 250,
+                    "frame_xys": [[0, 0], [18, 0], [36, 0]],
+                }
+            ]
+        },
+    )
+    world = _world(
+        width=10,
+        height=3,
+        tile_overrides={
+            (1, 0): _framed_tile(250, 0, 0),
+            (3, 0): _framed_tile(250, 18, 0),
+            (5, 0): _framed_tile(250, 36, 0),
+            (7, 0): _framed_tile(250, 72, 0),
+        },
+    )
+    engine = create_tile_search_engine(world_map_path=path)
+
+    result = engine.search(world, item_id=600)
+
+    assert result.total == 3
+    assert {(m.x, m.y) for m in result.matches} == {(1, 0), (3, 0), (5, 0)}
+    assert all(m.source == "object" for m in result.matches)
+
+
+def test_engine_alias_multi_matchers(tmp_path: Path) -> None:
+    """Mana Crystal-style alias: one item_id maps to multiple (tile_id, frame)."""
+    path = _write_world_map(
+        tmp_path,
+        {
+            "109": [
+                {"category": "object", "tile_id": 29},
+                {"category": "object", "tile_id": 639},
+            ]
+        },
+    )
+    world = _world(
+        width=10,
+        height=3,
+        tile_overrides={
+            (1, 0): _framed_tile(29, 0, 0),
+            (5, 0): _framed_tile(639, 0, 0),
+        },
+    )
+    engine = create_tile_search_engine(world_map_path=path)
+
+    result = engine.search(world, item_id=109)
+
+    assert result.total == 2
+    assert {(m.x, m.y) for m in result.matches} == {(1, 0), (5, 0)}
+    assert all(m.source == "object" for m in result.matches)
+
+
+def test_match_source_field_per_kind(tmp_path: Path) -> None:
+    """Every match exposes the correct source: block, wall, object, chest."""
+    path = _write_world_map(
+        tmp_path,
+        {
+            "1": [{"category": "block", "tile_id": 1}],
+            "2": [{"category": "wall", "wall_id": 5}],
+            "3": [{"category": "object", "tile_id": 100}],
+        },
+    )
+    chest = _chest_with_item(chest_id=0, x=0, y=4, slot=0, item_id=4, stack=2)
+    world = _world(
+        width=5,
+        height=5,
+        tile_overrides={
+            (0, 0): _tile(1),
+            (1, 0): _tile(None, wall_id=5),
+            (2, 0): _framed_tile(100, 0, 0),
+        },
+        chests=(chest,),
+    )
+    engine = create_tile_search_engine(world_map_path=path)
+
+    block_result = engine.search(world, item_id=1)
+    wall_result = engine.search(world, item_id=2)
+    object_result = engine.search(world, item_id=3)
+    chest_result = engine.search(world, item_id=4)
+
+    assert block_result.matches == (SearchMatch(x=0, y=0, source="block"),)
+    assert wall_result.matches == (SearchMatch(x=1, y=0, source="wall"),)
+    assert object_result.matches == (SearchMatch(x=2, y=0, source="object"),)
+    assert chest_result.matches == (
+        SearchMatch(x=0, y=4, source="chest", chest_id=0, stack=2),
+    )
+
+
+def test_load_stale_schema_version_raises(tmp_path: Path) -> None:
+    stale = tmp_path / "stale.json"
+    stale.write_text(
+        json.dumps({"version": "1.0.0", "items": {}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MappingStaleError):
+        load_item_world_map(stale)
+
+
+def test_load_missing_schema_version_raises(tmp_path: Path) -> None:
+    no_version = tmp_path / "no_version.json"
+    no_version.write_text(json.dumps({"items": {}}), encoding="utf-8")
+
+    with pytest.raises(MappingStaleError):
+        load_item_world_map(no_version)
+
+
+def test_load_wrong_schema_version_raises(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_text(
+        json.dumps({"schema_version": "1.0.0", "items": {}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MappingStaleError):
+        load_item_world_map(bad)
+
+
+def test_default_world_map_uses_current_schema_version() -> None:
+    item_world_map = load_item_world_map(WORLD_MAP_PATH)
+    assert item_world_map.schema_version == SCHEMA_VERSION
+
+
+@pytest.mark.perf
+def test_search_one_million_tiles_under_500_ms() -> None:
+    """1000x1000 world (1M tiles); common-item search must finish < 500 ms."""
+    width, height = 1000, 1000
+    columns: list[list[Tile]] = [[AIR] * height for _ in range(width)]
+    target_tile_id = 0  # Dirt -> item 2 in default JSON
+    columns[100][100] = Tile(
+        tile_id=target_tile_id,
+        wall_id=None,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+    )
+    columns[500][500] = Tile(
+        tile_id=target_tile_id,
+        wall_id=None,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+    )
+
+    grid = TileGrid(columns)
+    meta = WorldMetadata(
+        name="Perf",
+        width=width,
+        height=height,
+        version=240,
+        seed="0",
+        size="medium",
+        hardmode=False,
+    )
+    world = World(metadata=meta, tiles=grid, chests=(), signs=())
+    engine = create_tile_search_engine()
+
+    start = time.perf_counter()
+    result = engine.search(world, item_id=2)
+    elapsed = time.perf_counter() - start
+
+    assert result.total == 2
+    assert elapsed < 0.5, f"search took {elapsed:.3f}s — exceeds 500 ms budget"
 
 
 # ---------------------------------------------------------------------------
@@ -486,7 +756,7 @@ def test_search_finds_chest_items() -> None:
     assert match.stack == 10
 
 
-# SP-08: two chests at the same position each containing the item → two distinct matches
+# SP-08: stacked chests with same item -> two distinct matches
 def test_search_stacked_chests_produce_distinct_matches() -> None:
     chest_a = _chest_with_item(chest_id=0, x=5, y=5, slot=0, item_id=99, stack=1)
     chest_b = _chest_with_item(chest_id=1, x=5, y=5, slot=0, item_id=99, stack=5)
@@ -584,19 +854,17 @@ def test_search_is_pure_and_deterministic() -> None:
 
 
 # ---------------------------------------------------------------------------
-# T-08 (performance)
+# T-08 (performance regression — large world)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.perf
 def test_search_large_world_completes_within_budget() -> None:
-    """Regression guard: search over a Large world (8400×2400) must finish
-    in < 3.5 s on any CI host (pure-Python O(W·H) loop measured at ~2.3 s).
+    """Regression guard: search over a Large world (8400x2400) must finish
+    in < 3.5 s on any CI host (pure-Python O(W*H) loop).
     RNF-03 (< 500 ms) requires numpy vectorisation — tracked in deuda."""
     width, height = 8400, 2400
-    # Shared air tile: list replication is O(1) C-level so world creation is fast.
     columns: list[list[Tile]] = [[AIR] * height for _ in range(width)]
-    # Plant two target tiles at known positions
     target_tile_id = 1
     columns[100][100] = Tile(
         tile_id=target_tile_id,
@@ -635,7 +903,7 @@ def test_search_large_world_completes_within_budget() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Regression: wrong mapping (9→1) caused Wood to match Stone tiles
+# Regression: wrong mapping (9->1) caused Wood to match Stone tiles
 # ---------------------------------------------------------------------------
 
 
