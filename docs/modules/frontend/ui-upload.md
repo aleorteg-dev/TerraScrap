@@ -52,6 +52,9 @@ Vitest + Testing Library.
 - [x] `T-06 shows loading state while uploading`
 - [x] `T-07 allows selecting file via drag and drop` (fireEvent drop)
 - [x] `T-08 input has accessible label`
+- [x] `T-09 two instances render distinct input IDs` (useId)
+- [x] `T-10 progressbar reflects real upload percentage via onProgress`
+- [x] `T-11 error state shows error code and retry button resets to idle`
 
 ## 7. Notas de implementación
 - Estado local con `useState`/`useReducer` para el flujo `idle → validating → uploading → success|error`.
@@ -66,14 +69,19 @@ Vitest + Testing Library.
 
 ## 10. Estado
 - **Versión del contrato**: v1.0
-- **Último cierre**: 2026-04-27 — iter-009
+- **Último cierre**: 2026-05-10 — iter-015
 - **Iteración actual**: cerrada
 - **Decisiones tomadas**:
   - Input oculto con `.sr-only` (no `display:none`) para que RTL y lectores de pantalla lo encuentren vía `<label htmlFor>`.
   - `apiClient` inyectable por prop; si no se pasa, crea uno con `createApiClient()` vía `useMemo`.
-  - Estado manejado con tres `useState` (`phase`, `validationErr`, `uploadErr`) + un `useState<boolean>` para drag.
+  - Estado manejado con `useState` (`phase`, `validationErr`, `uploadErr`, `dragging`, `progress`).
   - Errores de validación locales (`invalid_extension`, `file_too_large`) no llaman a la API ni disparan `onError`.
   - `stopPropagation` en el `onClick` del `<input>` para evitar doble apertura del diálogo de fichero.
+  - `useId()` para inputId: IDs únicos por instancia, seguro en múltiples renders.
+  - `client.uploadWorld(file, { onProgress: setProgress })` para progreso real vía XHR; `progress` null = indeterminado.
+  - Progressbar: `aria-valuenow` presente solo cuando `progress !== null`; omitido → indeterminado.
+  - Dropzone: `aria-busy={phase === 'uploading'}`.
+  - Error muestra `[code] message` + botón "Try again" que resetea a idle.
+  - `coverage/` añadido a `globalIgnores` en `eslint.config.js` (archivos generados por Istanbul).
 - **Deuda / follow-ups**:
-  - ID estático `"wld-file-input"` migrado a `useId()` en iter-032. Ahora es seguro renderizar múltiples instancias.
-  - No hay barra de progreso real (porcentaje); el endpoint `POST /api/worlds` no expone progreso — progreso indeterminado es suficiente para v1.
+  - Ninguna.

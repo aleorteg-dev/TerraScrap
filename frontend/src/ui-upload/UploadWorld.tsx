@@ -42,6 +42,7 @@ export const UploadWorld: FC<UploadProps> = ({
   const [validationErr, setValidationErr] = useState<ValidationKind | null>(null);
   const [uploadErr, setUploadErr] = useState<ApiError | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
 
   const maxBytes = maxSizeMb * 1024 * 1024;
 
@@ -61,9 +62,11 @@ export const UploadWorld: FC<UploadProps> = ({
     }
     setValidationErr(null);
     setUploadErr(null);
+    setProgress(0);
     setPhase('uploading');
     try {
-      const result = await client.uploadWorld(file);
+      const result = await client.uploadWorld(file, { onProgress: setProgress });
+      setProgress(null);
       setPhase('success');
       onUploaded({ worldId: result.worldId, metadata: result.metadata });
     } catch (caught) {
@@ -75,10 +78,17 @@ export const UploadWorld: FC<UploadProps> = ({
               0,
               caught instanceof Error ? caught.message : 'Unknown error'
             );
+      setProgress(null);
       setPhase('error');
       setUploadErr(err);
       onError?.(err);
     }
+  }
+
+  function handleRetry(): void {
+    setPhase('idle');
+    setUploadErr(null);
+    setProgress(null);
   }
 
   function handleChange(e: ChangeEvent<HTMLInputElement>): void {
@@ -123,6 +133,7 @@ export const UploadWorld: FC<UploadProps> = ({
       role="button"
       tabIndex={0}
       aria-label="Drop a .wld file here or click to browse"
+      aria-busy={phase === 'uploading'}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       onDrop={handleDrop}
@@ -141,6 +152,7 @@ export const UploadWorld: FC<UploadProps> = ({
         ref={inputRef}
         type="file"
         accept=".wld"
+        aria-label="Select a .wld file"
         tabIndex={-1}
         className="sr-only"
         onChange={handleChange}
@@ -148,7 +160,20 @@ export const UploadWorld: FC<UploadProps> = ({
       />
 
       {phase === 'uploading' && (
-        <div role="progressbar" aria-label="Uploading world…" className="upload-progress" />
+        <div
+          role="progressbar"
+          aria-label="Uploading world…"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress !== null ? progress : undefined}
+          className="upload-progress"
+        >
+          {progress !== null && (
+            <span className="upload-progress__pct" aria-hidden="true">
+              {progress}%
+            </span>
+          )}
+        </div>
       )}
 
       {validationErr !== null && (
@@ -160,9 +185,14 @@ export const UploadWorld: FC<UploadProps> = ({
       )}
 
       {uploadErr !== null && phase === 'error' && (
-        <p className="upload-error" role="alert">
-          {uploadErr.message}
-        </p>
+        <>
+          <p className="upload-error" role="alert">
+            [{uploadErr.code}] {uploadErr.message}
+          </p>
+          <button type="button" className="upload-retry" onClick={handleRetry}>
+            Try again
+          </button>
+        </>
       )}
     </div>
   );

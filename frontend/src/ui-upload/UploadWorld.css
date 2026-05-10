@@ -66,3 +66,22 @@
   color: #f66;
   font-size: 0.875rem;
 }
+
+.upload-progress__pct {
+  display: block;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #4a9eff;
+  margin-top: 0.25rem;
+}
+
+.upload-retry {
+  margin-top: 0.5rem;
+  padding: 0.4rem 1rem;
+  border: 1px solid #f66;
+  border-radius: 4px;
+  background: transparent;
+  color: #f66;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
