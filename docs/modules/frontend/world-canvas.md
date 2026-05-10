@@ -87,10 +87,43 @@ Caché de bitmaps (unitarias):
 - [x] `T-C12 renderChunkBitmap should keep full chunk dimensions when world dimensions are multiples of chunkSize`
 - [x] `T-C13 renderChunkBitmap should use clipped width as row stride for partial chunks`
 
+Decoder v2 (iter-16):
+- [x] `T-V2-1 decodes tile_id, wall_id, liquid_type, liquid_amount from single run`
+- [x] `T-V2-2 reconstructs frame_x and frame_y from frame block`
+- [x] `T-V2-3 air tiles default to tileId=-1`
+- [x] `T-V2-4 empty payload returns all-air chunk`
+- [x] `T-V2-5 invalid magic returns all-air chunk`
+- [x] `T-V2-6 flags byte preserved per tile`
+- [x] `T-V2-7 multiple runs fill correct indices in row-major order`
+- [x] `T-V2-8 run with no frame entry leaves frameX/Y=0 when has_frame set`
+- [x] `T-V1-COMPAT v1 decoder output unchanged`
+
+Render por capas v2 (iter-16):
+- [x] `T-VL-1 draws wall color for wall_id > 0`
+- [x] `T-VL-2 draws tile color for tile_id >= 0`
+- [x] `T-VL-3 draws liquid color for liquid_type > 0 and amount > 0`
+- [x] `T-VL-4 layer order: wall before tile before liquid`
+- [x] `T-VL-5 tile with wall+tile renders 2 fillRect calls`
+- [x] `T-VL-6 air tile with liquid_amount=0 renders 0 fillRect calls`
+
+Nuevos tests de componente (iter-16):
+- [x] `T-14 WorldCanvas re-fetches chunks when worldId changes`
+- [x] `T-15 setZoom clamps to minimum 0.25`
+- [x] `T-15b setZoom clamps to maximum 8`
+- [x] `T-16 exportToPng returns a non-empty Blob`
+- [x] `T-17 onTileSelected receives correct tile coordinates on click`
+
 ## 7. Notas de implementación
 - Chunk size nominal: 128x128 tiles. En los bordes derecho e inferior, el bitmap usa el tamano real devuelto por `computeChunkDimensions`; no se anade padding hasta 128x128. Cada chunk se pinta a un `HTMLCanvasElement` cacheado; al redibujar, se copia a `ctx.drawImage()` con dimensiones escaladas por zoom.
-- Paleta de bloques: mapping `tileId -> color` embebido en el módulo (JSON estático). Los sprites detallados se posponen a v2; v1 usa colores planos.
-- `base64-rle-v1`: runs `(tileId: int16, count: uint16)`. Decodificar en un `Uint16Array`.
+- Paleta: `tileColors.ts` expone `getTileColor`, `getWallColor`, `getLiquidColor`. Sprites detallados pospuestos.
+- `base64-rle-v1`: runs `(tileId: int16, count: uint16)`, decodifica a `Int16Array`.
+- `base64-rle-v2`: header "TWv2" (8 bytes) + runs (10 bytes cada uno) + FRAME_BLOCK (6 bytes/entrada). Implementado en `decodeBase64RleV2` → `DecodedChunkV2`.
+- Render v2 en 3 pasadas: walls → tiles → liquids (función `renderChunkBitmapV2`).
+- Zoom rango `[0.25, 8]`. Centrado en cursor via `zoomAroundCursor`.
+- Viewport inicial centrado en `spawn_x/spawn_y` de `WorldMetadataDto`.
+- worldId change: limpia `bitmapCacheRef`, `chunkCacheRef`, `pendingRef` y recarga chunks.
+- `exportToPng()`: `canvas.toBlob('image/png')` devuelve `Promise<Blob>`.
+- Tipos migrados de `types.ts` local a `../api-client` (F1). `types.ts` eliminado.
 - El estado de pan/zoom vive en `useRef` para no provocar re-renders; el dibujo se dispara imperativamente.
 
 ## 8. Performance
@@ -101,8 +134,8 @@ Caché de bitmaps (unitarias):
 - Fallos de API delegados por `onError` del host (v1.1 opcional).
 
 ## 10. Estado
-- **Versión del contrato**: v1 (sin cambio - fix interno de render)
-- **Último cierre**: 2026-05-01 - cerrado fix P1 render de chunks parciales en bordes
+- **Versión del contrato**: v2 (breaking: nuevas props, handle extendido, tipos migrados a F1)
+- **Último cierre**: 2026-05-11 — iter-16 cerrada: decoder v2, capas, spawn, zoom [0.25,8], exportToPng, onTileSelected, worldId change, refactor tipos
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-007

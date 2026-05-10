@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { WorldCanvas, type WorldCanvasHandle } from '../WorldCanvas';
-import type { WorldMetadata, ApiClient, TilesChunk } from '../types';
+import type { WorldMetadata, ApiClient, TilesChunk } from '../../api-client';
 
 const mockMeta: WorldMetadata = {
   name: 'Test World',
@@ -11,6 +11,11 @@ const mockMeta: WorldMetadata = {
   seed: '12345',
   size: 'medium',
   hardmode: false,
+  spawn_x: 2100,
+  spawn_y: 240,
+  world_surface_y: 240,
+  rock_layer_y: 600,
+  hell_layer_y: 1100,
 };
 
 function encodeSingleRun(tileId: number, count: number): string {
@@ -35,7 +40,7 @@ function makeEmptyChunk(cx = 0, cy = 0, width = 128, height = 128): TilesChunk {
 function makeApiClient(): ApiClient {
   return {
     getTilesChunk: vi.fn().mockResolvedValue(makeEmptyChunk()),
-  };
+  } as unknown as ApiClient;
 }
 
 function makeApiClientForMetadata(metadata: WorldMetadata): ApiClient {
@@ -47,7 +52,7 @@ function makeApiClientForMetadata(metadata: WorldMetadata): ApiClient {
         return Promise.resolve(makeEmptyChunk(cx, cy, width, height));
       }
     ),
-  };
+  } as unknown as ApiClient;
 }
 
 function getDrawImageContexts(): Array<{ drawImage: ReturnType<typeof vi.fn> }> {
@@ -231,5 +236,79 @@ describe('WorldCanvas', () => {
     expect(typeof (handle as Record<string, unknown>)['redraw']).toBe('function');
     expect(typeof (handle as Record<string, unknown>)['screenToWorld']).toBe('function');
     expect(typeof (handle as Record<string, unknown>)['worldToScreen']).toBe('function');
+    expect(typeof (handle as Record<string, unknown>)['exportToPng']).toBe('function');
+  });
+
+  it('T-14 WorldCanvas re-fetches chunks when worldId changes', async () => {
+    const apiClient = makeApiClient();
+    const { rerender } = render(
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} />
+    );
+    await waitFor(() => {
+      expect(
+        (apiClient.getTilesChunk as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[0] === 'w1')
+      ).toBe(true);
+    });
+    (apiClient.getTilesChunk as ReturnType<typeof vi.fn>).mockClear();
+
+    rerender(<WorldCanvas worldId="w2" metadata={mockMeta} apiClient={apiClient} />);
+
+    await waitFor(() => {
+      expect(
+        (apiClient.getTilesChunk as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[0] === 'w2')
+      ).toBe(true);
+    });
+  });
+
+  it('T-15 setZoom clamps to minimum 0.25', () => {
+    const onReady = vi.fn();
+    render(
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={makeApiClient()} onReady={onReady} />
+    );
+    const handle = onReady.mock.calls[0]?.[0] as WorldCanvasHandle;
+    handle.setZoom(0.001);
+    const s0 = handle.worldToScreen(0, 0);
+    const s1 = handle.worldToScreen(1, 0);
+    expect(s1.px - s0.px).toBeCloseTo(0.25, 2);
+  });
+
+  it('T-15b setZoom clamps to maximum 8', () => {
+    const onReady = vi.fn();
+    render(
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={makeApiClient()} onReady={onReady} />
+    );
+    const handle = onReady.mock.calls[0]?.[0] as WorldCanvasHandle;
+    handle.setZoom(999);
+    const s0 = handle.worldToScreen(0, 0);
+    const s1 = handle.worldToScreen(1, 0);
+    expect(s1.px - s0.px).toBeCloseTo(8, 2);
+  });
+
+  it('T-16 exportToPng returns a non-empty Blob', async () => {
+    const onReady = vi.fn();
+    render(
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={makeApiClient()} onReady={onReady} />
+    );
+    const handle = onReady.mock.calls[0]?.[0] as WorldCanvasHandle;
+    const blob = await handle.exportToPng();
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.size).toBeGreaterThan(0);
+  });
+
+  it('T-17 onTileSelected receives correct tile coordinates on click', () => {
+    const onTileSelected = vi.fn();
+    render(
+      <WorldCanvas
+        worldId="w1"
+        metadata={mockMeta}
+        apiClient={makeApiClient()}
+        onTileSelected={onTileSelected}
+      />
+    );
+    const canvas = screen.getByTestId('world-canvas');
+    // spawn_x=2100, spawn_y=240, canvas 800×600, zoom=2
+    // panX=1900, panY=90 → screenToWorld(100,200)={x:1950,y:190}
+    fireEvent.click(canvas, { clientX: 100, clientY: 200 });
+    expect(onTileSelected).toHaveBeenCalledWith({ x: 1950, y: 190 });
   });
 });

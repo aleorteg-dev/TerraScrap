@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createChunkBitmapCache, renderChunkBitmap } from '../chunkBitmapCache';
+import {
+  createChunkBitmapCache,
+  renderChunkBitmap,
+  renderChunkBitmapV2,
+} from '../chunkBitmapCache';
+import type { DecodedChunkV2 } from '../rleDecoder';
+import { getTileColor } from '../tileColors';
+import { getWallColor, getLiquidColor } from '../tileColors';
 
 const REALISTIC_WORLD_WIDTH = 8400;
 const REALISTIC_WORLD_HEIGHT = 2400;
@@ -176,5 +183,92 @@ describe('createChunkBitmapCache', () => {
     expect(cache.size()).toBe(2);
     cache.clearWorld('w1');
     expect(cache.size()).toBe(0);
+  });
+});
+
+function makeV2Data(
+  overrides: Partial<{
+    tileId: number;
+    wallId: number;
+    liquidType: number;
+    liquidAmount: number;
+  }>
+): DecodedChunkV2 {
+  return {
+    tileId: new Int16Array([overrides.tileId ?? -1]),
+    wallId: new Uint16Array([overrides.wallId ?? 0]),
+    liquidType: new Uint8Array([overrides.liquidType ?? 0]),
+    liquidAmount: new Uint8Array([overrides.liquidAmount ?? 0]),
+    frameX: new Uint16Array([0]),
+    frameY: new Uint16Array([0]),
+    flags: new Uint8Array([0]),
+  };
+}
+
+describe('renderChunkBitmapV2', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('T-VL-1: draws wall color (fillRect) for tiles with wall_id > 0 and no tile', () => {
+    const data = makeV2Data({ wallId: 1 });
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
+    expect(ctx.fillRect).toHaveBeenCalledTimes(1);
+  });
+
+  it('T-VL-2: draws tile color (fillRect) for tiles with tile_id >= 0 and no wall', () => {
+    const data = makeV2Data({ tileId: 1 });
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
+    expect(ctx.fillRect).toHaveBeenCalledTimes(1);
+  });
+
+  it('T-VL-3: draws liquid color (fillRect) for tiles with liquid_type > 0 and amount > 0', () => {
+    const data = makeV2Data({ liquidType: 1, liquidAmount: 200 });
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
+    expect(ctx.fillRect).toHaveBeenCalledTimes(1);
+  });
+
+  it('T-VL-4: layer order — wall drawn before tile, tile before liquid', () => {
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    // Use once so subsequent tests fall back to the default mockCtx
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    const data = makeV2Data({ tileId: 1, wallId: 1, liquidType: 1, liquidAmount: 255 });
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+
+    expect(callOrder).toHaveLength(3);
+    expect(callOrder[0]).toBe(getWallColor(1));
+    expect(callOrder[1]).toBe(getTileColor(1));
+    expect(callOrder[2]).toBe(getLiquidColor(1));
+  });
+
+  it('T-VL-5: tile with wall+tile renders 2 fillRect calls total', () => {
+    const data = makeV2Data({ tileId: 2, wallId: 3 });
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
+    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
+  });
+
+  it('T-VL-6: air tile with liquid_amount=0 renders 0 fillRect calls', () => {
+    const data = makeV2Data({ liquidType: 1, liquidAmount: 0 });
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
+    expect(ctx.fillRect).not.toHaveBeenCalled();
   });
 });

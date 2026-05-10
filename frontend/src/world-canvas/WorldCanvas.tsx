@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, type FC } from 'react';
-import type { WorldMetadata, TilesChunk, ApiClient } from './types';
+import type { WorldMetadata, TilesChunk, ApiClient } from '../api-client';
 import {
   type ViewState,
   screenToWorld,
@@ -8,17 +8,19 @@ import {
   zoomAroundCursor,
   visibleChunks,
 } from './viewport';
-import { decodeBase64RleV1 } from './rleDecoder';
+import { decodeBase64RleV1, decodeBase64RleV2 } from './rleDecoder';
 import {
   createChunkBitmapCache,
   renderChunkBitmap,
+  renderChunkBitmapV2,
   type ChunkBitmapCache,
+  type RenderedChunk,
 } from './chunkBitmapCache';
 import { computeChunkDimensions } from './chunkDimensions';
 
 const CHUNK_SIZE = 128;
-const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 32;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 8;
 const INITIAL_ZOOM = 2;
 
 export interface WorldCanvasHandle {
@@ -27,6 +29,7 @@ export interface WorldCanvasHandle {
   redraw(): void;
   screenToWorld(px: number, py: number): { x: number; y: number };
   worldToScreen(x: number, y: number): { px: number; py: number };
+  exportToPng(): Promise<Blob>;
 }
 
 export interface WorldCanvasProps {
@@ -35,6 +38,9 @@ export interface WorldCanvasProps {
   apiClient: ApiClient;
   onReady?: (handle: WorldCanvasHandle) => void;
   onTileClick?: (tile: { x: number; y: number }) => void;
+  onTileSelected?: (tile: { x: number; y: number }) => void;
+  showLayerLines?: boolean;
+  showSpawnPoint?: boolean;
 }
 
 export const WorldCanvas: FC<WorldCanvasProps> = ({
@@ -43,12 +49,13 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   apiClient,
   onReady,
   onTileClick,
+  onTileSelected,
+  showLayerLines = false,
+  showSpawnPoint = true,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Mutable render state — kept in refs to avoid re-renders on every frame
-  // panX/panY are initialized in ResizeObserver (first fire) once canvas dims are known.
   const viewRef = useRef<ViewState>({ panX: 0, panY: 0, zoom: INITIAL_ZOOM });
   const viewInitializedRef = useRef(false);
   const chunkCacheRef = useRef(new Map<string, Int16Array>());
@@ -58,23 +65,28 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   const isDraggingRef = useRef(false);
   const lastPointerRef = useRef({ x: 0, y: 0 });
 
-  // Prop mirrors — stable refs so callbacks never capture stale closures.
-  // Updated via a post-render effect (setting .current during render is forbidden
-  // by react-hooks/refs; effects run after render, before any RAF or event handler).
+  // Prop mirrors — updated post-render so callbacks never capture stale closures.
   const metadataRef = useRef(metadata);
   const worldIdRef = useRef(worldId);
   const apiClientRef = useRef<ApiClient>(apiClient);
   const onTileClickRef = useRef(onTileClick);
+  const onTileSelectedRef = useRef(onTileSelected);
   const onReadyRef = useRef(onReady);
+  const showLayerLinesRef = useRef(showLayerLines);
+  const showSpawnPointRef = useRef(showSpawnPoint);
+
   useEffect(() => {
     metadataRef.current = metadata;
     worldIdRef.current = worldId;
     apiClientRef.current = apiClient;
     onTileClickRef.current = onTileClick;
+    onTileSelectedRef.current = onTileSelected;
     onReadyRef.current = onReady;
-  }); // no dep array → runs after every render
+    showLayerLinesRef.current = showLayerLines;
+    showSpawnPointRef.current = showSpawnPoint;
+  });
 
-  // ─── Core render loop ────────────────────────────────────────────────────
+  // ─── Core render loop ────────────────────────────────────────────────────────
 
   const scheduleRedraw = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
@@ -88,6 +100,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       const meta = metadataRef.current;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = false;
+
       const chunks = visibleChunks(
         view,
         canvas.width,
@@ -96,6 +109,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         meta.height,
         CHUNK_SIZE
       );
+
       for (const { cx, cy } of chunks) {
         const rendered = bitmapCacheRef.current.get(worldIdRef.current, cx, cy);
         if (!rendered) continue;
@@ -106,31 +120,69 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         const pixelHeight = Math.ceil(dimensions.h * view.zoom);
         ctx.drawImage(rendered.canvas, pixelX, pixelY, pixelWidth, pixelHeight);
       }
+
+      // Optional layer lines (surface / rock / hell)
+      if (showLayerLinesRef.current) {
+        const lines = [
+          { y: meta.world_surface_y, color: '#44aa44' },
+          { y: meta.rock_layer_y, color: '#aa8844' },
+          { y: meta.hell_layer_y, color: '#cc4444' },
+        ] as const;
+        for (const line of lines) {
+          const screenY = Math.round((line.y - view.panY) * view.zoom);
+          if (screenY >= 0 && screenY < canvas.height) {
+            ctx.fillStyle = line.color;
+            ctx.fillRect(0, screenY, canvas.width, 1);
+          }
+        }
+      }
+
+      // Spawn point marker
+      if (showSpawnPointRef.current) {
+        const spawn = worldToScreen(meta.spawn_x, meta.spawn_y, view);
+        ctx.fillStyle = '#ff6600';
+        ctx.fillRect(Math.round(spawn.px) - 3, Math.round(spawn.py) - 3, 7, 7);
+      }
     });
   }, []); // stable: all deps are refs
 
-  // ─── Chunk loading ────────────────────────────────────────────────────────
+  // ─── Chunk loading ────────────────────────────────────────────────────────────
 
   const loadChunk = useCallback(
     (cx: number, cy: number) => {
       const key = `${cx}:${cy}`;
-      if (chunkCacheRef.current.has(key) || pendingRef.current.has(key)) return;
+      const hasBitmap = bitmapCacheRef.current.get(worldIdRef.current, cx, cy) !== undefined;
+      if (hasBitmap || chunkCacheRef.current.has(key) || pendingRef.current.has(key)) return;
       pendingRef.current.add(key);
       apiClientRef.current
         .getTilesChunk(worldIdRef.current, cx, cy, CHUNK_SIZE)
         .then((chunk: TilesChunk) => {
-          const tiles = decodeBase64RleV1(chunk.payload, chunk.width, chunk.height);
-          chunkCacheRef.current.set(key, tiles);
           const meta = metadataRef.current;
-          const rendered = renderChunkBitmap(
-            worldIdRef.current,
-            cx,
-            cy,
-            tiles,
-            CHUNK_SIZE,
-            meta.width,
-            meta.height
-          );
+          let rendered: RenderedChunk;
+          if (chunk.encoding === 'base64-rle-v2') {
+            const decoded = decodeBase64RleV2(chunk.payload, chunk.width, chunk.height);
+            rendered = renderChunkBitmapV2(
+              worldIdRef.current,
+              cx,
+              cy,
+              decoded,
+              CHUNK_SIZE,
+              meta.width,
+              meta.height
+            );
+          } else {
+            const tiles = decodeBase64RleV1(chunk.payload, chunk.width, chunk.height);
+            chunkCacheRef.current.set(key, tiles);
+            rendered = renderChunkBitmap(
+              worldIdRef.current,
+              cx,
+              cy,
+              tiles,
+              CHUNK_SIZE,
+              meta.width,
+              meta.height
+            );
+          }
           bitmapCacheRef.current.set(rendered);
           pendingRef.current.delete(key);
           scheduleRedraw();
@@ -140,7 +192,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         });
     },
     [scheduleRedraw]
-  ); // stable because scheduleRedraw is stable
+  );
 
   const loadVisibleChunks = useCallback(() => {
     const canvas = canvasRef.current;
@@ -158,9 +210,24 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
     for (const { cx, cy } of chunks) {
       loadChunk(cx, cy);
     }
-  }, [loadChunk]); // stable
+  }, [loadChunk]);
 
-  // ─── Lifecycle ────────────────────────────────────────────────────────────
+  // ─── worldId change: clear stale caches and reload ───────────────────────────
+
+  const prevWorldIdRef = useRef(worldId);
+  useEffect(() => {
+    const prevId = prevWorldIdRef.current;
+    if (prevId !== worldId) {
+      bitmapCacheRef.current.clearWorld(prevId);
+      chunkCacheRef.current.clear();
+      pendingRef.current.clear();
+      prevWorldIdRef.current = worldId;
+      loadVisibleChunks();
+      scheduleRedraw();
+    }
+  }, [worldId, loadVisibleChunks, scheduleRedraw]);
+
+  // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     loadVisibleChunks();
@@ -182,13 +249,11 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         viewInitializedRef.current = true;
         const meta = metadataRef.current;
         const zoom = INITIAL_ZOOM;
-        // Center on horizontal midpoint, vertical ~20% depth (approximate surface).
-        const centerX = meta.width / 2;
-        const centerY = Math.floor(meta.height / 5);
+        // Center on spawn point
         viewRef.current = {
           zoom,
-          panX: centerX - canvas.width / (2 * zoom),
-          panY: centerY - canvas.height / (2 * zoom),
+          panX: meta.spawn_x - canvas.width / (2 * zoom),
+          panY: meta.spawn_y - canvas.height / (2 * zoom),
         };
       }
       loadVisibleChunks();
@@ -232,9 +297,22 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       redraw: scheduleRedraw,
       screenToWorld: (px: number, py: number) => screenToWorld(px, py, viewRef.current),
       worldToScreen: (x: number, y: number) => worldToScreen(x, y, viewRef.current),
+      exportToPng(): Promise<Blob> {
+        return new Promise((resolve, reject) => {
+          const canvas = canvasRef.current;
+          if (!canvas) {
+            reject(new Error('Canvas not mounted'));
+            return;
+          }
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('toBlob returned null'));
+          }, 'image/png');
+        });
+      },
     };
     onReadyRef.current(handle);
-  }, [scheduleRedraw, loadVisibleChunks]); // stable → fires once
+  }, [scheduleRedraw, loadVisibleChunks]);
 
   // Non-passive wheel listener (must call preventDefault)
   useEffect(() => {
@@ -255,7 +333,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, [loadVisibleChunks, scheduleRedraw]);
 
-  // ─── Mouse event handlers ─────────────────────────────────────────────────
+  // ─── Mouse event handlers ─────────────────────────────────────────────────────
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
@@ -286,17 +364,18 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   }, []);
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!onTileClickRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
     const world = screenToWorld(px, py, viewRef.current);
-    onTileClickRef.current({
+    const tile = {
       x: Math.floor(world.x),
       y: Math.floor(world.y),
-    });
+    };
+    onTileClickRef.current?.(tile);
+    onTileSelectedRef.current?.(tile);
   }, []);
 
   return (

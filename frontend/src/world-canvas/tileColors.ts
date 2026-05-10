@@ -38,10 +38,52 @@ const TILE_COLORS: Readonly<Record<number, string>> = {
   165: '#ffddaa', // Marble
 };
 
+const WALL_COLORS: Readonly<Record<number, string>> = {
+  1: '#5a4a38', // Stone Wall
+  2: '#3d2d1e', // Dirt Wall
+  4: '#4a3a28', // Wood Wall
+  5: '#3a2a18', // Gray Brick Wall
+  7: '#4a3a28', // Copper Brick Wall
+  10: '#5a5a5a', // Obsidian Brick Wall
+  14: '#4a4a6a', // Pearlstone Brick Wall
+  16: '#5a3a3a', // Red Brick Wall
+  17: '#5a4a3a', // Clay Brick Wall
+  23: '#3a4a5a', // Blue Brick Wall
+  24: '#3a3a5a', // Ice Brick Wall
+  28: '#3a5a3a', // Jungle Wall
+  63: '#3a3a3a', // Ebonstone Brick Wall
+  64: '#5a5a5a', // Crimstone Brick Wall
+  65: '#6a5a3a', // Sandstone Brick Wall
+  68: '#4a3a2a', // Mushroom Wall
+  83: '#3a5a6a', // Glass Wall
+  87: '#3a3a5a', // Blue Dungeon Brick Wall
+  88: '#5a3a3a', // Green Dungeon Brick Wall
+  89: '#5a3a2a', // Pink Dungeon Brick Wall
+  168: '#6a5a5a', // Marble Wall
+  175: '#5a5a6a', // Granite Wall
+};
+
+const LIQUID_COLORS: Readonly<Record<number, string>> = {
+  1: '#2266cc', // water
+  2: '#cc4400', // lava
+  3: '#ddaa00', // honey
+  4: '#cc88ff', // shimmer
+};
+
 const AIR_COLOR = '#1a1a2e';
 const DEFAULT_TILE_COLOR = '#555555';
+const DEFAULT_WALL_COLOR = '#3a3a3a';
+const DEFAULT_LIQUID_COLOR = '#2266cc';
 
 export function getTileColor(tileId: number): string {
   if (tileId < 0) return AIR_COLOR;
   return TILE_COLORS[tileId] ?? DEFAULT_TILE_COLOR;
+}
+
+export function getWallColor(wallId: number): string {
+  return WALL_COLORS[wallId] ?? DEFAULT_WALL_COLOR;
+}
+
+export function getLiquidColor(liquidType: number): string {
+  return LIQUID_COLORS[liquidType] ?? DEFAULT_LIQUID_COLOR;
 }
