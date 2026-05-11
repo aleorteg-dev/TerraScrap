@@ -59,6 +59,12 @@ Flujo principal (máquina de estados implícita):
 - [x] `test_canvas_host_grows_with_viewport`
 - [x] `test_search_panel_has_stable_width`
 - [x] `test_app_renders_without_console_errors`
+- [x] `smoke: toolbar visible with canvas and search-panel in WorldLoaded`
+- [x] `toolbar zoom in calls setZoom with incremented value`
+- [x] `toolbar export PNG calls exportToPng and createObjectURL`
+- [x] `tile selection triggers getTileDetail and shows tile detail panel`
+- [x] `NPC list click centers canvas on NPC coords`
+- [x] `mobile: sidebar has data-open=false at viewport <768px`
 
 ## 7. Notas de implementación
 - Usar `useReducer` con `State = NoWorld | { kind: "WorldLoaded"; worldId; metadata; matches }`.
@@ -72,27 +78,33 @@ Flujo principal (máquina de estados implícita):
 - Gestionados por un `ErrorBoundary` sencillo en la raíz.
 
 ## 10. Estado
-- **Versión del contrato**: v1.1
-- **Último cierre**: 2026-05-05 (layout raiz fluido)
+- **Versión del contrato**: v2.0
+- **Último cierre**: 2026-05-11 (toolbar, NPC panel, tile detail panel, layout móvil — iter-19)
 - **Iteración actual**: cerrada
 
 ### Decisiones tomadas
 - `useReducer` con `AppState = NoWorld | WorldLoaded` (tipo discriminado).
+- `WorldLoaded` extendido con `selectedTile`, `tileDetail`, `npcs`, `layers`, `maskMode`, `sidebarOpen`, `panels`, `zoom`.
+- Estado de tipos separado en `appState.ts`; contexto en `AppContext.tsx`; sub-componentes en `components/`.
+- `AppContext` (no exportado desde `index.ts`) proporciona `state/dispatch/canvasHandle` a `Toolbar`, `NpcPanel`, `TileDetailPanel`.
+- `onMatchFocus` ahora también despacha `SELECT_TILE` → trigger lazy-load de `getTileDetail`.
+- NPC loading: `useEffect` que vigila `panels.npcs && npcs === null`; carga una sola vez por mundo.
+- `layers.grid` se pasa como `showLayerLines` a `WorldCanvas`; otros layers (`walls/liquids/wires`) almacenados en estado pero pendientes de contrato F3 (deuda anotada).
+- `maskMode` se pasa como `style="mask"` a `HighlightOverlay`.
+- `sidebarOpen` inicializa con `window.innerWidth >= 768`; botón toggle en header visible en mobile.
 - `canvasHandle` en `useState` (no `useRef`) para que `handleMatchFocus` reciba el valor actual.
 - `sessionStorage` persiste `terra_world_id` + `terra_world_metadata`; se recupera en `readSessionState` (lazy init de `useReducer`).
-- `deleteWorld` falla silenciosamente: se muestra toast pero se cierra la sesión local igualmente (sesiones en memoria, pueden haber expirado).
-- `ErrorBoundary` clase mínima en el mismo fichero (no necesita módulo propio).
-- `src/App.tsx` re-exporta desde `./app-shell` para mantener compatibilidad con cualquier import legacy.
+- `deleteWorld` falla silenciosamente: se muestra toast pero se cierra la sesión local igualmente.
+- `ErrorBoundary` clase mínima en el mismo fichero.
 - Layout `WorldLoaded`: `search-panel` queda a la izquierda con ancho fijo `320px`; `world-canvas` ocupa la columna restante con `minmax(0, 1fr)`.
-- Chequeo visual manual 2026-05-05 con Chrome headless y sesion `WorldLoaded` simulada:
-  - 1024 px: `rootWidth=1024`, columnas `320px 704px`, sin overflow horizontal.
-  - 1440 px: `rootWidth=1440`, columnas `320px 1120px`, sin overflow horizontal.
-  - 1920 px: `rootWidth=1920`, columnas `320px 1600px`, sin overflow horizontal.
 
 ### Deuda / follow-ups
-- Smoke test manual pendiente (requiere backend vivo con `.wld` real). Anotar resultado aquí tras realizarlo.
+- Layer toggles `walls/liquids/wires`: almacenados en reducer pero no conectados a WorldCanvas (contrato F3 no tiene esas props todavía). Requiere iter F3.1 + actualización de api-contract.
+- `zoomToFit()` en toolbar: WorldCanvasHandle no expone este método aún. Requiere iter F3.2.
+- Panel propiedades del mundo (`WorldMetadataDto` extendido: `spawn_x/y`, capas): no implementado. Requiere que F1/api-contract estén al día con `base64-rle-v2`.
+- Smoke test manual pendiente (requiere backend vivo con `.wld` real).
 - P1 deployment-docker: empaquetar frontend con nginx.
-- Iteracion mobile pendiente: definir layout por debajo de `1024px` y decidir si el panel colapsa, pasa a drawer o se apila sobre el canvas.
+- Iteración mobile full: definir layout drawer / stack por debajo de `768px`.
 
 ### Evolución propuesta para paridad con TerraMap
 

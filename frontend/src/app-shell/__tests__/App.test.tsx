@@ -8,7 +8,8 @@ import userEvent from '@testing-library/user-event';
 import type { UploadProps } from '../../ui-upload';
 import type { WorldCanvasProps } from '../../world-canvas';
 import type { SearchPanelProps } from '../../search-panel';
-import type { SearchMatch, WorldMetadata, ApiClient } from '../../api-client';
+import type { SearchMatch, WorldMetadata, TileDetail, Npc, ApiClient } from '../../api-client';
+import { INITIAL_ZOOM, ZOOM_STEP } from '../appState';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 vi.mock('../../ui-upload', () => ({ UploadWorld: vi.fn() }));
@@ -38,21 +39,49 @@ const mockMetadata: WorldMetadata = {
 
 const WORLD_ID = 'test-world-uuid';
 
+const mockTileDetail: TileDetail = {
+  x: 10,
+  y: 20,
+  tile_id: 1,
+  wall_id: null,
+  liquid_type: 'none',
+  liquid_amount: 0,
+  frame_x: null,
+  frame_y: null,
+  chest_id: null,
+  sign_id: null,
+  tile_entity_id: null,
+};
+
+const mockNpcs: Npc[] = [
+  { id: 1, name: 'Guide', type: 'town', x: 150, y: 300 },
+  { id: 2, name: 'Merchant', type: 'town', x: 200, y: 250 },
+];
+
 const mockCenterOn = vi.fn();
+const mockSetZoom = vi.fn();
+const mockExportToPng = vi.fn();
 const mockHandle = {
   centerOn: mockCenterOn,
-  setZoom: vi.fn(),
+  setZoom: mockSetZoom,
   redraw: vi.fn(),
   screenToWorld: vi.fn(() => ({ x: 0, y: 0 })),
   worldToScreen: vi.fn(() => ({ px: 0, py: 0 })),
+  exportToPng: mockExportToPng,
 };
 
 const mockDeleteWorld = vi.fn();
+const mockGetTileDetail = vi.fn();
+const mockListNpcs = vi.fn();
+
 const mockApiClient: ApiClient = {
   uploadWorld: vi.fn(),
   getWorldMetadata: vi.fn(),
   getTilesChunk: vi.fn(),
+  getTileDetail: mockGetTileDetail,
+  listNpcs: mockListNpcs,
   searchItems: vi.fn(),
+  getItem: vi.fn(),
   searchInWorld: vi.fn(),
   deleteWorld: mockDeleteWorld,
 } as unknown as ApiClient;
@@ -60,6 +89,7 @@ const mockApiClient: ApiClient = {
 // Prop-capture refs — populated by mockImplementation in beforeEach
 let capturedUploadProps: UploadProps | null = null;
 let capturedSearchPanelProps: SearchPanelProps | null = null;
+let capturedCanvasProps: WorldCanvasProps | null = null;
 let originalClientWidthDescriptor: PropertyDescriptor | undefined;
 let injectedStyle: HTMLStyleElement | null = null;
 
@@ -158,20 +188,27 @@ beforeEach(() => {
   vi.clearAllMocks();
   capturedUploadProps = null;
   capturedSearchPanelProps = null;
+  capturedCanvasProps = null;
   sessionStorage.clear();
   setViewportWidth(1440);
 
   mockDeleteWorld.mockResolvedValue(undefined);
+  // Never resolves by default — prevents unexpected state updates in other tests
+  mockGetTileDetail.mockReturnValue(new Promise<TileDetail>(() => {}));
+  mockListNpcs.mockReturnValue(new Promise<Npc[]>(() => {}));
+  mockExportToPng.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
 
   vi.mocked(UploadWorld).mockImplementation((props: UploadProps) => {
     capturedUploadProps = props;
     return React.createElement('div', { 'data-testid': 'upload-world' });
   });
 
-  vi.mocked(WorldCanvas).mockImplementation(({ onReady }: WorldCanvasProps) => {
+  vi.mocked(WorldCanvas).mockImplementation((props: WorldCanvasProps) => {
+    capturedCanvasProps = props;
+    const { onReady } = props;
     React.useEffect(() => {
       onReady?.(mockHandle);
-    }, [onReady]); // onReady = stable setCanvasHandle setter — runs once on mount
+    }, [onReady]);
     return React.createElement('div', { 'data-testid': 'world-canvas' });
   });
 
@@ -225,7 +262,7 @@ function renderLoadedAppInRoot(): HTMLElement {
   return renderAppInRoot();
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// ── Tests: existing ───────────────────────────────────────────────────────────
 describe('App', () => {
   it('T-01 renders UploadWorld in initial state', () => {
     render(<App apiClient={mockApiClient} />);
@@ -256,12 +293,11 @@ describe('App', () => {
     render(<App apiClient={mockApiClient} />);
     triggerUpload();
 
-    // Wait for canvasHandle to propagate (onReady effect + re-render)
     await waitFor(() => expect(capturedSearchPanelProps).not.toBeNull());
 
     const match: SearchMatch = { x: 100, y: 200, source: 'chest' };
     act(() => {
-      capturedSearchPanelProps?.onMatchFocus(match);
+      capturedSearchPanelProps?.onMatchFocus(match, 0);
     });
 
     expect(mockCenterOn).toHaveBeenCalledWith(100, 200);
@@ -380,5 +416,103 @@ describe('App', () => {
     } finally {
       consoleErrorSpy.mockRestore();
     }
+  });
+
+  // ── New: F6 deuda ──────────────────────────────────────────────────────────
+
+  it('smoke: toolbar visible with canvas and search-panel in WorldLoaded', () => {
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    expect(screen.getByRole('toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId('world-canvas')).toBeInTheDocument();
+    expect(screen.getByTestId('search-panel')).toBeInTheDocument();
+  });
+
+  it('toolbar zoom in calls setZoom with incremented value', async () => {
+    const user = userEvent.setup();
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    const zoomInBtn = screen.getByRole('button', { name: /zoom in/i });
+    await user.click(zoomInBtn);
+
+    expect(mockSetZoom).toHaveBeenCalledWith(INITIAL_ZOOM + ZOOM_STEP);
+  });
+
+  it('toolbar export PNG calls exportToPng and createObjectURL', async () => {
+    const user = userEvent.setup();
+    const mockBlob = new Blob(['fake-png'], { type: 'image/png' });
+    mockExportToPng.mockResolvedValue(mockBlob);
+
+    const createObjectURL = vi.fn(() => 'blob:mock-url');
+    const revokeObjectURL = vi.fn();
+    const origCreate = URL.createObjectURL;
+    const origRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+
+    try {
+      render(<App apiClient={mockApiClient} />);
+      triggerUpload();
+
+      await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+      const exportBtn = screen.getByRole('button', { name: /export png/i });
+      await user.click(exportBtn);
+
+      await waitFor(() => expect(mockExportToPng).toHaveBeenCalled());
+      await waitFor(() => expect(createObjectURL).toHaveBeenCalledWith(mockBlob));
+    } finally {
+      URL.createObjectURL = origCreate;
+      URL.revokeObjectURL = origRevoke;
+    }
+  });
+
+  it('tile selection triggers getTileDetail and shows tile detail panel', async () => {
+    mockGetTileDetail.mockResolvedValue(mockTileDetail);
+
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    act(() => {
+      capturedCanvasProps?.onTileSelected?.({ x: 10, y: 20 });
+    });
+
+    await waitFor(() => expect(mockGetTileDetail).toHaveBeenCalledWith(WORLD_ID, 10, 20));
+    await waitFor(() => expect(screen.getByTestId('tile-detail-panel')).toBeInTheDocument());
+  });
+
+  it('NPC list click centers canvas on NPC coords', async () => {
+    const user = userEvent.setup();
+    mockListNpcs.mockResolvedValue(mockNpcs);
+
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    const npcToggle = screen.getByRole('button', { name: /npcs/i });
+    await user.click(npcToggle);
+
+    await waitFor(() => expect(screen.getByText('Guide')).toBeInTheDocument());
+
+    const guideBtn = screen.getByRole('button', { name: /guide/i });
+    await user.click(guideBtn);
+
+    expect(mockCenterOn).toHaveBeenCalledWith(150, 300);
+  });
+
+  it('mobile: sidebar has data-open=false at viewport <768px', () => {
+    setViewportWidth(767);
+    const root = renderLoadedAppInRoot();
+    const sidebar = root.querySelector('.app-sidebar');
+
+    expect(sidebar).not.toBeNull();
+    expect(sidebar).toHaveAttribute('data-open', 'false');
   });
 });
