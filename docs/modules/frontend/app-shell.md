@@ -125,50 +125,26 @@ Esta verificación queda pendiente de confirmación con `.wld` real (ver Deuda).
 ### Deuda / follow-ups
 - Layer toggles `walls/liquids/wires`: almacenados en reducer pero no conectados a WorldCanvas (contrato F3 no tiene esas props todavía). Requiere iter F3.1 + actualización de api-contract.
 - `zoomToFit()` en toolbar: WorldCanvasHandle no expone este método aún. Requiere iter F3.2.
-- Panel propiedades del mundo (`WorldMetadataDto` extendido: `spawn_x/y`, capas): no implementado. Requiere que F1/api-contract estén al día con `base64-rle-v2`.
+- Panel propiedades del mundo (`WorldMetadataDto` extendido: `spawn_x/y`, capas): no implementado.
 - Smoke test manual pendiente (requiere backend vivo con `.wld` real).
-- P1 deployment-docker: empaquetar frontend con nginx.
-- Iteración mobile full: definir layout drawer / stack por debajo de `768px`.
 
 ### Evolución propuesta para paridad con TerraMap
 
 F6 debe coordinar los controles globales, porque es el único módulo que conoce canvas, búsqueda y API.
 
-Controles candidatos:
-- **Toolbar global**: cerrar mundo, `zoom-to-fit`, limpiar resaltado, exportar PNG, anterior/siguiente match.
-- **Panel "Propiedades del mundo"** (toggleable): usa `WorldMetadataDto` extendido (`spawn_x/y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`, `version`, `seed`, `size`, `hardmode`).
-- **Panel "NPCs"** (toggleable): lista NPCs vía `apiClient.getNpcs(worldId)`. Click en un NPC → `canvasHandle.centerOn(npc.x, npc.y)`. Carga lazy al primer despliegue del panel; cache en estado del reducer.
-- **Panel "Tile seleccionado"** (visible cuando `selectedTile != null`): muestra `TileDetailDto` recibido vía `apiClient.getTileDetail(worldId, x, y)` tras `onTileSelect` de F3. Limpiar selección oculta el panel.
-- **Estado en reducer**: añadir `selectedTile: {x,y} | null`, `focusedMatchIndex: number | null`, `npcs: NpcSummary[] | null`, `tileDetail: TileDetail | null`, `panels: { properties, npcs, tile }: { open: boolean }`.
-
-Reducer extendido (esquema):
-```ts
-type WorldLoaded = {
-  kind: "WorldLoaded";
-  worldId: string;
-  metadata: WorldMetadata;
-  matches: SearchMatch[] | null;
-  focusedMatchIndex: number | null;
-  selectedTile: { x: number; y: number } | null;
-  tileDetail: TileDetail | null;
-  npcs: NpcSummary[] | null;
-  panels: { properties: boolean; npcs: boolean; tile: boolean };
-};
-```
+Pendiente:
+- **Toolbar global**: añadir `zoom-to-fit` y controles anterior/siguiente match.
+- **Panel "Propiedades del mundo"**: mostrar `WorldMetadataDto` extendido (`spawn_x/y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`, `version`, `seed`, `size`, `hardmode`).
+- **Layer toggles**: conectar `walls/liquids/wires` a props reales de F3 cuando existan.
+- **Export PNG con overlay**: hoy F6 exporta el canvas base mediante `exportToPng()`; falta componer overlay si se quiere incluir resaltados.
 
 Restricciones:
 - no meter lógica de parsing/render en F6.
 - no abrir endpoints nuevos hasta que `api-contract.md`, B5 y F1 estén actualizados.
 - mantener controles como composición de contratos públicos de F3/F4/F5.
-- export PNG: F6 obtiene canvas base de `canvasHandle.exportImage({ includeOverlay: true })`; F5 expone `getCanvas()` consumido internamente por F3.
+- export PNG: F6 obtiene hoy el canvas base de `canvasHandle.exportToPng()`. Para incluir resaltados habrá que coordinar F5/F3.
 
 Tests mínimos futuros:
 - next/previous match llama `centerOn` con wrap-around y actualiza `focusedMatchIndex`.
 - `zoom-to-fit` invoca `canvasHandle.zoomToFit()`.
-- export PNG produce un Blob descargable y no rompe si `matches=null`.
-- click en tile dispara `getTileDetail`; muestra panel; limpiarlo cierra panel y nulifica `selectedTile`.
-- abrir panel NPCs por primera vez llama `getNpcs` una sola vez (cache).
 - panel propiedades muestra `world_surface_y` formateado.
-- error de `getTileDetail` muestra toast y deja `selectedTile` sin cambiar.
-
-Estado: planificado, no implementado.

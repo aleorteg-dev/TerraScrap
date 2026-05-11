@@ -144,9 +144,9 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 - `_err()` helper centraliza los errores; usa `Mapping[str, object]` para `details`
   (covariant) en lugar de `dict` (invariant) para cumplir mypy --strict sin `Any` explícito.
 - `_OkDto` type alias (union) evita línea larga en la firma de `_ok()`.
-- `DELETE /api/worlds/{id}` llama `repo.get()` antes de `repo.delete()` porque el contrato
-  de `WorldRepository.delete()` no lanza `WorldNotFoundError` (silencia el key faltante).
-  Se anotó en deuda que sería más limpio añadir `delete_strict` al repositorio.
+- `DELETE /api/worlds/{id}` nació usando `repo.get()` antes de `repo.delete()` porque el contrato
+  de `WorldRepository.delete()` no lanzaba `WorldNotFoundError`. El flujo vigente usa
+  `repo.delete_strict()`.
 - Encoding `base64-rle-v1` **spec confirmado y corregido (bugfix 2026-04-27)**:
   array plano fila-mayor (`y` outer, `x` inner), RLE sobre tile_id únicamente.
   Cada run: `(tileId: int16LE, count: uint16LE)` = 4 bytes. Aire → -1. Max run: 65535.
@@ -159,7 +159,7 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 - Extraído helper puro `_chunk_bounds(cx, cy, size, world_w, world_h) → (start_x, start_y, w, h)` para facilitar tests.
 - Añadidos tests T-14 (index→tiles), T-15 (out-of-bounds→empty), T-16 (unit de `_chunk_bounds`).
 - El test T-13 preexistente usaba `chunk_x=0, chunk_y=0`, lo que enmascaraba el bug (`0 × size = 0`).
-- Deuda registrada en F3: viewport inicial arranca en (0,0) = cielo puro; fix en iteración F3.
+- El bug complementario de viewport inicial en F3 quedó corregido en su iteración.
 
 ## 14. Decisiones tomadas (realineacion encoding 2026-04-30)
 
@@ -190,19 +190,7 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 12. Deuda / follow-ups
 
-Todas las deudas pendientes de la familia API v0.2 quedan **cerradas en iter-11 (2026-05-09)**.
-
-- **`WorldRepository.delete_strict`**: cerrado iter-032. DELETE invoca `delete_strict()` directamente; 204 si elimina, 404 `world_not_found` si id ausente o expirado.
-- **503 para catálogo no disponible**: cerrado iter-032. `/api/items` y `/api/items/{id}` devuelven 503 `code:"catalog_unavailable"`.
-- **DELETE estricto contractual (iter-11)**: cerrado 2026-05-09. Test `test_delete_world_invokes_delete_strict` verifica la invocación; T-09/T-10 cubren 204/404.
-- **`search` con `frame_x` / `frame_y` (iter-11)**: cerrado 2026-05-09. Query params opcionales filtran matches por frame exacto del tile en `world.tiles[m.x][m.y]`. Si solo se pasa uno, el otro queda libre. Tests: `test_search_filters_by_frame_x_and_frame_y`, `test_search_frame_x_only_filters_correctly`, `test_search_without_frame_filter_returns_all_matches`.
-- **`X-API-Version: 0.2` (iter-11)**: cerrado 2026-05-09. `errors.API_VERSION` promovido de `"v0.1.0"` a `"0.2"`. Header presente en 2xx, 4xx (incluye 404, 413, 422), 5xx, /docs y 503.
-- **OpenAPI snapshot (iter-11)**: cerrado 2026-05-09. `tests/unit/api_rest/openapi_snapshot.json` y `docs/contracts/openapi.json` regenerados. `test_openapi_schema_snapshot` desmarcado (compara schema vs snapshot). Añadido `test_contracts_openapi_json_matches_app_schema` que valida `docs/contracts/openapi.json == twi.app.create_app().openapi()`.
-- **world-canvas.md spec sync (F3)**: el doc de F3 dice "Uint16Array" pero la implementación usa `Int16Array`. Actualizar en iteración F3.
-- **wall_id / liquid / flags ausentes del payload v1**: cerrado parcialmente iter-08; default v1 hasta que F3 negocie v2.
 - **flags v2 actuator/wires**: encoder v2 sólo expone bit 0 (`has_frame`). Pendiente cuando `wld_parser` exponga campos discretos.
-- **Endpoint v0.2 `GET /tile`**: cerrado iter-09 (2026-05-09).
-- **Endpoint v0.2 `GET /npcs`**: cerrado iter-10 (2026-05-09).
 
 ### Evolución propuesta para paridad con TerraMap
 
@@ -218,17 +206,6 @@ Ver `docs/contracts/api-contract.md` §§2, 5 para el contrato oficial vigente. 
 
 La implementación de todo lo anterior ocurre en **iter-011** (B5.1 api-rest v0.2).
 OpenAPI y tipos frontend se regeneran en esa iteración.
-
-Tests mínimos futuros (iter-011):
-- `search con frame_x/frame_y filtra variantes`.
-- `search con include_containers=false oculta chest y object`.
-- `OpenAPI snapshot v0.2 actualizado`.
-
-Tests cerrados en iter-10:
-- `test_get_npcs_returns_all_npcs` — N NPCs → respuesta lista los N con `id/name/type/x/y`.
-- `test_get_npcs_town_only_filters_non_town` — `?town_only=true` solo devuelve `is_town_npc=True`.
-- `test_get_npcs_empty_world_returns_empty_list` — mundo sin NPCs → `{"npcs": []}`.
-- `test_get_npcs_unknown_world_returns_404` — id desconocido → 404 `world_not_found`.
 
 ## 16. Decisiones tomadas (iter-08, 2026-05-09)
 

@@ -287,18 +287,11 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `Reader.read_double()` y `Reader.read_float32()` añadidos a `_reader.py`.
 - `WldParseError(code="invalid_world_info")` lanzado si la sección 0 se trunca antes de los campos spawn/layer (T-31).
 
-### Decisiones tomadas (iter-021)
-- Via elegida: **B**, mantener soporte real acotado a v230-v279 y mejorar la UX del rechazo.
-- `_MAX_VERSION` sigue en 279. Los mundos v319 lanzan `UnsupportedWorldVersionError` sin intentar parsear secciones desconocidas.
-- `WldParseError` expone `details: dict[str, object]`.
-- `UnsupportedWorldVersionError` expone `detected_version` y `supported_range`, ademas de conservar `version`.
-- Fixture usada: `.wld` sintetico generado con `build_world(version=319)`, sin mundos reales.
-
 ### Decisiones tomadas (iter-020)
 - `Tile.liquid` (int) reemplazado por `liquid_type: Literal["none","water","lava","honey","shimmer"]` y `liquid_amount: int`. Cambio breaking de contrato → v2.0.
 - Shimmer detectado cuando `liquid_bits == 1` y `flags3 & 0x80`. Flags3 se lee solo cuando `flags2 & 0x01`; para shimmer, `_encode_liquid_tile` en el builder escribe `flags2=0x01, flags3=0x80`.
 - `_encode_liquid_tile` añadido al builder para tiles aéreos con líquido. Water/lava/honey: 2 bytes `[flags1, amount]`. Shimmer: 4 bytes `[flags1|0x01, 0x01, 0x80, amount]`.
-- Módulos dependientes (B2, B4, B5): ninguno accedía a `tile.liquid` → sin impacto. La deuda de actualizar `base64-rle-v2` para incluir `liquid_type+amount` queda registrada abajo.
+- Módulos dependientes (B2, B4, B5): ninguno accedía a `tile.liquid` → sin impacto.
 
 ### Decisiones tomadas (pre-iter-020)
 - `Sign` se añadió al contrato (referenciado en `World` pero sin definir en v0).
@@ -321,20 +314,11 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   todos los `Tile(...)` ya construidos en otros módulos (B2/B4/B5).
 
 ### Deuda / follow-ups
-- ~~**Signs: encoding Latin-1 / Windows-1252**~~: **CERRADO iter-07 (2026-05-11)** — `read_net_string` con fallback cp1252, T-51.
-- ~~**NPC homelessDespawn gate**~~: **CERRADO iter-07 (2026-05-11)** — gate `>= 280` en parser y builder, T-52.
-- **Encoding `base64-rle-v2`**: el endpoint `GET /tiles` usa `base64-rle-v1` (solo `tile_id`). Para exponer `liquid_type`/`liquid_amount` al frontend, el encoding debe actualizarse a `base64-rle-v2` (8 bytes/tile). Esta deuda se resolverá en **iter API.1** (B5 + F3). Anotar allí que `liquid_type` se codifica como 3 bits (`none=0, water=1, lava=2, honey=3, shimmer=4`) + `liquid_amount` (1 byte).
 - **Compatibilidad con mas mundos reales**: iter-026 valida corpus local `v279` y `v319`.
   Si aparecen mundos reales `v280-v318`, anadirlos al corpus y cubrir cualquier delta no
   observado antes de ampliar semantica expuesta por el dominio.
-- **Formato global fuera de B1**: `ruff format src/ tests/ --check` detecta formato pendiente
-  en `backend/tests/unit/world_repository/test_world_repository.py`. No se toca en esta
-  iteracion por pertenecer a B2 `world-repository`.
 - **numpy para TileGrid**: si el rendimiento de B4 tile-search resulta limitado por
   iteración Python sobre listas, sustituir `list[list[Tile]]` por un `ndarray` empaquetado.
-- **NPCs**: ~~sección no parseada~~ **CERRADO iter-03 (2026-05-06)** con T-32..T-34 en `test_npcs.py`.
-- ~~**TileEntities**~~: **CERRADO iter-04 (2026-05-07)** con T-35..T-44 en `test_tile_entities.py`.
-- ~~**Footer**~~: **CERRADO iter-05 (2026-05-09)** — `_validate_footer` en `_parser.py`, sección 6 en builder, T-45..T-48.
 
 ### Evolución propuesta para paridad con TerraMap
 
@@ -352,17 +336,9 @@ Brechas actuales:
 Contrato v2/v2.2 (parcialmente implementado):
 - `Tile.frame_x/frame_y`: implementado en iter-019.
 - `Tile.liquid_type/liquid_amount`: implementado en iter-020 (este iter).
-- ~~Pendiente: ampliar `WorldMetadata` con `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`.~~ **CERRADO iter-02 (2026-05-06)** — T-26..T-31 en `test_metadata_extended.py`.
-- ~~Pendiente: añadir `Npc` y `World.npcs`.~~ **CERRADO iter-03 (2026-05-06)** — T-32..T-34 en `test_npcs.py`.
-- ~~añadir `TileEntityItem`, `TileEntity` y `World.tile_entities`.~~ **CERRADO iter-04 (2026-05-07)**.
 - mantener compatibilidad de lectura para chests/signs y no hacer que B2/B4 dependan de detalles internos no documentados.
 
 Tests mínimos futuros:
-- parsear un tile frame-important y comprobar `frame_x/frame_y`.
-- parsear cada tipo de líquido soportado.
-- ~~parsear un NPC town simple.~~ **CERRADO iter-03 (2026-05-06)**.
-- ~~parsear tile entity con item simple (item frame o weapon rack).~~ **CERRADO iter-04**.
-- ~~parsear tile entity con inventario múltiple (mannequin o hat rack).~~ **CERRADO iter-04**.
 - ampliar el corpus con mundos reales adicionales de `v280-v318` si aparecen.
 
 Estado: NPCs implementado (iter-03). Tile entities implementado (iter-04).

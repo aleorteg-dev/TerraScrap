@@ -110,7 +110,6 @@ Componente:
 - **Deuda / follow-ups**:
   - Tests de integración con `WorldCanvas` real (pan/zoom + overlay) aplazados a iter de `app-shell` (F6).
   - `Path2D` batching para > 1000 matches no implementado (aplazado a iter de perf).
-  - `app-shell` necesita actualizar el cableado para pasar el prop `viewport` y `selectedTile` desde el estado global.
 
 ### Evolución propuesta para paridad con TerraMap
 
@@ -119,6 +118,3 @@ Componente:
 - Colores por `source`: block/wall/chest/object/liquid/tile_entity.
 - `selectedTile` con borde rojo animado.
 - `viewport` prop que reemplaza la derivación interna del zoom.
-
-**Pendiente:**
-- Panel de propiedades del mundo en F6 alimentado por metadata enriquecida (`spawn_x/y`, capas).

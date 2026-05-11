@@ -93,9 +93,8 @@ class Settings(BaseSettings):
 - `purge_interval_seconds: int = 60` añadido a `Settings` para hacer T-06 testeable sin
   parchear `asyncio.sleep`: el test usa `purge_interval_seconds=0` + `time.sleep(0.05)`.
 - `_NullCatalog` definido en `app.py` (implementa el Protocol `ItemCatalog`) para que el
-  arranque no falle cuando `item_cache_path` no existe; `search()` devuelve `[]` y `get()`
-  lanza `ItemNotFoundError`. El 503 sobre `/api/items` cuando el catálogo no existe
-  requeriría tocar `api_rest` → anotado en deuda.
+  arranque no falle cuando `item_cache_path` no existe. El comportamiento vigente lanza
+  `ItemCatalogUnavailableError` para que B5 responda 503 `catalog_unavailable`.
 - `_UploadSizeLimitMiddleware(BaseHTTPMiddleware)` comprueba el header `Content-Length`
   antes de que cualquier router lea el body. Si no hay `Content-Length` (chunked), pasa;
   el router de B5 ya limita el tamaño al leer el fichero.
@@ -106,7 +105,4 @@ class Settings(BaseSettings):
 
 ## 12. Deuda / follow-ups
 
-- **503 en /api/items sin caché**: resuelto en iter-032. `_NullCatalog.search()` y `_NullCatalog.get()` lanzan `ItemCatalogUnavailableError`; el router B5 captura y devuelve 503 `code:"catalog_unavailable"`. Tests T-27 y T-28 en `test_api_rest.py` verifican.
-- **Logging estructurado (JSON)**: resuelto en iter-07. `JsonFormatter` + `configure_logging` instalan handler JSON en el root logger; `RequestContextMiddleware` asigna `X-Request-Id` y emite access log con `request_id, method, path, status, duration_ms, error.code`. Tests T-08..T-11.
-- **`WorldRepository.delete_strict`**: resuelto en iter-032. Implementado en B2 y usado en DELETE endpoint de B5.
-- **503 sin catálogo (vista app-bootstrap)**: cubierto extremo a extremo en iter-07 con tests T-07/T-07b sobre `create_app(...)` configurado con `_NullCatalog`.
+- Ninguna activa.

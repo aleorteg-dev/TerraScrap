@@ -167,24 +167,7 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 ## 15. Deuda / follow-ups
 - `npm install --legacy-peer-deps`: actualizar `openapi-typescript` cuando publique soporte oficial para TypeScript 6.
 - `searchInWorld` aún no admite `frameX/frameY` opcionales (el backend ya los acepta tras iter-11). Pendiente para iteración futura.
-- F3 `world-canvas/types.ts`: la interfaz provisional `TilesChunk.encoding` se ha ampliado a `'base64-rle-v1' | 'base64-rle-v2'` para mantener compatibilidad estructural con el contrato F1 v0.2 (1 línea, sin cambio de comportamiento). El decoder real de v2 sigue pendiente como deuda en F3.
-- `uploadWorld` con `onProgress` usa `XMLHttpRequest` (fetch no soporta upload progress). Cuando F2 (ui-upload) consuma el callback, su test puede inyectar `xhrFactory` igual que el test T-14a.
-
-### Deuda cerrada en iter-14 (2026-05-10)
-
-| Ítem | Test |
-|------|------|
-| `getItem(itemId)` ya existía (iter-032); ahora 503 → `CatalogUnavailableError` tipado | T-10b |
-| `listNpcs(worldId, opts?: {townOnly?})` → `GET /worlds/{id}/npcs` | T-11, T-11b |
-| `getTileDetail(worldId, x, y)` → `GET /worlds/{id}/tile?x=&y=`; 400 `coordinates_out_of_bounds` → `CoordinatesOutOfBoundsError` | T-12, T-12b |
-| `getTilesChunk` 5º parámetro opcional `encoding`; 400 `invalid_encoding` → `InvalidEncodingError` | T-13, T-13b |
-| `deleteWorld` ahora estricto: 404 → `WorldNotFoundError` (alineado con v0.2 backend iter-032) | T-07 |
-| `uploadWorld(file, { onProgress })` con XHR; callback recibe valores monotónicos 0..100, fuerza 100 al `onload` | T-14a |
-| `X-API-Version` validado en `doRequest` y XHR `onload`; mismatch → `ApiVersionMismatchError`; ausente → tolerante | T-15a, T-15b, T-15c |
 
 ### Evolución propuesta para paridad con TerraMap (estado)
 
-- `getTileDetail` ✅ implementado (iter-14).
-- `listNpcs` ✅ implementado (iter-14).
-- `getTilesChunk` con `encoding` opcional ✅ implementado (iter-14).
 - `searchInWorld` con `frameX/frameY`: pendiente (deuda activa).

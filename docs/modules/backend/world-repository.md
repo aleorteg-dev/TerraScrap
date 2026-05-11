@@ -80,4 +80,4 @@ def create_in_memory_repository(
 - Thread-safety de `delete_strict` (iter-06): T-09d verifica que 10 threads concurrentes sobre el mismo id → exactamente 1 éxito, 9 `WorldNotFoundError`, sin crash.
 
 ### Deuda / follow-ups
-- `purge_expired` no se auto-ejecuta; `app-bootstrap` (B6) lo arranca periódicamente vía lifespan task (ya implementado).
+- Ninguna activa.

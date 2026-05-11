@@ -140,7 +140,7 @@ Nuevos tests de componente (iter-16):
 
 ## 11. Decisiones tomadas en iter-007
 
-- **Tipos provisionales**: `WorldMetadata`, `TilesChunk`, `ApiClient` se definen localmente en `types.ts` (espejo estructural del contrato público de F1). Cuando F1 ship, reemplazar re-exportando desde `src/api-client/index.ts`.
+- **Tipos compartidos**: `WorldMetadata`, `TilesChunk`, `ApiClient` se reexportan desde `src/api-client/index.ts`.
 - **Prop refs via useEffect**: La regla `react-hooks/refs` (v7) prohíbe escribir `ref.current` durante render. Se usa `useEffect` sin deps para sincronizar las props-mirrors después de cada render. Seguro porque los callbacks que leen esos refs siempre se ejecutan tras render (RAF, event handlers, effects).
 - **Paleta de colores plana**: v1 usa `tileId → hex` estático en `tileColors.ts`. Sprites detallados pospuestos a v2.
 - **Compatibilidad vitest@3 / vite@8**: `@vitejs/plugin-react@6` requiere vite@8 pero vitest@3 usa vite@7 internamente. Solución: esbuild config con `jsx: 'automatic'` en `vitest.config.ts` en lugar del plugin Babel.
@@ -157,22 +157,17 @@ Nuevos tests de componente (iter-16):
 ## 13. Decisiones tomadas (bugfix viewport-inicial 2026-04-27)
 
 - Viewport arrancaba en `panX:0, panY:0` (top-left = cielo puro). Invisible porque el renderer omite `tileId < 0` (aire).
-- Fix: `viewInitializedRef` flag; en el primer disparo de ResizeObserver, se calcula pan para centrar en `(world_width/2, floor(world_height/5))` (~20% depth ≈ superficie).
-- `world_height/5` es heurístico: superficie Terraria oscila entre ~15-25% de profundidad según tamaño; el valor 20% funciona para small/medium/large.
-- `spawnX`/`spawnY` no están en el contrato API (no en `WorldMetadata`). Si se añaden en el futuro, priorizar spawn sobre la heurística.
+- Fix inicial: `viewInitializedRef` flag; en el primer disparo de ResizeObserver se calculaba pan para centrar cerca de superficie.
+- Comportamiento vigente: el viewport inicial se centra en `spawn_x`/`spawn_y` de `WorldMetadata`.
 - Añadidos tests T-07 (actualizado), T-09 (actualizado), T-11 (nuevo).
 
 ## 12. Deuda / follow-ups
 
-- **Reemplazar tipos locales por F1**: Cuando F1 (api-client) esté cerrado, sustituir `import type { ... } from './types'` por `import type { ... } from '../api-client'` y borrar `types.ts`. Verificar compatibilidad estructural (WorldMetadata, TilesChunk, ApiClient).
 - **OffscreenCanvas**: `renderChunkBitmap` usa `HTMLCanvasElement`. Migrar a `OffscreenCanvas` para eliminar overhead de DOM en el hilo principal. Requiere feature-detection (`typeof OffscreenCanvas !== 'undefined'`) y actualización del mock en tests.
 - **Eliminar `chunkCacheRef`**: Los `Int16Array` raw ya no se usan en el render loop. Si no hay otro consumidor futuro (mipmap), se puede eliminar y usar `bitmapCacheRef` para deduplicar fetches.
 - **Mipmap zoom-out**: SP-08 del doc menciona chunks "mipmap" reducidos para zoom extremo. No implementado en v1.
 - **Pinch-to-zoom táctil**: SP-04. No implementado en v1; requires TouchEvent handling.
 - **Animación en centerOn**: SP-07 menciona animación opcional. v1 hace jump instantáneo.
-- **worldId change**: Si el padre cambia `worldId` sin desmontar (raro, pero posible), `chunkCacheRef`, `bitmapCacheRef` y `pendingRef` quedan obsoletos. Añadir `useEffect([worldId])` que llame `bitmapCacheRef.current.clearWorld(prevWorldId)` y limpie los otros caches.
-- **Centrar en spawn real**: Si B5/B1 exponen `spawnX`/`spawnY` en `WorldMetadata`, reemplazar la heurística `height/5` por las coordenadas de spawn reales. Anotar en B5 deuda.
-- **Lint global fuera de alcance F3**: `npm run lint` ya no reporta ficheros de `world-canvas`, pero sigue fallando por formato Prettier en `api-client`, `app-shell`, `highlight-overlay`, `search-panel` y `src/setupTests.ts`. Resolverlo requiere una iteracion separada o permiso explicito para tocar otros modulos.
 
 ### Evolución propuesta para paridad con TerraMap
 
@@ -184,38 +179,20 @@ Referencia local acotada:
 
 Brechas actuales:
 - `tileColors.ts` es una paleta mínima; TerraMap cubre cientos de tiles, walls y líquidos.
-- el chunk actual solo contiene `tile_id`; no se pueden pintar paredes, líquidos ni capas de fondo con fidelidad.
-- no hay selección visual de tile ni información de hover/click.
-- no hay zoom-to-fit ni export PNG.
+- no hay zoom-to-fit ni export PNG con overlay.
 
 Cambios candidatos:
 
-**Render por capas** (depende del encoding `base64-rle-v2` de B5):
-- decoder `decodeBase64RleV2(payload) → DecodedChunk` con arrays paralelos `tile_id`, `wall_id`, `liquid_type`, `liquid_amount`, `frame_x_packed`, `flags`.
-- pintar en orden: capa de fondo (sky/surface/rock/hell según `world_surface_y`/`rock_layer_y`/`hell_layer_y` de metadata) → walls → tiles → liquids (alpha sobre tiles).
-- `tileColors.ts` se divide en `tileColors`, `wallColors`, `liquidColors`, `layerColors`. `getTileColor()` extraído a función pura testeada.
-- corregir doc preexistente: `base64-rle-v1` usa `Int16Array`, no `Uint16Array`.
-
-**Selección visual**:
-- `WorldCanvasHandle.setSelectedTile(x: number, y: number | null): void` y emisión `onTileSelect?: (tile)=>void`.
-- F3 dibuja un marcador de selección (rectángulo rojo 1 tile) independiente de matches. Persiste tras pan/zoom hasta que F6 lo limpie.
+**Render por capas**:
+- ampliar paletas de `tileColors`, `wallColors`, `liquidColors` y `layerColors` para acercarse a TerraMap.
 
 **Zoom-to-fit**:
 - `WorldCanvasHandle.zoomToFit(): void` calcula `zoom = min(viewportW / worldW, viewportH / worldH)` clamped a `[minZoom, maxZoom]` y centra `(worldW/2, worldH/2)`.
 - `WorldCanvasHandle.getViewport(): { x, y, width, height, zoom }` para que F6 pueda persistir o exportar.
 
-**Export PNG**:
-- `WorldCanvasHandle.exportImage(opts?: { includeOverlay?: boolean }): Promise<Blob>` compone canvas base; si `includeOverlay`, F6 pasará un canvas adicional vía un nuevo handle (`HighlightOverlayHandle.getCanvas()`).
-- Implementación: `OffscreenCanvas` si disponible, fallback `HTMLCanvasElement.toBlob('image/png')`.
+**Export PNG con overlay**:
+- `WorldCanvasHandle.exportToPng()` ya exporta el canvas base. Falta una estrategia para componer overlay si el usuario quiere incluir resaltados.
 
 Tests mínimos futuros:
-- `decodeBase64RleV2` produce arrays paralelos con longitudes coherentes y tipos correctos.
-- `getTileColor` (puro): tile_id conocido → color; desconocido → fallback gris.
-- render pinta walls antes que tiles antes que liquids (orden verificable con spy de `fillRect`).
 - `zoomToFit` deja el mundo entero dentro del viewport (≤1 tile de margen).
-- `setSelectedTile(x, y)` dibuja marcador en `worldToScreen(x, y)` tras pan.
-- `setSelectedTile(null)` limpia marcador.
-- `exportImage()` resuelve un Blob `image/png` no vacío.
-- click emite `onTileSelect` con coordenadas estables tras pan/zoom.
-
-Estado: planificado, no implementado.
+- export con overlay incluye matches visibles cuando F5/F6 provean el canvas adicional.

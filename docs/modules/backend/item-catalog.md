@@ -162,7 +162,5 @@ Seed bundled: `backend/src/twi/item_catalog/data/items.seed.json` (schema v1, ~1
   - Fixture `sample_wiki_items.html` actualizado a estructura real de la wiki.
   - T-09 actualizado (id=1 es "Iron Pickaxe", se eliminó aserción de sprite_url).
 - **Deuda / follow-ups**:
-  - **(cerrada iter-13, 2026-05-10, T-23/T-25)** sprite_url/category/rarity/tooltip enriquecidos vía `refresh_cache_from_wiki(..., enrich=True)` que scrapea la página de cada ítem; el seed bundled `items_seed.v2.json` ya transporta los campos.
-  - **(cerrada iter-13, 2026-05-10, T-24/T-26)** `refresh_cache_from_wiki` ya no propaga `httpx.HTTPError` desnudo: 5xx → `WikiUnavailableError`, timeout reintentado 3× → `WikiUnavailableError`, selector roto → `WikiSchemaChangedError`. La cache previa se preserva.
   - Seed debe regenerarse (`python -m twi.item_catalog.refresh [--enrich]`) si la wiki añade nuevos ítems o cambian sprites.
   - `app.py` (B6) sigue cargando `items.seed.json` (legado). Migrar a `items_seed.v2.json` requiere tocar B6 y queda como follow-up de la próxima iteración de B6.

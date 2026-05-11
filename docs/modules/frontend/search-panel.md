@@ -96,19 +96,8 @@ Contrato de búsqueda:
 ### Evolución propuesta para paridad con TerraMap
 
 Brechas actuales:
-- no hay controles de resultado anterior/siguiente como TerraMap (`previousBlock`/`nextBlock`).
-- no hay acción separada de "highlight all" porque actualmente todos los resultados se resaltan siempre.
-
-Cambios candidatos:
-- añadir botones "anterior" / "siguiente" + callback `onMatchFocus` cíclico (wrap-around). Estado interno `focusedIndex: number | null` en F4; el reducer global de F6 puede observarlo si lo necesita.
-- atajos de teclado activos cuando el panel está montado:
-  - `n` / `ArrowDown`: siguiente match.
-  - `p` / `ArrowUp`: anterior match.
-  - `Enter` sobre fila: equivale a click → `onMatchFocus`.
-  - `Escape`: limpia búsqueda (equivale a "Limpiar").
-  - los listeners se registran en `window` con guardas para no atrapar teclas mientras el input de autocomplete tiene foco (excepto `Escape`).
-- mostrar filtros por `source` (`block`, `wall`, `chest`, `object`) cuando B4 produzca `object`.
-- virtualizar resultados antes de activar búsquedas con miles de coincidencias.
+- No hay acción separada de "highlight all" porque actualmente todos los resultados se resaltan siempre.
+- Los filtros por `source` solo afectan a la lista visible; `onResults` conserva el resultado crudo.
 
 Contrato propuesto v2:
 ```ts
@@ -119,12 +108,5 @@ export interface SearchPanelProps {
   onMatchFocus: (match: SearchMatch, index: number) => void;
 }
 ```
-
-Tests mínimos futuros:
-- click en "siguiente" llama `onMatchFocus(matches[1], 1)`; en el último, wrap a 0.
-- click en "anterior" en index 0 wrap al último.
-- `n` con focus fuera del input dispara siguiente; con focus en input, no.
-- `Escape` con focus en cualquier sitio limpia búsqueda y emite `onResults(null)`.
-- filtro por source no muta el resultado original y actualiza `onResults`.
 
 Estado: **cerrado** en iter-018 (2026-05-11). Contrato v2.0 implementado y testeado.

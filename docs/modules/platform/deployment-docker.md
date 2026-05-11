@@ -186,5 +186,3 @@ volumes:
 
 - **DEUDA-P1-01 (abierta)** `--legacy-peer-deps`: actualizar `openapi-typescript` a versión con peerDep `typescript@^6.x` cuando esté disponible, o fijar `typescript` en `^5.x`. Candidatos: openapi-typescript@8+ (seguimiento en https://github.com/openapi-ts/openapi-typescript). Sin impacto en funcionalidad ni seguridad.
 - **DEUDA-P1-02 (abierta)** `T-04 trivy`: ejecución con evidencia real pendiente de CI con trivy instalado. Script `docker/scan.sh` existe y funciona; falta incorporar en pipeline CI (GitHub Actions o equivalente). Bloqueado por ausencia de CI pipeline en v1.
-- **DEUDA-P1-03 (cerrada)** `T-01 smoke ampliado`: T-01e..T-01j implementados en iter-020. Fixture `smoke_world.wld` comprometida.
-- **DEUDA-P1-04 (cerrada)** `T-03 target`: documentado que el límite 50 MB es para Linux bare-metal; en Docker Desktop/Windows nginx:1.27-alpine base ya supera 50 MB. Target ajustado a "aplica en CI Linux".

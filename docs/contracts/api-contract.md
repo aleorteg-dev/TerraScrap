@@ -403,14 +403,14 @@ Además de los códigos transversales del encabezado:
 
 ---
 
-## 6. Nota de implementación y artefactos pendientes
+## 6. Nota de implementación y artefactos
 
-Los artefactos que reflejan v0.2 completo se actualizan en **iter-011** (implementación B5.1):
+Los artefactos de contrato están sincronizados con v0.2:
 
-| Artefacto | Estado actual | Actualización |
-|-----------|--------------|---------------|
-| `docs/contracts/openapi.json` | v0.1.1 (iter-032) | iter-011 |
-| `backend/tests/unit/api_rest/openapi_snapshot.json` | v0.1.1 (iter-032) | iter-011 |
-| `frontend/src/api-client/__generated__/schema.d.ts` | v0.1.1 (iter-032) | iter-011 |
+| Artefacto | Estado |
+|-----------|--------|
+| `docs/contracts/openapi.json` | v0.2 |
+| `backend/tests/unit/api_rest/openapi_snapshot.json` | v0.2 |
+| `frontend/src/api-client/__generated__/schema.d.ts` | v0.2 |
 
-No editar esos artefactos a mano.
+No editar esos artefactos a mano; regenerarlos desde la app cuando cambie el contrato.
