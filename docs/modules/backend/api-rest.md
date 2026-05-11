@@ -56,7 +56,7 @@ Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
 ## 5. Especificación (SDD)
 - **SP-01** `POST /api/worlds` con multipart válido → 200 y `world_id`.
 - **SP-02** `POST /api/worlds` con fichero > `max_upload_mb` → 413 con `code:"upload_too_large"`.
-- **SP-03** `POST /api/worlds` con bytes que no son `.wld` válido → 400 `code:"invalid_wld"`.
+- **SP-03** `POST /api/worlds` con bytes que no son `.wld` válido → 400 `code:"invalid_wld"`, `details.parser_code` con el código de la excepción (`invalid_footer`, `corrupt`, `truncated`, etc.), logger WARNING con `exc.code` y `exc.details`.
 - **SP-04** `POST /api/worlds` con versión no soportada → 422 `code:"unsupported_version"`, `details.version`.
 - **SP-05** `GET /api/worlds/{id}` inexistente → 404 `code:"world_not_found"`.
 - **SP-06** `GET /api/worlds/{id}/search?item_id=X` → SearchResultDto.
@@ -79,6 +79,7 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 - [x] `T-01 test_post_world_returns_world_id_and_metadata`
 - [x] `T-02 test_post_world_too_large_returns_413`
 - [x] `T-03 test_post_world_invalid_bytes_returns_400`
+- [x] `T-03b test_post_world_parse_error_includes_parser_code` (4 variantes: invalid_footer, corrupt, truncated, unsupported_version — verifica details.parser_code y caplog WARNING)
 - [x] `T-04 test_post_world_unsupported_version_returns_422`
 - [x] `T-05 test_get_world_unknown_id_returns_404`
 - [x] `T-06 test_search_endpoint_returns_matches`
@@ -131,7 +132,7 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
 - **Versión del contrato**: v0.2 (cerrada — DELETE estricto, search con `frame_x/frame_y`, `X-API-Version: 0.2`, OpenAPI snapshot regenerado).
-- **Último cierre**: 2026-05-09 (iter-11)
+- **Último cierre**: 2026-05-11 (iter-12 — WldParseError logging + details.parser_code)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005

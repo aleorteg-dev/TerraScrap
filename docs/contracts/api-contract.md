@@ -37,7 +37,7 @@ Sube un fichero `.wld` y crea una sesión de mundo.
   ```
   v0.1: `metadata` contiene `name, width, height, version, seed, size, hardmode`.
   **[v0.2]**: `metadata` incluye además `spawn_x, spawn_y, world_surface_y, rock_layer_y, hell_layer_y` (ver §4.1).
-- **400**: archivo no es `.wld` válido (`code: "invalid_wld"`).
+- **400**: archivo no es `.wld` válido (`code: "invalid_wld"`, `details: { parser_code: string | null }` — código interno del parser sin trazas ni rutas locales).
 - **413**: archivo supera el límite (`code: "upload_too_large"`).
 - **422**: versión no soportada (`code: "unsupported_version"`, `details: { version }`).
 

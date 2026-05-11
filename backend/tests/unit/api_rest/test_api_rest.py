@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import struct as _struct
 from collections.abc import Callable
 from datetime import datetime
@@ -311,6 +312,51 @@ def test_post_world_invalid_bytes_returns_400(
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "invalid_wld"
+
+
+# ---------------------------------------------------------------------------
+# T-03b – POST /api/worlds WldParseError codes propagate to details.parser_code
+# ---------------------------------------------------------------------------
+
+_PARSE_ERROR_CASES: list[tuple[str, dict[str, object]]] = [
+    ("invalid_footer", {"offset": 42}),
+    ("corrupt", {"section": "tiles"}),
+    ("truncated", {}),
+    ("unsupported_version", {"version": 999}),
+]
+
+
+@pytest.mark.parametrize(("exc_code", "exc_details"), _PARSE_ERROR_CASES)
+def test_post_world_parse_error_includes_parser_code(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+    exc_code: str,
+    exc_details: dict[str, object],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def _failing_parser(data: bytes) -> World:
+        raise WldParseError("parse failed", code=exc_code, details=exc_details)
+
+    client = _make_client(repo, catalog, search_engine, parser=_failing_parser)
+    with caplog.at_level(logging.WARNING, logger="twi.api_rest.router"):
+        response = client.post(
+            "/api/worlds",
+            files={"file": ("world.wld", b"baddata", "application/octet-stream")},
+        )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"]["code"] == "invalid_wld"
+    details = body["error"]["details"]
+    assert isinstance(details, dict)
+    assert details["parser_code"] == exc_code
+
+    log_text = " ".join(r.message for r in caplog.records)
+    assert exc_code in log_text
+    if exc_details:
+        for key in exc_details:
+            assert key in log_text or str(exc_details[key]) in log_text
 
 
 # ---------------------------------------------------------------------------

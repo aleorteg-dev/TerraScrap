@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 import struct
 from collections.abc import Callable, Mapping
 from typing import Final
@@ -39,6 +40,8 @@ from .schemas import (
     WorldCreatedDto,
     WorldMetadataDto,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _err(
@@ -268,8 +271,18 @@ def create_router(
                 str(exc),
                 {"version": exc.version},
             )
-        except WldParseError:
-            return _err(400, "invalid_wld", "File is not a valid .wld file.")
+        except WldParseError as exc:
+            logger.warning(
+                "WldParseError parsing upload: code=%s details=%s",
+                exc.code,
+                exc.details,
+            )
+            return _err(
+                400,
+                "invalid_wld",
+                "File is not a valid .wld file.",
+                {"parser_code": exc.code},
+            )
         world_id = repo.store(world)
         return _ok(
             WorldCreatedDto(world_id=world_id, metadata=_meta_dto(world.metadata))
