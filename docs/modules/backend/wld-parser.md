@@ -200,6 +200,8 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-48 test_parse_footer_name_mismatch_raises_invalid_footer` (iter-05)
 - [x] `T-49 test_parse_footer_uses_last_offset_when_extra_sections_present` (iter-06)
 - [x] `T-50 test_parse_v319_real_world_footer_validates_correctly` (iter-06, integration)
+- [x] `T-51 test_parse_sign_with_cp1252_text_falls_back_gracefully` (iter-07)
+- [x] `T-52 test_parse_two_npcs_in_v279_world_roundtrip_correctly` (iter-07)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -219,8 +221,15 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 ## 10. Estado
 - **Versión del contrato**: v2.6
 - **Último cierre**: 2026-05-11
-- **Iteración actual**: iter-06
-- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (58/58). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Cobertura B1: ≥90%.
+- **Iteración actual**: iter-07
+- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (60/60). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Integración: todos los mundos del corpus pasan. Cobertura B1: ≥90%.
+
+### Decisiones tomadas (iter-07 / 2026-05-11)
+- **Bug 1 — signs encoding**: `read_net_string` usaba `utf-8` puro; algunos mundos reales (v279 Windows) almacenan textos de carteles en cp1252. Fix: intentar utf-8, fallback a cp1252 (nunca falla). `Gotear_Tierras_llanas.wld` parseaba hasta signs y lanzaba `WldParseError(code='corrupt')`.
+- **Bug 2 — homelessDespawn gate**: `_read_town_npc` leía `homelessDespawn: bool` para todas las versiones, pero el campo no existe en v279. Esto desalineaba la lectura de NPCs consecutivos, causando IDs y coordenadas basura en el NPC 2+, y eventualmente `WldParseError(code='invalid_npc')`. Fix: gate `_NPC_HOMELESS_DESPAWN_VERSION = 280` en parser y builder.
+- Contrato no cambia. `Sign.text` puede devolver texto con caracteres cp1252 decodificados a Unicode; eso es correcto.
+- `wld_builder._build_section3` actualizado: `_net_bytes` helper para bytes raw, `SignSpec.text_bytes` override para tests de encoding no-UTF-8.
+- T-51 (unit sign cp1252) + T-52 (unit NPC v279 doble round-trip). Todos los corpus parsean sin error.
 
 ### Decisiones tomadas (iter-06 / 2026-05-11)
 - **Bug corregido**: `_validate_footer` usaba `offsets[6]` como offset del footer. En mundos con `num_sections > 7` (p. ej. v319 con 11 secciones), el footer vive en `offsets[-1]`, no `offsets[6]`. El parseo fallaba con `"Footer validation failed: flag=False, name='', id=0"`.
@@ -312,7 +321,8 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   todos los `Tile(...)` ya construidos en otros módulos (B2/B4/B5).
 
 ### Deuda / follow-ups
-- **Signs: encoding Latin-1 / Windows-1252**: `Gotear_Tierras_llanas.wld` (v279) falla con `UnicodeDecodeError` en `_read_signs` porque algunos textos de carteles usan Windows-1252 (ej. `0xDA` = 'Ú'). El parser decodifica con `utf-8`. Fix: intentar `latin-1` o `cp1252` como fallback en `_reader.read_net_string`. Deuda para **iter-07** (B1).
+- ~~**Signs: encoding Latin-1 / Windows-1252**~~: **CERRADO iter-07 (2026-05-11)** — `read_net_string` con fallback cp1252, T-51.
+- ~~**NPC homelessDespawn gate**~~: **CERRADO iter-07 (2026-05-11)** — gate `>= 280` en parser y builder, T-52.
 - **Encoding `base64-rle-v2`**: el endpoint `GET /tiles` usa `base64-rle-v1` (solo `tile_id`). Para exponer `liquid_type`/`liquid_amount` al frontend, el encoding debe actualizarse a `base64-rle-v2` (8 bytes/tile). Esta deuda se resolverá en **iter API.1** (B5 + F3). Anotar allí que `liquid_type` se codifica como 3 bits (`none=0, water=1, lava=2, honey=3, shimmer=4`) + `liquid_amount` (1 byte).
 - **Compatibilidad con mas mundos reales**: iter-026 valida corpus local `v279` y `v319`.
   Si aparecen mundos reales `v280-v318`, anadirlos al corpus y cubrir cualquier delta no

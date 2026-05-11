@@ -14,6 +14,21 @@ from dataclasses import dataclass, field
 # ── .NET string helper ────────────────────────────────────────────────────────
 
 
+def _net_bytes(raw: bytes) -> bytes:
+    """LEB128-prefix a raw byte payload (no encoding)."""
+    length = len(raw)
+    parts: list[int] = []
+    while True:
+        b = length & 0x7F
+        length >>= 7
+        if length:
+            b |= 0x80
+        parts.append(b)
+        if not length:
+            break
+    return bytes(parts) + raw
+
+
 def _net_string(s: str) -> bytes:
     payload = s.encode("utf-8")
     length = len(payload)
@@ -159,6 +174,7 @@ class SignSpec:
     x: int
     y: int
     text: str = ""
+    text_bytes: bytes | None = None  # raw bytes override for non-UTF-8 fixture tests
 
 
 @dataclass
@@ -318,7 +334,8 @@ def _build_section4(*, version: int, npcs: Sequence[NpcSpec] | None) -> bytes:
         buf += struct.pack("<i", npc.home_y)
         if version >= 213:
             buf += b"\x00"  # no town variation payload
-        buf += b"\x00"  # homelessDespawn
+        if version >= 280:
+            buf += b"\x00"  # homelessDespawn (added in v280+)
     buf += b"\x00"
 
     for npc in transient_npcs:
@@ -418,7 +435,8 @@ def _build_section3(signs: Sequence[SignSpec] | None) -> bytes:
     buf = bytearray()
     buf += struct.pack("<h", len(specs))
     for ss in specs:
-        buf += _net_string(ss.text)
+        raw = ss.text_bytes if ss.text_bytes is not None else ss.text.encode("utf-8")
+        buf += _net_bytes(raw)
         buf += struct.pack("<i", ss.x)
         buf += struct.pack("<i", ss.y)
     return bytes(buf)

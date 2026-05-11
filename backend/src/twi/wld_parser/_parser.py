@@ -30,6 +30,7 @@ _MODERN_CHEST_VERSION: int = 280
 _CHEST_CAPACITY: int = 40
 _NPC_KILL_COUNT_VERSION: int = 268
 _NPC_TOWN_VARIATION_VERSION: int = 213
+_NPC_HOMELESS_DESPAWN_VERSION: int = 280
 
 
 def _classify_size(width: int) -> str:
@@ -416,7 +417,8 @@ def _read_town_npc(r: Reader, version: int, width: int, height: int) -> Npc:
 
     if version >= _NPC_TOWN_VARIATION_VERSION and r.read_bool():
         _town_variation = r.read_int32()
-    _homeless_despawn = r.read_bool()
+    if version >= _NPC_HOMELESS_DESPAWN_VERSION:
+        _homeless_despawn = r.read_bool()
 
     _validate_npc_coordinates(
         npc_id=npc_id,

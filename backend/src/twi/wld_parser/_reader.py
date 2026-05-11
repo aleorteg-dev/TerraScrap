@@ -79,5 +79,7 @@ class Reader:
         raw = self.read_bytes(length)
         try:
             return raw.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise WldParseError(f"String decode error: {exc}", code="corrupt") from exc
+        except UnicodeDecodeError:
+            # Older Terraria worlds (pre-Unicode client) stored strings in
+            # Windows-1252.  cp1252 decodes every byte sequence without error.
+            return raw.decode("cp1252")

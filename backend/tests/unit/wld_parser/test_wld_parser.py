@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from tests.fixtures.wld_builder import ChestSpec, build_world
+from tests.fixtures.wld_builder import ChestSpec, SignSpec, build_world
 from twi.wld_parser import (
     Tile,
     UnsupportedWorldVersionError,
@@ -219,6 +219,27 @@ def test_parse_is_deterministic_same_bytes_equal_world() -> None:
 
 
 # ── T-08 ──────────────────────────────────────────────────────────────────────
+
+
+# ── T-51: sign text in Windows-1252 (cp1252 fallback) ────────────────────────
+
+
+def test_parse_sign_with_cp1252_text_falls_back_gracefully() -> None:
+    """Sign text encoded in cp1252 (not UTF-8) must parse without error.
+
+    0xDA = 'Ú' in cp1252; invalid as UTF-8.  Before the fix, read_net_string
+    raises WldParseError(code='corrupt').  After the fix it falls back to
+    cp1252 and returns the correct character.
+    """
+    cp1252_text = "H\xdallo".encode("cp1252")  # b'H\xdallo'
+    data = build_world(
+        width=4,
+        height=4,
+        signs=[SignSpec(x=1, y=1, text_bytes=cp1252_text)],
+    )
+    world = parse_wld_bytes(data)
+    assert len(world.signs) == 1
+    assert world.signs[0].text == "H\xdallo".encode("cp1252").decode("cp1252")
 
 
 @pytest.mark.perf

@@ -55,6 +55,43 @@ def test_parse_zero_npcs_returns_empty_list() -> None:
     assert world.npcs == []
 
 
+def test_parse_two_npcs_in_v279_world_roundtrip_correctly() -> None:
+    """v279 NPC section has no homelessDespawn byte (added in v280+).
+
+    Two consecutive town NPCs are needed to expose the misalignment: without
+    gating homelessDespawn at v280+, the parser consumes the first NPC's
+    homelessDespawn byte as the flag for the second NPC, returning only 1 NPC
+    instead of 2.
+    """
+    npcs = [
+        NpcSpec(
+            id=22,
+            name="Jeffrey",
+            position_x=5.0,
+            position_y=3.0,
+            is_homeless=False,
+            home_x=5,
+            home_y=3,
+            is_town_npc=True,
+        ),
+        NpcSpec(
+            id=17,
+            name="Guide",
+            position_x=2.0,
+            position_y=2.0,
+            is_homeless=True,
+            home_x=-1,
+            home_y=-1,
+            is_town_npc=True,
+        ),
+    ]
+    data = build_world(version=279, width=12, height=8, npcs=npcs)
+    world = parse_wld_bytes(data)
+    assert len(world.npcs) == 2
+    assert world.npcs[0].id == 22
+    assert world.npcs[1].id == 17
+
+
 def test_parse_npc_with_position_outside_world_raises_invalid_npc() -> None:
     data = build_world(
         width=8,
