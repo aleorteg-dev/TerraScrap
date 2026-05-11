@@ -34,7 +34,7 @@ export const UploadWorld: React.FC<UploadProps>;
 ## 5. Especificación (SDD)
 - **SP-01** Muestra un dropzone + input `<input type="file" accept=".wld">`.
 - **SP-02** Rechaza ficheros > `maxSizeMb` con mensaje claro, sin llamar a la API.
-- **SP-03** Rechaza ficheros con extensión distinta a `.wld`.
+- **SP-03** Rechaza ficheros con extensión distinta a `.wld`. La comparación es case-insensitive (`WORLD.WLD` se acepta).
 - **SP-04** Durante upload, muestra barra de progreso o indeterminada.
 - **SP-05** Al 200, llama `onUploaded({worldId, metadata})`.
 - **SP-06** Al error, muestra mensaje y llama `onError?` si se proporcionó.
@@ -55,6 +55,8 @@ Vitest + Testing Library.
 - [x] `T-09 two instances render distinct input IDs` (useId)
 - [x] `T-10 progressbar reflects real upload percentage via onProgress`
 - [x] `T-11 error state shows error code and retry button resets to idle`
+- [x] `T-12 accepts .wld file with uppercase extension (WORLD.WLD)`
+- [x] `T-13 rejects file with non-.wld extension (world.txt)`
 
 ## 7. Notas de implementación
 - Estado local con `useState`/`useReducer` para el flujo `idle → validating → uploading → success|error`.
@@ -69,7 +71,7 @@ Vitest + Testing Library.
 
 ## 10. Estado
 - **Versión del contrato**: v1.0
-- **Último cierre**: 2026-05-10 — iter-015
+- **Último cierre**: 2026-05-11 — iter-016
 - **Iteración actual**: cerrada
 - **Decisiones tomadas**:
   - Input oculto con `.sr-only` (no `display:none`) para que RTL y lectores de pantalla lo encuentren vía `<label htmlFor>`.

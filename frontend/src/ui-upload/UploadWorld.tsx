@@ -47,7 +47,7 @@ export const UploadWorld: FC<UploadProps> = ({
   const maxBytes = maxSizeMb * 1024 * 1024;
 
   function validate(file: File): ValidationKind | null {
-    if (!file.name.endsWith('.wld')) return 'invalid_extension';
+    if (!file.name.toLowerCase().endsWith('.wld')) return 'invalid_extension';
     if (file.size > maxBytes) return 'file_too_large';
     return null;
   }

@@ -150,6 +150,24 @@ describe('UploadWorld', () => {
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
   });
 
+  it('accepts .wld file with uppercase extension (WORLD.WLD)', async () => {
+    const { client, uploadWorld } = makeApiClient();
+    render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
+    const input = screen.getByLabelText(/select a \.wld file/i);
+    fireEvent.change(input, { target: { files: [makeFile('WORLD.WLD', 1024)] } });
+    await waitFor(() => expect(uploadWorld).toHaveBeenCalled());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('rejects file with non-.wld extension (world.txt)', async () => {
+    const { client, uploadWorld } = makeApiClient();
+    render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
+    const input = screen.getByLabelText(/select a \.wld file/i);
+    fireEvent.change(input, { target: { files: [makeFile('world.txt', 1024)] } });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/\.wld/i);
+    expect(uploadWorld).not.toHaveBeenCalled();
+  });
+
   it('error state shows error code and retry button resets to idle', async () => {
     const error = new ApiError('network_error', 0, 'Network failed');
     const { client } = makeApiClient(vi.fn().mockRejectedValue(error));
