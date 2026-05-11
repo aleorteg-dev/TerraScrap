@@ -150,10 +150,10 @@ describe('SearchPanel', () => {
     expect(screen.getAllByRole('button', { name: /centrar/i })).toHaveLength(1);
   });
 
-  it('T-05 clicking a match calls onMatchFocus', async () => {
+  it('T-05 clicking a match calls onMatchFocus with match and index', async () => {
     const { onMatchFocus } = await renderAndSelect();
     fireEvent.click(screen.getByRole('button', { name: /centrar/i }));
-    expect(onMatchFocus).toHaveBeenCalledWith(mockMatch);
+    expect(onMatchFocus).toHaveBeenCalledWith(mockMatch, 0);
   });
 
   it('T-06 unchecking include_containers sends false on the next search', async () => {
@@ -232,5 +232,118 @@ describe('SearchPanel', () => {
 
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => expect(searchInWorld).toHaveBeenCalledWith('w1', 2, true));
+  });
+
+  // ── New tests (iter-18) ────────────────────────────────────────────────────
+
+  it('T-10 with 10000 matches renders only a virtualized subset in DOM', async () => {
+    const matches: SearchMatch[] = Array.from({ length: 10000 }, (_, i) => ({
+      x: i,
+      y: 0,
+      source: 'block' as const,
+    }));
+    await renderAndSelect([mockItem], { item_id: 1, total: 10000, matches });
+    // Only the virtual window (~OVERSCAN * 2) rendered, not all 10000
+    const renderedOptions = screen.getAllByRole('option');
+    expect(renderedOptions.length).toBeLessThan(100);
+    expect(renderedOptions.length).toBeGreaterThan(0);
+  });
+
+  it('T-11 key n navigates to next match via onMatchFocus', async () => {
+    const match1: SearchMatch = { x: 0, y: 0, source: 'block' };
+    const match2: SearchMatch = { x: 1, y: 1, source: 'block' };
+    const { onMatchFocus } = await renderAndSelect([mockItem], {
+      item_id: 1,
+      total: 2,
+      matches: [match1, match2],
+    });
+    // Wait for results in DOM so effects re-run with updated navigateMatch
+    await screen.findByText(/2 coincidencias/i);
+    fireEvent.keyDown(window, { key: 'n', bubbles: true });
+    expect(onMatchFocus).toHaveBeenCalledWith(match1, 0);
+    fireEvent.keyDown(window, { key: 'n', bubbles: true });
+    expect(onMatchFocus).toHaveBeenCalledWith(match2, 1);
+  });
+
+  it('T-12 key p wraps around to last match when at start', async () => {
+    const match1: SearchMatch = { x: 0, y: 0, source: 'block' };
+    const match2: SearchMatch = { x: 1, y: 1, source: 'block' };
+    const { onMatchFocus } = await renderAndSelect([mockItem], {
+      item_id: 1,
+      total: 2,
+      matches: [match1, match2],
+    });
+    // Wait for results in DOM so effects re-run with updated navigateMatch
+    await screen.findByText(/2 coincidencias/i);
+    fireEvent.keyDown(window, { key: 'p', bubbles: true });
+    // null → wrap-around → last index (1)
+    expect(onMatchFocus).toHaveBeenCalledWith(match2, 1);
+  });
+
+  it('T-13 key / focuses the search input', () => {
+    const { client } = makeClient();
+    render(
+      <SearchPanel worldId="w1" apiClient={client} onResults={vi.fn()} onMatchFocus={vi.fn()} />
+    );
+    const input = screen.getByRole('combobox');
+    fireEvent.keyDown(window, { key: '/', bubbles: true });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('T-14 key Escape clears search and calls onResults(null)', async () => {
+    const { onResults } = await renderAndSelect();
+    await waitFor(() => expect(screen.getByText(/1 coincidencia/i)).toBeInTheDocument());
+    fireEvent.keyDown(window, { key: 'Escape', bubbles: true });
+    expect(onResults).toHaveBeenLastCalledWith(null);
+    expect(screen.queryByText(/coincidencia/i)).not.toBeInTheDocument();
+  });
+
+  it('T-15 deselecting wall source filter hides wall matches', async () => {
+    const wallMatch: SearchMatch = { x: 1, y: 2, source: 'wall' };
+    const blockMatch: SearchMatch = { x: 3, y: 4, source: 'block' };
+    await renderAndSelect([mockItem], {
+      item_id: 1,
+      total: 2,
+      matches: [wallMatch, blockMatch],
+    });
+    // Both visible initially
+    expect(screen.getByText(/Pared en \(1, 2\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Bloque en \(3, 4\)/i)).toBeInTheDocument();
+    // Deselect wall
+    const wallCheckbox = screen.getByRole('checkbox', { name: /^pared$/i });
+    fireEvent.click(wallCheckbox);
+    // Wall match hidden, block match visible
+    expect(screen.queryByText(/Pared en \(1, 2\)/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Bloque en \(3, 4\)/i)).toBeInTheDocument();
+  });
+
+  it('T-16 two keystrokes under 200ms produce one autocomplete request', async () => {
+    const { client, searchItems } = makeClient();
+    vi.useFakeTimers();
+    render(
+      <SearchPanel worldId="w1" apiClient={client} onResults={vi.fn()} onMatchFocus={vi.fn()} />
+    );
+    const input = screen.getByRole('combobox');
+    fireEvent.change(input, { target: { value: 'a' } });
+    fireEvent.change(input, { target: { value: 'ab' } });
+    expect(searchItems).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    vi.useRealTimers();
+    await waitFor(() => expect(searchItems).toHaveBeenCalledTimes(1));
+    expect(searchItems).toHaveBeenCalledWith('ab');
+  });
+
+  it('T-17 matches listbox has role listbox and items have aria-selected attribute', async () => {
+    await renderAndSelect();
+    // Matches container carries role=listbox
+    const listbox = screen.getByRole('listbox', { name: /coincidencias/i });
+    expect(listbox).toBeInTheDocument();
+    // Each rendered option has aria-selected
+    const options = screen.getAllByRole('option');
+    for (const opt of options) {
+      expect(opt).toHaveAttribute('aria-selected');
+    }
   });
 });
