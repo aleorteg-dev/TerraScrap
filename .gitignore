@@ -79,6 +79,8 @@ frontend/src/api-client/__generated__/
 # ─── Ficheros de mundo Terraria (.wld) ───────────────────
 # Pueden pesar cientos de MB; nunca subirlos al repo
 *.wld
+# Excepción: fixture sintética mínima para smoke tests (550 B, generada con wld_builder)
+!docker/smoke_world.wld
 
 # ─── Fixtures de test grandes ────────────────────────────
 # Los fixtures sintéticos pequeños SÍ se suben.

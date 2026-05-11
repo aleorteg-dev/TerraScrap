@@ -368,3 +368,42 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | 2026-05-10 | B4 tile-search | Schema JSON v2.0.0: root `{schema_version, items}`; cada item mapea a lista de matchers (alias). Soporte `wall_ids` (multi-wall) y `frame_xys` (multi-frame). `MappingStaleError` lanzada cuando `schema_version` falta o difiere. Engine: single-pass combinado para block+wall via set-lookup; perf 1M tiles ~70 ms (budget 500 ms). `create_tile_search_engine(world_map_path=...)` permite cargar JSON custom. Sin cambios en contrato publico (`SearchMatch.source` Literal congelado a `block|wall|chest|object` por contrato API v0.2). 33 tests, 89% cobertura. Cierra MULTI-WALL-ID, MULTI-FRAME-ITEM, OBJECT-ALIAS-01, STALE-JSON. | iter-12 |
 | 2026-05-11 | F4 search-panel | Contrato v2.0 (breaking): `onMatchFocus(match, index)` añade índice en lista filtrada. Virtualización sin deps nuevas (`ROW_HEIGHT=40`, `OVERSCAN=10`). Navegación next/prev (`n`/`p`) + atajos `Escape`/`/` via `window.addEventListener`. Filtros client-side por `source` (multi-select). Autocompletado con generación-counter para ignorar respuestas obsoletas. A11y: `role="listbox"` + `aria-selected` en matches. 20 tests (T-01..T-17). | iter-18 |
 | 2026-05-11 | F6 app-shell | Contrato v2.0: reducer extendido (`selectedTile/tileDetail/npcs/layers/maskMode/sidebarOpen/panels/zoom`). `AppContext` (no exportado) para sub-componentes. `Toolbar` (zoom+/−/reset, layer toggles, mask mode, export PNG). `NpcPanel` (carga lazy, click centra canvas). `TileDetailPanel` (muestra `TileDetailDto`, cierre limpia selección). Layout móvil: `data-open` en sidebar + CSS `@media max-width:767px`. `onMatchFocus` → centra canvas + selecciona tile + carga detail. 21 tests (T-01..T-07 + layout + 6 nuevos). | iter-19 |
+| 2026-05-11 | P1 deployment-docker | **v0.2 — CIERRE GLOBAL** Contrato v0.2.0: `--legacy-peer-deps` documentado con justificación en Dockerfile. `docker/scan.sh` creado (trivy, CRITICAL bloquea, HIGH loguea, umbral configurable, graceful no-op si trivy ausente). `docker/smoke.sh` ampliado a T-01a..T-01j (items vacío, POST fixture, GET tiles, GET npcs, DELETE, 404 post-delete). `docker/smoke_world.wld` fixture 550 B (v269, 8×4). Bundle frontend: 73.82 kB gzipped (target <2 MB cumplido; code splitting innecesario). Backend: mypy OK, ruff OK, 203 tests, 90% cobertura. Frontend: ESLint+Prettier OK, 91.02% cobertura, build OK. Deuda abierta: DEUDA-P1-01 (legacy-peer-deps), DEUDA-P1-02 (trivy en CI). | iter-020 |
+
+---
+
+## 14. Estado global — v0.2 cerrada (2026-05-11)
+
+Todos los módulos del orden de construcción B1→B6, F1→F6, P1 están implementados y cerrados.
+
+| Módulo | Estado | Cobertura | Iter. cierre |
+|--------|--------|-----------|--------------|
+| B1 wld-parser | ✅ cerrado | ≥87% | iter-021 |
+| B2 world-repository | ✅ cerrado | ≥96% | iter-032 |
+| B3 item-catalog | ✅ cerrado | ≥90% | iter-018 |
+| B4 tile-search | ✅ cerrado | 89% | iter-12 |
+| B5 api-rest | ✅ cerrado | 97% | iter-11 |
+| B6 app-bootstrap | ✅ cerrado | 92% | iter-07 |
+| F1 api-client | ✅ cerrado | 79%* | iter-032 |
+| F2 ui-upload | ✅ cerrado | 89% | iter-032 |
+| F3 world-canvas | ✅ cerrado | 94% | iter-024 |
+| F4 search-panel | ✅ cerrado | 94% | iter-18 |
+| F5 highlight-overlay | ✅ cerrado | 91% | iter-011 |
+| F6 app-shell | ✅ cerrado | 91% | iter-19 |
+| P1 deployment-docker | ✅ cerrado | — | iter-020 |
+
+*`api-client/errors.ts` 79% (1 punto bajo umbral 80%) — deuda DEUDA-F1-01 abierta.
+
+**Deuda abierta al cierre v0.2:**
+- DEUDA-P1-01: `--legacy-peer-deps` hasta openapi-typescript con soporte TypeScript 6.
+- DEUDA-P1-02: trivy en CI pipeline (script listo, falta workflow).
+- DEUDA-F1-01: `api-client/errors.ts` 79% cobertura (1pt bajo umbral).
+- DEUDA-B5-01: `api_rest/errors.py` 68% cobertura (complex HTTP handler branches).
+- DEUDA-B3-01: `item_catalog/refresh.py` 70% cobertura (CLI script, difícil aislar).
+- DEUDA-B1-01: soporte real de mundos v319+ (actualmente rechazados con error explícito).
+
+**Métricas finales:**
+- Backend: `mypy --strict` ✅ | `ruff` ✅ | 203 unit tests | 90% cobertura total
+- Frontend: ESLint+Prettier ✅ | `tsc` ✅ | 91.02% cobertura total | bundle 73.82 kB gzip
+- API: OpenAPI v0.2, snapshot sincronizado (`openapi_snapshot.json`)
+- Docker: smoke T-01a..T-01j | `scan.sh` listo | bundle <2 MB target cumplido
