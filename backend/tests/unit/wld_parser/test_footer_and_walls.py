@@ -61,6 +61,24 @@ def test_parse_footer_truncated_raises_invalid_footer() -> None:
 # ── T-48: footer name mismatch → invalid_footer ───────────────────────────────
 
 
+# ── T-49: footer at offsets[-1] when num_sections > 7 ────────────────────────
+
+
+def test_parse_footer_uses_last_offset_when_extra_sections_present() -> None:
+    """World with num_sections > 7 (extra_sections=4) parses without error.
+
+    Footer lives at offsets[-1], not offsets[6].  Before the fix this test
+    raises WldParseError(code='invalid_footer') because the parser seeks to
+    offsets[6] which points into the empty-section gap, not the real footer.
+    """
+    data = build_world(name="MultiSect", width=4, height=4, extra_sections=4)
+    world = parse_wld_bytes(data)
+    assert world.metadata.name == "MultiSect"
+
+
+# ── T-48: footer name mismatch → invalid_footer ───────────────────────────────
+
+
 def test_parse_footer_name_mismatch_raises_invalid_footer() -> None:
     """Footer world name different from header name raises invalid_footer."""
     data = bytearray(build_world(name="TestWorld", width=4, height=4))

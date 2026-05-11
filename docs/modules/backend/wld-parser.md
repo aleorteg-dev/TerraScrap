@@ -198,6 +198,8 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - [x] `T-46 test_parse_footer_invalid_flag_raises_invalid_footer` (iter-05)
 - [x] `T-47 test_parse_footer_truncated_raises_invalid_footer` (iter-05)
 - [x] `T-48 test_parse_footer_name_mismatch_raises_invalid_footer` (iter-05)
+- [x] `T-49 test_parse_footer_uses_last_offset_when_extra_sections_present` (iter-06)
+- [x] `T-50 test_parse_v319_real_world_footer_validates_correctly` (iter-06, integration)
 
 ## 7. Notas de implementación
 - El `.wld` es binario little-endian. Secciones principales (en orden aproximado): Header, Tiles, Chests, Signs, NPCs, Tile Entities, Footer.
@@ -216,15 +218,22 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 
 ## 10. Estado
 - **Versión del contrato**: v2.6
-- **Último cierre**: 2026-05-09
-- **Iteración actual**: iter-05
-- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (57/57). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Cobertura B1: ≥90%.
+- **Último cierre**: 2026-05-11
+- **Iteración actual**: iter-06
+- **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (58/58). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Cobertura B1: ≥90%.
+
+### Decisiones tomadas (iter-06 / 2026-05-11)
+- **Bug corregido**: `_validate_footer` usaba `offsets[6]` como offset del footer. En mundos con `num_sections > 7` (p. ej. v319 con 11 secciones), el footer vive en `offsets[-1]`, no `offsets[6]`. El parseo fallaba con `"Footer validation failed: flag=False, name='', id=0"`.
+- **Fix**: `r.seek(offsets[6])` → `r.seek(offsets[-1])` en `_parser.py`. Footer es siempre la última sección; `offsets[-1]` es correcto para cualquier `num_sections ≥ 7`.
+- **Builder extendido**: `build_world` acepta `extra_sections: int = 0`. Cada sección extra recibe 1 byte de payload nulo para que sus offsets sean distintos del footer (condición necesaria para que el test sintético reproduzca el bug).
+- **Contrato**: no cambia. Footer format sigue siendo `bool(flag=1) + .NET string(name) + int32(world_id)` — offset en `offsets[-1]` (no `offsets[6]`).
+- T-49 (unit) en `test_footer_and_walls.py` + T-50 (integration) en `test_real_wld_parser.py`. 58 tests unitarios + 1 integración adicional.
 
 ### Decisiones tomadas (iter-05 / 2026-05-09)
 - `Tile` ya exponía `wall_id`, `liquid_type`, `liquid_amount`, `frame_x`, `frame_y`; ningún campo nuevo requerido.
 - Multi-byte `wall_id` (>255): implementación ya correcta (`flags3 & 0x40` + byte alto); añadido T-45 para documentar/garantizar.
 - Footer validado al final de `parse_wld` vía `_validate_footer(r, offsets, metadata.name, world_id)`.
-  - Footer format: `bool(flag=1) + .NET string(name) + int32(world_id)` — offset en `offsets[6]`.
+  - Footer format: `bool(flag=1) + .NET string(name) + int32(world_id)` — offset en `offsets[-1]` (corregido en iter-06; antes se usaba `offsets[6]`).
   - `WldParseError(code="invalid_footer")` en tres casos: `len(offsets) < 7`, datos truncados, o `flag≠1/name≠world_name/id≠world_id`.
 - `_read_world_info` ahora devuelve `tuple[WorldMetadata, int]`; el segundo valor es `world_id` (interno, no expuesto en contrato público).
 - Builder actualizado: emite 7 secciones (`num_sections=7`) con `_build_section6_footer(name, world_id=1)`. `header_size` ajustado (+4 bytes por el offset extra). Todos los tests existentes pasan sin modificación gracias a que el footer se emite y valida correctamente.
@@ -303,6 +312,7 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   todos los `Tile(...)` ya construidos en otros módulos (B2/B4/B5).
 
 ### Deuda / follow-ups
+- **Signs: encoding Latin-1 / Windows-1252**: `Gotear_Tierras_llanas.wld` (v279) falla con `UnicodeDecodeError` en `_read_signs` porque algunos textos de carteles usan Windows-1252 (ej. `0xDA` = 'Ú'). El parser decodifica con `utf-8`. Fix: intentar `latin-1` o `cp1252` como fallback en `_reader.read_net_string`. Deuda para **iter-07** (B1).
 - **Encoding `base64-rle-v2`**: el endpoint `GET /tiles` usa `base64-rle-v1` (solo `tile_id`). Para exponer `liquid_type`/`liquid_amount` al frontend, el encoding debe actualizarse a `base64-rle-v2` (8 bytes/tile). Esta deuda se resolverá en **iter API.1** (B5 + F3). Anotar allí que `liquid_type` se codifica como 3 bits (`none=0, water=1, lava=2, honey=3, shimmer=4`) + `liquid_amount` (1 byte).
 - **Compatibilidad con mas mundos reales**: iter-026 valida corpus local `v279` y `v319`.
   Si aparecen mundos reales `v280-v318`, anadirlos al corpus y cubrir cualquier delta no

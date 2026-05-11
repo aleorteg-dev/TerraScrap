@@ -79,6 +79,18 @@ def test_real_wld_tile_access_at_key_positions(wld_path: Path) -> None:
     _ = world.tiles[w - 1][h - 1]
 
 
+def test_parse_v319_real_world_footer_validates_correctly() -> None:
+    """El_Ínsula_Ultranervioso.wld (v319, num_sections > 7) must parse without
+    invalid_footer error.  Regression for the offsets[6] vs offsets[-1] bug."""
+    wld_path = _CORPUS_DIR / "El_Ínsula_Ultranervioso.wld"
+    if not wld_path.exists():
+        pytest.skip(f"{wld_path.name} not found in corpus")
+    data = wld_path.read_bytes()
+    world = parse_wld_bytes(data)
+    assert isinstance(world, World)
+    assert world.metadata.version == 319
+
+
 def test_read_file_version_extracts_little_endian_int32(tmp_path: Path) -> None:
     fake = tmp_path / "fake.wld"
     fake.write_bytes(struct.pack("<i", 269) + b"\x00" * 100)

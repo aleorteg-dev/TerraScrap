@@ -625,10 +625,10 @@ def _validate_footer(
     """
     if len(offsets) < 7:
         raise WldParseError(
-            "Footer section (offsets[6]) is missing.",
+            "Footer section (offsets[-1]) is missing.",
             code="invalid_footer",
         )
-    r.seek(offsets[6])
+    r.seek(offsets[-1])
     try:
         flag = r.read_bool()
         name = r.read_net_string()

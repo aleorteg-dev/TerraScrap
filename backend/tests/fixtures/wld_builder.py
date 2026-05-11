@@ -548,8 +548,14 @@ def build_world(
     wall_id_at: dict[tuple[int, int], int] | None = None,
     liquid_at: dict[tuple[int, int], tuple[str, int]] | None = None,
     flags4_at: dict[tuple[int, int], int] | None = None,
+    extra_sections: int = 0,
 ) -> bytes:
-    """Return bytes of a valid synthetic .wld file."""
+    """Return bytes of a valid synthetic .wld file.
+
+    ``extra_sections`` inserts that many empty sections between section 5
+    (tile entities) and the footer, simulating worlds with num_sections > 7
+    (e.g. v319 with 11 sections).  Footer is always offsets[-1].
+    """
     s0 = _build_section0(
         version=version,
         name=name,
@@ -584,7 +590,8 @@ def build_world(
     file_type = bytes([2])  # world
     revision = struct.pack("<I", 0)
     favorites = struct.pack("<Q", 0)
-    num_sections = struct.pack("<h", 7)
+    num_sections_total = 7 + extra_sections
+    num_sections_bytes = struct.pack("<h", num_sections_total)
     num_tile_types = struct.pack("<h", _NUM_TILE_TYPES)
     tfi_bytes = _encode_tfi(_NUM_TILE_TYPES, frame_important_ids)
 
@@ -595,7 +602,7 @@ def build_world(
         + 4  # revision
         + 8  # favorites
         + 2  # num_sections
-        + 4 * 7  # 7 section offsets (int32 each)
+        + 4 * num_sections_total  # section offsets (int32 each)
         + 2  # num_tile_types
         + len(tfi_bytes)  # tfi bitfield
     )
@@ -606,9 +613,20 @@ def build_world(
     off3 = off2 + len(s2)
     off4 = off3 + len(s3)
     off5 = off4 + len(s4)
-    off6 = off5 + len(s5)
+    off_te_end = off5 + len(s5)
+    # Extra sections each contain a single null byte so their offsets are
+    # distinct from the footer offset — this is what triggers the bug when
+    # the parser incorrectly uses offsets[6] instead of offsets[-1].
+    extra_section_data = b"\x00" * extra_sections  # 1 byte per extra section
+    extra_offs: list[int] = []
+    cur = off_te_end
+    for _ in range(extra_sections):
+        extra_offs.append(cur)
+        cur += 1
+    off6 = cur  # footer starts after all extra section data
 
-    offsets = struct.pack("<7i", off0, off1, off2, off3, off4, off5, off6)
+    all_offsets = [off0, off1, off2, off3, off4, off5, *extra_offs, off6]
+    offsets = struct.pack(f"<{num_sections_total}i", *all_offsets)
 
     header = (
         struct.pack("<i", version)
@@ -616,11 +634,11 @@ def build_world(
         + file_type
         + revision
         + favorites
-        + num_sections
+        + num_sections_bytes
         + offsets
         + num_tile_types
         + tfi_bytes
     )
 
     assert len(header) == header_size, f"{len(header)} != {header_size}"
-    return header + s0 + s1 + s2 + s3 + s4 + s5 + s6
+    return header + s0 + s1 + s2 + s3 + s4 + s5 + extra_section_data + s6
