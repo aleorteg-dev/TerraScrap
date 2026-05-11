@@ -20,10 +20,12 @@ const mockCtx: Partial<CanvasRenderingContext2D> = {
   setLineDash: vi.fn(),
 };
 
-HTMLCanvasElement.prototype.getContext = vi
-  .fn()
-  .mockReturnValue(mockCtx) as typeof HTMLCanvasElement.prototype.getContext;
+if (typeof HTMLCanvasElement !== 'undefined') {
+  HTMLCanvasElement.prototype.getContext = vi
+    .fn()
+    .mockReturnValue(mockCtx) as typeof HTMLCanvasElement.prototype.getContext;
 
-HTMLCanvasElement.prototype.toBlob = vi.fn().mockImplementation((callback: BlobCallback) => {
-  callback(new Blob(['mock-png'], { type: 'image/png' }));
-}) as typeof HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = vi.fn().mockImplementation((callback: BlobCallback) => {
+    callback(new Blob(['mock-png'], { type: 'image/png' }));
+  }) as typeof HTMLCanvasElement.prototype.toBlob;
+}

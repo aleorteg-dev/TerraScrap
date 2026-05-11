@@ -66,6 +66,30 @@ Flujo principal (máquina de estados implícita):
 - [x] `NPC list click centers canvas on NPC coords`
 - [x] `mobile: sidebar has data-open=false at viewport <768px`
 
+## 6b. Desarrollo local
+
+### Comportamiento esperado
+
+En `npm run dev` (Vite en `localhost:5173`), las peticiones a `/api/*` deben llegar a FastAPI en `localhost:8000`, no al dev-server de Vite.
+
+Mecanismo: Vite `server.proxy` redirige `/api` → `http://localhost:8000` con `changeOrigin: true`.
+El cliente (`createApiClient`) usa `/api` como `baseUrl` por defecto; en build de producción, nginx sirve tanto el frontend como el proxy a FastAPI, por lo que no se necesita URL absoluta.
+
+**Precondición para `npm run dev`**: el backend debe estar levantado en `:8000` (`uvicorn src.twi.app:app --reload`).
+
+### Verificación manual (anotada 2026-05-11)
+
+```
+1. cd backend && uvicorn src.twi.app:app --reload --port 8000
+2. cd frontend && npm run dev
+3. Abrir http://localhost:5173
+4. Subir un .wld válido → POST /api/worlds llega a FastAPI (log uvicorn visible).
+```
+
+Esta verificación queda pendiente de confirmación con `.wld` real (ver Deuda).
+
+---
+
 ## 7. Notas de implementación
 - Usar `useReducer` con `State = NoWorld | { kind: "WorldLoaded"; worldId; metadata; matches }`.
 - `HighlightOverlay` se renderiza como hermano del `WorldCanvas` en un contenedor con `position: relative`.
@@ -79,7 +103,7 @@ Flujo principal (máquina de estados implícita):
 
 ## 10. Estado
 - **Versión del contrato**: v2.0
-- **Último cierre**: 2026-05-11 (toolbar, NPC panel, tile detail panel, layout móvil — iter-19)
+- **Último cierre**: 2026-05-11 (toolbar, NPC panel, tile detail panel, layout móvil — iter-19; proxy dev Vite — iter-20b)
 - **Iteración actual**: cerrada
 
 ### Decisiones tomadas
