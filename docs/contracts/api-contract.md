@@ -88,7 +88,7 @@ Busca un ítem en el mundo cargado.
   - **[v0.2]** `frame_x=<int>` (opcional) — filtra tiles `source="block"` por frame_x exacto
   - **[v0.2]** `frame_y=<int>` (opcional) — filtra tiles `source="block"` por frame_y exacto
 - Si se proveen `frame_x/frame_y`, solo se incluyen tiles cuyo `(frame_x, frame_y)` coincida exactamente.
-- `include_containers=false` excluye `"chest"` **[v0.2]** y `"object"` (tile entities).
+- `include_containers=false` excluye `"chest"` **[v0.2]** y `"object"` (objetos/tile frames mapeados por B4).
 - **200**:
   ```json
   {
@@ -98,11 +98,11 @@ Busca un ítem en el mundo cargado.
       { "x": 1250, "y": 402, "source": "chest", "chest_id": 12, "stack": 1 },
       { "x": 3500, "y": 380, "source": "block" },
       { "x": 3500, "y": 381, "source": "wall" },
-      { "x": 2100, "y": 300, "source": "object", "tile_entity_id": 7, "stack": 1 }
+      { "x": 2100, "y": 300, "source": "object" }
     ]
   }
   ```
-- `SearchMatchDto.source`: `"block" | "wall" | "chest" | "object"`. `"object"` es **[v0.2]**.
+- `SearchMatchDto.source`: `"block" | "wall" | "chest" | "object"`. `"object"` es **[v0.2]** y representa objetos/tile frames buscables; `tile_entity` queda reservado para una futura versión de contrato.
 - **400**: `code: "invalid_item_id"`.
 - **404**: `code: "world_not_found"`.
 
@@ -372,13 +372,12 @@ Estructura provisional:
   "x": 1250, "y": 402,
   "source": "chest | block | wall | object",
   "chest_id": 12,
-  "tile_entity_id": 7,
   "stack": 1
 }
 ```
 - `chest_id`: presente cuando `source="chest"`.
-- `tile_entity_id`: presente cuando `source="object"`.
-- `stack`: presente cuando `source ∈ {chest, object}`.
+- `stack`: presente cuando `source="chest"`.
+- `object` representa objetos/tile frames encontrados por B4; no expone `tile_entity_id` en v0.2.
 
 #### `WorldMetadataDto` (v0.2)
 Ver §5.1.

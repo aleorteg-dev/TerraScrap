@@ -12,13 +12,16 @@ from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from twi.api_rest import (
     NpcDto,
     TileDetailDto,
     TileEntityDto,
     TilesChunkDto,
+    UploadTooLargeError,
     WorldMetadataDto,
     XApiVersionMiddleware,
     register_error_handlers,
@@ -625,6 +628,88 @@ def test_500_unhandled_exception_returns_error_dto_without_traceback() -> None:
     assert "traceback" not in text
     assert "runtimeerror" not in text
     assert "secret" not in text
+
+
+def test_upload_too_large_handler_returns_canonical_error() -> None:
+    app = FastAPI()
+    register_error_handlers(app)
+    app.add_middleware(XApiVersionMiddleware)
+
+    @app.post("/too-large")
+    def too_large() -> None:
+        raise UploadTooLargeError(25)
+
+    response = TestClient(app, raise_server_exceptions=False).post("/too-large")
+
+    assert response.status_code == 413
+    assert _error_code(response.json()) == "upload_too_large"
+    assert "25 MB" in response.json()["error"]["message"]
+
+
+def test_validation_error_handler_normalizes_non_sequence_location() -> None:
+    app = FastAPI()
+    register_error_handlers(app)
+    app.add_middleware(XApiVersionMiddleware)
+
+    @app.get("/invalid")
+    def invalid() -> None:
+        raise RequestValidationError(
+            [{"loc": "custom-location", "msg": None, "type": "custom_error"}]
+        )
+
+    response = TestClient(app, raise_server_exceptions=False).get("/invalid")
+
+    assert response.status_code == 422
+    body = response.json()
+    assert _error_code(body) == "validation_error"
+    assert body["error"]["details"] == [
+        {"loc": ["custom-location"], "message": "None", "type": "custom_error"}
+    ]
+
+
+def test_http_exception_handler_preserves_structured_error_detail() -> None:
+    app = FastAPI()
+    register_error_handlers(app)
+    app.add_middleware(XApiVersionMiddleware)
+
+    @app.get("/structured")
+    def structured() -> None:
+        raise StarletteHTTPException(
+            status_code=409,
+            detail={
+                "code": "conflict",
+                "message": "Conflict",
+                "details": {"field": "world_id"},
+            },
+        )
+
+    response = TestClient(app, raise_server_exceptions=False).get("/structured")
+
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "conflict",
+        "message": "Conflict",
+        "details": {"field": "world_id"},
+    }
+
+
+def test_http_exception_handler_falls_back_for_unknown_status_and_detail() -> None:
+    app = FastAPI()
+    register_error_handlers(app)
+    app.add_middleware(XApiVersionMiddleware)
+
+    @app.get("/unknown")
+    def unknown() -> None:
+        raise StarletteHTTPException(status_code=499, detail={"not": "canonical"})
+
+    response = TestClient(app, raise_server_exceptions=False).get("/unknown")
+
+    assert response.status_code == 499
+    assert response.json()["error"] == {
+        "code": "http_error",
+        "message": "HTTP error",
+        "details": None,
+    }
 
 
 def test_x_api_version_header_present_on_2xx(client: TestClient) -> None:

@@ -173,6 +173,6 @@ Notas de datos:
 - **Deuda / follow-ups**:
   - **VERIFY-EXT-01**: resolver permisos de pytest tmp/cache en el entorno Windows para poder cerrar la suite completa sin `--ignore` ni workarounds. Iter-12 evita `os.chmod` en tests; sigue abierto a nivel de suite global.
   - **DATA-EXPAND-01**: ampliar muebles, decoracion, objetos de eventos, NPC-related tiles, bioma desert/ocean/glowing moss y variantes modernas fuera de la lista minima de 50+ items. Iter-12 no introduce items nuevos: el set base ya contiene 59 items por encima del minimo.
-  - **API-DOCS-OBJECT**: `docs/contracts/api-contract.md` y `docs/modules/backend/api-rest.md` aun describen `object` como tile entity con inventario. No se toca api-rest en iter-12.
+  - **API-DOCS-OBJECT**: cerrado documentalmente 2026-05-19. En v0.2 `source="object"` sigue siendo el contrato público para objetos/tile frames; `tile_entity` no se introduce como source público hasta una futura versión de contrato.
   - **PERF-01**: RNF-03 (< 500 ms) en world Large requiere arrays vectorizables desde B1; iter-12 mejora el caso 1M tiles (65-78 ms) pero el caso 20M sigue alrededor de 1.4 s.
-  - **SOURCE-TILE_ENTITY**: el contrato API v0.2 mantiene `source ∈ {block, wall, chest, object}`. El task de iter-12 menciona `tile_entity` como source extra; no se introduce porque el contrato esta cerrado en iter-11. Pendiente: alinear contrato + engine cuando B1/B5 expongan tile entities.
+  - **SOURCE-TILE_ENTITY**: decisión 2026-05-19: mantener `source ∈ {block, wall, chest, object}` en v0.2. `tile_entity` queda reservado para v0.3 si se amplía contrato API + engine.

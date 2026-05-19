@@ -163,4 +163,4 @@ Seed bundled: `backend/src/twi/item_catalog/data/items.seed.json` (schema v1, ~1
   - T-09 actualizado (id=1 es "Iron Pickaxe", se eliminó aserción de sprite_url).
 - **Deuda / follow-ups**:
   - Seed debe regenerarse (`python -m twi.item_catalog.refresh [--enrich]`) si la wiki añade nuevos ítems o cambian sprites.
-  - `app.py` (B6) sigue cargando `items.seed.json` (legado). Migrar a `items_seed.v2.json` requiere tocar B6 y queda como follow-up de la próxima iteración de B6.
+  - Cerrado 2026-05-19: `app.py` (B6) carga por defecto `items_seed.v2.json`.

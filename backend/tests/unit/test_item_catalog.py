@@ -333,6 +333,85 @@ def test_refresh_cli_creates_output_parent_and_runs(
     assert calls == [output]
 
 
+def test_refresh_cli_passes_enrich_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "items.json"
+    calls: list[tuple[Path, bool]] = []
+
+    async def fake_run(path: Path, *, enrich: bool = False) -> None:
+        calls.append((path, enrich))
+
+    monkeypatch.setattr(refresh_cli, "_run", fake_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["python -m twi.item_catalog.refresh", "--output", str(output), "--enrich"],
+    )
+
+    refresh_cli.main()
+
+    assert calls == [(output, True)]
+
+
+def test_refresh_cli_exits_nonzero_when_wiki_refresh_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "items.json"
+
+    async def fake_run(path: Path, *, enrich: bool = False) -> None:
+        raise WikiUnavailableError("wiki down")
+
+    monkeypatch.setattr(refresh_cli, "_run", fake_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["python -m twi.item_catalog.refresh", "--output", str(output)],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        refresh_cli.main()
+
+    assert exc_info.value.code == 1
+    assert not output.exists()
+
+
+async def test_refresh_run_uses_http_client_and_logs_written_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    output = tmp_path / "items.json"
+    calls: list[tuple[Path, object, bool]] = []
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        async def __aenter__(self) -> "FakeAsyncClient":
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    async def fake_refresh(path: Path, client: object, *, enrich: bool = False) -> None:
+        calls.append((path, client, enrich))
+        path.write_text(
+            json.dumps({"schema": 1, "items": [{"id": 1, "name": "Item"}]}),
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(refresh_cli.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(refresh_cli, "refresh_cache_from_wiki", fake_refresh)
+
+    with caplog.at_level(logging.INFO):
+        await refresh_cli._run(output, enrich=True)
+
+    assert len(calls) == 1
+    assert calls[0][0] == output
+    assert calls[0][2] is True
+    assert isinstance(calls[0][1], FakeAsyncClient)
+    assert "Written 1 items" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # T-10  load_catalog uses cache when present
 # ---------------------------------------------------------------------------

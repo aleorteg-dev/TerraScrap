@@ -190,7 +190,7 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 12. Deuda / follow-ups
 
-- **flags v2 actuator/wires**: encoder v2 sólo expone bit 0 (`has_frame`). Pendiente cuando `wld_parser` exponga campos discretos.
+- **flags v2 actuator/wires**: encoder v2 sólo expone bit 0 (`has_frame`). Pendiente cuando `wld_parser` exponga campos discretos; F3 puede renderizar bits si llegan en el payload, pero B5 no debe inventarlos desde campos opacos.
 
 ### Evolución propuesta para paridad con TerraMap
 
