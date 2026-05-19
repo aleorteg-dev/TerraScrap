@@ -92,9 +92,7 @@ HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request; ur
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY frontend/package*.json ./
-# --legacy-peer-deps requerido: openapi-typescript@7 declara peerDep typescript@^5.x
-# pero el proyecto usa typescript@~6.0.2; npm v10 (node:20-alpine) rechaza el conflicto.
-RUN npm ci --legacy-peer-deps
+RUN npm ci
 COPY frontend .
 RUN npm run build
 
@@ -174,7 +172,7 @@ volumes:
 ## 12. Decisiones tomadas
 
 - `context: ..` en docker-compose.yml (compose en `docker/`, contexto = raíz del repo).
-- `npm ci --legacy-peer-deps` en frontend.Dockerfile: `openapi-typescript@7` requiere `typescript@^5.x` pero el proyecto usa `typescript@~6.0.2`; npm v10 (node:20-alpine) es más estricto que npm v11 local. Ver deuda.
+- `npm ci` en frontend.Dockerfile: `openapi-typescript@7.13.0` requiere `typescript@^5.x`; el proyecto fija `typescript@~5.9.3` para no necesitar `--legacy-peer-deps`.
 - `location /healthz` añadido a nginx.conf para exponer el health del backend desde el puerto 80 (útil para load balancers y smoke tests).
 - `/app/data` creado con `chown twi:twi` antes del `USER twi` para que el volumen `items-cache` herede permisos correctos en primera ejecución.
 - `TWI_CORS_ORIGINS=[]` por defecto en compose: en producción, front y back comparten origen (nginx:8080); no se necesita CORS.
@@ -184,5 +182,5 @@ volumes:
 
 ## 13. Deuda / follow-ups
 
-- **DEUDA-P1-01 (abierta)** `--legacy-peer-deps`: actualizar `openapi-typescript` a versión con peerDep `typescript@^6.x` cuando esté disponible, o fijar `typescript` en `^5.x`. Candidatos: openapi-typescript@8+ (seguimiento en https://github.com/openapi-ts/openapi-typescript). Sin impacto en funcionalidad ni seguridad.
-- **DEUDA-P1-02 (abierta)** `T-04 trivy`: ejecución con evidencia real pendiente de CI con trivy instalado. Script `docker/scan.sh` existe y funciona; falta incorporar en pipeline CI (GitHub Actions o equivalente). Bloqueado por ausencia de CI pipeline en v1.
+- **DEUDA-P1-01 (cerrada 2026-05-19)** `--legacy-peer-deps` eliminado: `typescript@~5.9.3` satisface el peer `typescript@^5.x` de `openapi-typescript@7.13.0`; `npm ci --dry-run` valida el lock.
+- **DEUDA-P1-02 (cerrada en repo 2026-05-19)** `.github/workflows/ci.yml` instala Trivy y ejecuta `docker/scan.sh` tras `docker/smoke.sh`. La evidencia final se obtiene en el primer run remoto del workflow.
