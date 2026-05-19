@@ -17,7 +17,28 @@ export const Toolbar: FC = () => {
   function handleExportPng(): void {
     void (async () => {
       if (!canvasHandle) return;
-      const blob = await canvasHandle.exportToPng();
+      const canvases = Array.from(
+        document.querySelectorAll<HTMLCanvasElement>('.app-canvas-container canvas')
+      );
+      let blob = await canvasHandle.exportToPng();
+      if (canvases.length > 1) {
+        const base = canvases[0];
+        if (base !== undefined) {
+          const composite = document.createElement('canvas');
+          composite.width = base.width;
+          composite.height = base.height;
+          const ctx = composite.getContext('2d');
+          if (ctx !== null) {
+            for (const canvas of canvases) {
+              ctx.drawImage(canvas, 0, 0, composite.width, composite.height);
+            }
+            const composed = await new Promise<Blob | null>((resolve) =>
+              composite.toBlob(resolve, 'image/png')
+            );
+            if (composed !== null) blob = composed;
+          }
+        }
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -25,6 +46,13 @@ export const Toolbar: FC = () => {
       a.click();
       URL.revokeObjectURL(url);
     })();
+  }
+
+  function handleZoomToFit(): void {
+    const next = canvasHandle?.zoomToFit();
+    if (typeof next === 'number') {
+      dispatch({ type: 'SET_ZOOM', zoom: next });
+    }
   }
 
   const layerLabels: Record<keyof typeof layers, string> = {
@@ -62,6 +90,14 @@ export const Toolbar: FC = () => {
           onClick={() => applyZoom(INITIAL_ZOOM)}
         >
           Reset
+        </button>
+        <button
+          aria-label="Zoom to fit"
+          className="app-toolbar-btn"
+          onClick={handleZoomToFit}
+          disabled={!canvasHandle}
+        >
+          Fit
         </button>
       </div>
 

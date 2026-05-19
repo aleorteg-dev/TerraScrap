@@ -25,6 +25,12 @@ export interface UploadOptions {
   onProgress?: (pct: number) => void;
 }
 
+export interface SearchInWorldOptions {
+  includeContainers?: boolean;
+  frameX?: number;
+  frameY?: number;
+}
+
 export interface ApiClient {
   uploadWorld(
     file: File,
@@ -45,7 +51,7 @@ export interface ApiClient {
   searchInWorld(
     worldId: string,
     itemId: number,
-    includeContainers?: boolean
+    options?: SearchInWorldOptions | boolean
   ): Promise<SearchResult>;
   deleteWorld(worldId: string): Promise<void>;
 }
@@ -240,11 +246,16 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
       return doRequest<ItemDetail>(fetchImpl, `${baseUrl}/items/${itemId}`);
     },
 
-    searchInWorld(worldId: string, itemId: number, includeContainers?: boolean) {
+    searchInWorld(worldId: string, itemId: number, options?: SearchInWorldOptions | boolean) {
       const params = new URLSearchParams({ item_id: String(itemId) });
+      const normalized =
+        typeof options === 'boolean' ? { includeContainers: options } : (options ?? {});
+      const { includeContainers, frameX, frameY } = normalized;
       if (includeContainers !== undefined) {
         params.set('include_containers', String(includeContainers));
       }
+      if (frameX !== undefined) params.set('frame_x', String(frameX));
+      if (frameY !== undefined) params.set('frame_y', String(frameY));
       return doRequest<SearchResult>(
         fetchImpl,
         `${baseUrl}/worlds/${worldId}/search?${params.toString()}`

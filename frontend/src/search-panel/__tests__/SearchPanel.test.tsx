@@ -301,7 +301,7 @@ describe('SearchPanel', () => {
   it('T-15 deselecting wall source filter hides wall matches', async () => {
     const wallMatch: SearchMatch = { x: 1, y: 2, source: 'wall' };
     const blockMatch: SearchMatch = { x: 3, y: 4, source: 'block' };
-    await renderAndSelect([mockItem], {
+    const { onResults } = await renderAndSelect([mockItem], {
       item_id: 1,
       total: 2,
       matches: [wallMatch, blockMatch],
@@ -315,6 +315,13 @@ describe('SearchPanel', () => {
     // Wall match hidden, block match visible
     expect(screen.queryByText(/Pared en \(1, 2\)/i)).not.toBeInTheDocument();
     expect(screen.getByText(/Bloque en \(3, 4\)/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(onResults).toHaveBeenLastCalledWith({
+        item_id: 1,
+        total: 1,
+        matches: [blockMatch],
+      })
+    );
   });
 
   it('T-16 two keystrokes under 200ms produce one autocomplete request', async () => {

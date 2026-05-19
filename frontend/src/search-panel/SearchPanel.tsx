@@ -106,6 +106,15 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
     [results]
   );
 
+  useEffect(() => {
+    if (results === null) return;
+    onResults({
+      ...results,
+      total: filteredMatches.length,
+      matches: filteredMatches,
+    });
+  }, [results, filteredMatches, onResults]);
+
   // Virtual list bounds
   const totalFiltered = filteredMatches.length;
   const visibleStart = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
@@ -129,7 +138,6 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
         .searchInWorld(worldId, item.id, containers)
         .then((result) => {
           setResults(result);
-          onResults(result);
           setUiState(result.total === 0 ? 'empty' : 'idle');
         })
         .catch((err: unknown) => {
@@ -139,7 +147,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           setUiState('error');
         });
     },
-    [worldId, apiClient, onResults]
+    [worldId, apiClient]
   );
 
   const navigateMatch = useCallback(
@@ -266,7 +274,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const isLoading = uiState === 'loading-search';
 
   const countText = (() => {
-    if (hiddenSources.size > 0 && filteredMatches.length !== totalFiltered) {
+    if (hiddenSources.size > 0 && filteredMatches.length !== (results?.matches.length ?? 0)) {
       return `${filteredMatches.length} de ${results?.total ?? 0} coincidencias`;
     }
     const n = results?.total ?? 0;

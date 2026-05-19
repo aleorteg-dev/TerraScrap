@@ -121,7 +121,7 @@ Nuevos tests de componente (iter-16):
 - Render v2 en 3 pasadas: walls → tiles → liquids (función `renderChunkBitmapV2`).
 - Zoom rango `[0.25, 8]`. Centrado en cursor via `zoomAroundCursor`.
 - Viewport inicial centrado en `spawn_x/spawn_y` de `WorldMetadataDto`.
-- worldId change: limpia `bitmapCacheRef`, `chunkCacheRef`, `pendingRef` y recarga chunks.
+- worldId change: limpia `bitmapCacheRef`, `pendingRef` y recarga chunks.
 - `exportToPng()`: `canvas.toBlob('image/png')` devuelve `Promise<Blob>`.
 - Tipos migrados de `types.ts` local a `../api-client` (F1). `types.ts` eliminado.
 - El estado de pan/zoom vive en `useRef` para no provocar re-renders; el dibujo se dispara imperativamente.
@@ -152,7 +152,7 @@ Nuevos tests de componente (iter-16):
 - **Pre-render al recibir tiles**: En `loadChunk`, justo después de `decodeBase64RleV1`, se llama `renderChunkBitmap(...)` que crea un `HTMLCanvasElement` de 128×128 px (1 px/tile) y pinta cada tile con `fillRect(tx, ty, 1, 1)`. Los tiles negativos (aire) se omiten.
 - **`drawImage` en el RAF**: El loop de render reemplaza el `for-loop fillRect` por `ctx.drawImage(rendered.canvas, pixelX, pixelY, pixelSize, pixelSize)`. `ctx.imageSmoothingEnabled = false` asegura nearest-neighbor al escalar.
 - **HTMLCanvasElement vs OffscreenCanvas**: Se usa `HTMLCanvasElement` (compatible con jsdom). `OffscreenCanvas` queda como optimización futura (requiere estrategia de mock diferente en tests o feature-detection en runtime).
-- **`chunkCacheRef` conservado**: Mantiene los `Int16Array` raw para deduplicar fetches. Podría eliminarse en refactor futuro si `bitmapCacheRef` se usa como fuente de verdad.
+- **`chunkCacheRef` eliminado (2026-05-19)**: `bitmapCacheRef` y `pendingRef` deduplican fetches y evitan conservar `Int16Array` raw fuera del pre-render.
 
 ## 13. Decisiones tomadas (bugfix viewport-inicial 2026-04-27)
 
@@ -164,7 +164,7 @@ Nuevos tests de componente (iter-16):
 ## 12. Deuda / follow-ups
 
 - **OffscreenCanvas**: `renderChunkBitmap` usa `HTMLCanvasElement`. Migrar a `OffscreenCanvas` para eliminar overhead de DOM en el hilo principal. Requiere feature-detection (`typeof OffscreenCanvas !== 'undefined'`) y actualización del mock en tests.
-- **Eliminar `chunkCacheRef`**: Los `Int16Array` raw ya no se usan en el render loop. Si no hay otro consumidor futuro (mipmap), se puede eliminar y usar `bitmapCacheRef` para deduplicar fetches.
+- **Eliminar `chunkCacheRef`**: cerrado 2026-05-19; la deduplicación usa `bitmapCacheRef` + `pendingRef`.
 - **Mipmap zoom-out**: SP-08 del doc menciona chunks "mipmap" reducidos para zoom extremo. No implementado en v1.
 - **Pinch-to-zoom táctil**: SP-04. No implementado en v1; requires TouchEvent handling.
 - **Animación en centerOn**: SP-07 menciona animación opcional. v1 hace jump instantáneo.
@@ -179,7 +179,7 @@ Referencia local acotada:
 
 Brechas actuales:
 - `tileColors.ts` es una paleta mínima; TerraMap cubre cientos de tiles, walls y líquidos.
-- no hay zoom-to-fit ni export PNG con overlay.
+- zoom-to-fit ya existe en `WorldCanvasHandle`; export PNG con overlay se compone desde F6.
 
 Cambios candidatos:
 
@@ -187,11 +187,11 @@ Cambios candidatos:
 - ampliar paletas de `tileColors`, `wallColors`, `liquidColors` y `layerColors` para acercarse a TerraMap.
 
 **Zoom-to-fit**:
-- `WorldCanvasHandle.zoomToFit(): void` calcula `zoom = min(viewportW / worldW, viewportH / worldH)` clamped a `[minZoom, maxZoom]` y centra `(worldW/2, worldH/2)`.
+- Implementado 2026-05-19: `WorldCanvasHandle.zoomToFit(): number | null` calcula `zoom = min(viewportW / worldW, viewportH / worldH)` clamped a `[minZoom, maxZoom]`, centra `(worldW/2, worldH/2)` y devuelve el zoom aplicado para sincronizar F6.
 - `WorldCanvasHandle.getViewport(): { x, y, width, height, zoom }` para que F6 pueda persistir o exportar.
 
 **Export PNG con overlay**:
-- `WorldCanvasHandle.exportToPng()` ya exporta el canvas base. Falta una estrategia para componer overlay si el usuario quiere incluir resaltados.
+- F6 compone los canvas del contenedor para incluir overlay; `WorldCanvasHandle.exportToPng()` sigue exportando el canvas base.
 
 Tests mínimos futuros:
 - `zoomToFit` deja el mundo entero dentro del viewport (≤1 tile de margen).

@@ -231,6 +231,40 @@
 }
 
 /* ── Tile detail panel ───────────────────────────────────────────────────────── */
+.app-world-properties {
+  padding: 0.75rem;
+  border-top: 1px solid #2a2a4a;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.app-world-properties h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  color: #ccc;
+}
+
+.app-world-properties dl {
+  margin: 0;
+}
+
+.app-world-property-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+
+.app-world-property-row dt {
+  color: #888;
+}
+
+.app-world-property-row dd {
+  margin: 0;
+  color: #eee;
+  overflow-wrap: anywhere;
+}
+
 .app-tile-detail {
   padding: 0.75rem;
   border-top: 1px solid #2a2a4a;

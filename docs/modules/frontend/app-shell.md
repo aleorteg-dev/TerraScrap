@@ -123,9 +123,10 @@ Esta verificación queda pendiente de confirmación con `.wld` real (ver Deuda).
 - Layout `WorldLoaded`: `search-panel` queda a la izquierda con ancho fijo `320px`; `world-canvas` ocupa la columna restante con `minmax(0, 1fr)`.
 
 ### Deuda / follow-ups
-- Layer toggles `walls/liquids/wires`: almacenados en reducer pero no conectados a WorldCanvas (contrato F3 no tiene esas props todavía). Requiere iter F3.1 + actualización de api-contract.
-- `zoomToFit()` en toolbar: WorldCanvasHandle no expone este método aún. Requiere iter F3.2.
-- Panel propiedades del mundo (`WorldMetadataDto` extendido: `spawn_x/y`, capas): no implementado.
+- Cerrado 2026-05-19: layer toggles `walls/liquids/wires` conectados a props reales de `WorldCanvas`.
+- Cerrado 2026-05-19: `zoomToFit()` expuesto por `WorldCanvasHandle` y conectado en toolbar.
+- Cerrado 2026-05-19: panel de propiedades del mundo muestra metadata v0.2 (`spawn_x/y`, capas, version, seed, size, hardmode).
+- Cerrado 2026-05-19: export PNG compone los canvas visibles dentro de `.app-canvas-container`, incluido overlay.
 - Smoke test manual pendiente (requiere backend vivo con `.wld` real).
 
 ### Evolución propuesta para paridad con TerraMap
@@ -133,16 +134,14 @@ Esta verificación queda pendiente de confirmación con `.wld` real (ver Deuda).
 F6 debe coordinar los controles globales, porque es el único módulo que conoce canvas, búsqueda y API.
 
 Pendiente:
-- **Toolbar global**: añadir `zoom-to-fit` y controles anterior/siguiente match.
-- **Panel "Propiedades del mundo"**: mostrar `WorldMetadataDto` extendido (`spawn_x/y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`, `version`, `seed`, `size`, `hardmode`).
-- **Layer toggles**: conectar `walls/liquids/wires` a props reales de F3 cuando existan.
-- **Export PNG con overlay**: hoy F6 exporta el canvas base mediante `exportToPng()`; falta componer overlay si se quiere incluir resaltados.
+- **Toolbar global**: controles anterior/siguiente match.
+- **Frame UI**: controles para explotar `frameX/frameY` de F1 si se decide exponer búsqueda por frame en interfaz.
 
 Restricciones:
 - no meter lógica de parsing/render en F6.
 - no abrir endpoints nuevos hasta que `api-contract.md`, B5 y F1 estén actualizados.
 - mantener controles como composición de contratos públicos de F3/F4/F5.
-- export PNG: F6 obtiene hoy el canvas base de `canvasHandle.exportToPng()`. Para incluir resaltados habrá que coordinar F5/F3.
+- export PNG: F6 compone los canvas visibles del contenedor; si F5 cambia a render no-canvas, debe exponer una API equivalente de exportación.
 
 Tests mínimos futuros:
 - next/previous match llama `centerOn` con wrap-around y actualiza `focusedMatchIndex`.

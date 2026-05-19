@@ -15,6 +15,7 @@ export { createApiClient, EXPECTED_API_VERSION } from './client';
 export type {
   ApiClient,
   ApiClientOptions,
+  SearchInWorldOptions,
   UploadOptions,
   WorldMetadata,
   TilesChunk,

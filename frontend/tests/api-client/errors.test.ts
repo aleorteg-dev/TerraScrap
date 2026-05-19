@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { components } from '../../src/api-client/__generated__/schema';
 import {
   ApiError,
+  ApiVersionMismatchError,
   UploadTooLargeError,
   WorldNotFoundError,
   ValidationError,
@@ -90,6 +91,32 @@ describe('parseError', () => {
     const err = await parseError(res);
     expect(err.apiVersion).toBe('v0.1.0');
   });
+
+  it('test_parse_error_invalid_json_returns_unknown_error', async () => {
+    const res = {
+      ok: false,
+      status: 502,
+      json: (): Promise<unknown> => Promise.reject(new SyntaxError('bad json')),
+      headers: { get: (): string | null => '0.2' },
+    } as unknown as Response;
+
+    const err = await parseError(res);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.code).toBe('unknown_error');
+    expect(err.status).toBe(502);
+    expect(err.apiVersion).toBe('0.2');
+  });
+
+  it('test_parse_error_payload_without_error_returns_unknown_error', async () => {
+    const res = makeResponse(502, { message: 'Bad gateway' });
+
+    const err = await parseError(res);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.code).toBe('unknown_error');
+    expect(err.message).toBe('Unknown server error');
+  });
 });
 
 // ── client typed errors ───────────────────────────────────────────────────────
@@ -117,6 +144,13 @@ describe('client typed errors', () => {
 
     const result = await client.searchItems('item');
     expect(result).toEqual(items);
+  });
+
+  it('test_client_rejects_mismatched_api_version_header', async () => {
+    const mock = makeFetch(200, { items: [] }, { 'X-API-Version': '0.1' });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await expect(client.searchItems('item')).rejects.toBeInstanceOf(ApiVersionMismatchError);
   });
 });
 

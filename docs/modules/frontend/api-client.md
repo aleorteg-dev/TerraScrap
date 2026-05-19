@@ -39,7 +39,11 @@ interface ApiClient {
   getWorldMetadata(worldId: string): Promise<WorldMetadata>;
   getTilesChunk(worldId: string, chunkX: number, chunkY: number, chunkSize?: number): Promise<TilesChunk>;
   searchItems(query: string, limit?: number): Promise<ItemSummary[]>;
-  searchInWorld(worldId: string, itemId: number, includeContainers?: boolean): Promise<SearchResult>;
+  searchInWorld(
+    worldId: string,
+    itemId: number,
+    options?: SearchInWorldOptions | boolean
+  ): Promise<SearchResult>;
   deleteWorld(worldId: string): Promise<void>;
 }
 
@@ -155,7 +159,7 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 - `searchItems` desenvuelve `ItemListDto.items` y devuelve `ItemSummary[]` directamente.
 - `deleteWorld` tolera 404 sin lanzar (SP-06 idempotente).
 - `vitest.config.ts` separado de `vite.config.ts` para evitar conflicto de tipos en `tsc -b`.
-- `npm install --legacy-peer-deps` necesario: `openapi-typescript@7` declara peer `typescript@^5.x` pero el scaffold usa TypeScript 6.
+- `npm install --legacy-peer-deps` ya no es necesario: el proyecto fija `typescript@~5.9.3`, compatible con `openapi-typescript@7.13.0`.
 
 ### Iter-031
 - `ApiError.httpStatus` renombrado a `status` para alinear con el contrato del doc. Los consumidores (F2, F4) solo acceden a `.message` y usan el constructor posicionalmente → sin breaking change.
@@ -165,9 +169,9 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 - `makeFetch` en tests actualizado para incluir `headers.get()` mock, necesario tras centralizar el parseo en `parseError`.
 
 ## 15. Deuda / follow-ups
-- `npm install --legacy-peer-deps`: actualizar `openapi-typescript` cuando publique soporte oficial para TypeScript 6.
-- `searchInWorld` aún no admite `frameX/frameY` opcionales (el backend ya los acepta tras iter-11). Pendiente para iteración futura.
+- `npm install --legacy-peer-deps`: cerrado fijando `typescript@~5.9.3`, compatible con `openapi-typescript@7.13.0`.
+- `searchInWorld` admite `frameX/frameY` opcionales mediante `SearchInWorldOptions`; conserva compatibilidad temporal con el tercer argumento booleano.
 
 ### Evolución propuesta para paridad con TerraMap (estado)
 
-- `searchInWorld` con `frameX/frameY`: pendiente (deuda activa).
+- `searchInWorld` con `frameX/frameY`: implementado en F1; pendiente solo UI específica para seleccionar frames desde F4/F6.

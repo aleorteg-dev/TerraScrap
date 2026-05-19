@@ -12,6 +12,7 @@ import { appReducer, INITIAL_ZOOM } from './appState';
 import { Toolbar } from './components/Toolbar';
 import { NpcPanel } from './components/NpcPanel';
 import { TileDetailPanel } from './components/TileDetailPanel';
+import { WorldPropertiesPanel } from './components/WorldPropertiesPanel';
 import './App.css';
 
 export interface AppProps {
@@ -227,6 +228,7 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                     onResults={handleResults}
                     onMatchFocus={handleMatchFocus}
                   />
+                  <WorldPropertiesPanel metadata={state.metadata} />
                   <button
                     className="app-panel-toggle"
                     aria-expanded={state.panels.npcs}
@@ -248,6 +250,9 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                     onReady={setCanvasHandle}
                     onTileSelected={handleTileSelected}
                     showLayerLines={state.layers.grid}
+                    showWalls={state.layers.walls}
+                    showLiquids={state.layers.liquids}
+                    showWires={state.layers.wires}
                   />
                   <HighlightOverlay
                     canvasHandle={canvasHandle}

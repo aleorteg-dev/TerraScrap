@@ -132,7 +132,7 @@ describe('WorldCanvas', () => {
     // center: (2100, 240), pan: (1900, 90)
     // first visible chunk: cx=floor(1900/128)=14, cy=floor(90/128)=0
     await waitFor(() => {
-      expect(apiClient.getTilesChunk).toHaveBeenCalledWith('w1', 14, 0, 128);
+      expect(apiClient.getTilesChunk).toHaveBeenCalledWith('w1', 14, 0, 128, 'base64-rle-v2');
     });
   });
 
@@ -233,6 +233,7 @@ describe('WorldCanvas', () => {
     expect(handle).toBeDefined();
     expect(typeof (handle as Record<string, unknown>)['centerOn']).toBe('function');
     expect(typeof (handle as Record<string, unknown>)['setZoom']).toBe('function');
+    expect(typeof (handle as Record<string, unknown>)['zoomToFit']).toBe('function');
     expect(typeof (handle as Record<string, unknown>)['redraw']).toBe('function');
     expect(typeof (handle as Record<string, unknown>)['screenToWorld']).toBe('function');
     expect(typeof (handle as Record<string, unknown>)['worldToScreen']).toBe('function');
@@ -282,6 +283,21 @@ describe('WorldCanvas', () => {
     const s0 = handle.worldToScreen(0, 0);
     const s1 = handle.worldToScreen(1, 0);
     expect(s1.px - s0.px).toBeCloseTo(8, 2);
+  });
+
+  it('T-15c zoomToFit fits the full world in the canvas', () => {
+    const onReady = vi.fn();
+    render(
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={makeApiClient()} onReady={onReady} />
+    );
+    const handle = onReady.mock.calls[0]?.[0] as WorldCanvasHandle;
+
+    const zoom = handle.zoomToFit();
+
+    expect(zoom).toBeCloseTo(0.25, 2);
+    const center = handle.worldToScreen(mockMeta.width / 2, mockMeta.height / 2);
+    expect(center.px).toBeCloseTo(400, 0);
+    expect(center.py).toBeCloseTo(300, 0);
   });
 
   it('T-16 exportToPng returns a non-empty Blob', async () => {

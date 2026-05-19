@@ -108,7 +108,7 @@ Componente:
   - Colores por defecto documentados: block=amarillo, wall=cian, chest=naranja, object=magenta, liquid=azul, tile_entity=verde.
   - `selectedTile` dibuja `strokeRect(px, py, zoom, zoom)` con alpha pulsante; se dibuja aunque `matches` esté vacío.
 - **Deuda / follow-ups**:
-  - Tests de integración con `WorldCanvas` real (pan/zoom + overlay) aplazados a iter de `app-shell` (F6).
+  - Integración F6 cubierta por tests de `app-shell` para composición de canvas/export y propagación de matches filtrados; sigue pendiente una prueba visual con canvas real en navegador.
   - `Path2D` batching para > 1000 matches no implementado (aplazado a iter de perf).
 
 ### Evolución propuesta para paridad con TerraMap

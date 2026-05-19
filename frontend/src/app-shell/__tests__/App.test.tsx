@@ -60,10 +60,12 @@ const mockNpcs: Npc[] = [
 
 const mockCenterOn = vi.fn();
 const mockSetZoom = vi.fn();
+const mockZoomToFit = vi.fn();
 const mockExportToPng = vi.fn();
 const mockHandle = {
   centerOn: mockCenterOn,
   setZoom: mockSetZoom,
+  zoomToFit: mockZoomToFit,
   redraw: vi.fn(),
   screenToWorld: vi.fn(() => ({ x: 0, y: 0 })),
   worldToScreen: vi.fn(() => ({ px: 0, py: 0 })),
@@ -196,6 +198,7 @@ beforeEach(() => {
   // Never resolves by default — prevents unexpected state updates in other tests
   mockGetTileDetail.mockReturnValue(new Promise<TileDetail>(() => {}));
   mockListNpcs.mockReturnValue(new Promise<Npc[]>(() => {}));
+  mockZoomToFit.mockReturnValue(0.5);
   mockExportToPng.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
 
   vi.mocked(UploadWorld).mockImplementation((props: UploadProps) => {
@@ -427,6 +430,7 @@ describe('App', () => {
     expect(screen.getByRole('toolbar')).toBeInTheDocument();
     expect(screen.getByTestId('world-canvas')).toBeInTheDocument();
     expect(screen.getByTestId('search-panel')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /propiedades del mundo/i })).toBeInTheDocument();
   });
 
   it('toolbar zoom in calls setZoom with incremented value', async () => {
@@ -442,6 +446,33 @@ describe('App', () => {
     expect(mockSetZoom).toHaveBeenCalledWith(INITIAL_ZOOM + ZOOM_STEP);
   });
 
+  it('toolbar zoom to fit calls canvas handle and updates zoom label', async () => {
+    const user = userEvent.setup();
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    const fitBtn = screen.getByRole('button', { name: /zoom to fit/i });
+    await user.click(fitBtn);
+
+    expect(mockZoomToFit).toHaveBeenCalled();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+  });
+
+  it('layer toggles are passed to WorldCanvas', async () => {
+    const user = userEvent.setup();
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).toMatchObject({ showWalls: true }));
+
+    await user.click(screen.getByRole('button', { name: /toggle walls/i }));
+
+    await waitFor(() => expect(capturedCanvasProps).toMatchObject({ showWalls: false }));
+    expect(capturedCanvasProps).toMatchObject({ showLiquids: true, showWires: true });
+  });
+
   it('toolbar export PNG calls exportToPng and createObjectURL', async () => {
     const user = userEvent.setup();
     const mockBlob = new Blob(['fake-png'], { type: 'image/png' });
@@ -451,6 +482,7 @@ describe('App', () => {
     const revokeObjectURL = vi.fn();
     const origCreate = URL.createObjectURL;
     const origRevoke = URL.revokeObjectURL;
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     URL.createObjectURL = createObjectURL;
     URL.revokeObjectURL = revokeObjectURL;
 
@@ -468,6 +500,7 @@ describe('App', () => {
     } finally {
       URL.createObjectURL = origCreate;
       URL.revokeObjectURL = origRevoke;
+      clickSpy.mockRestore();
     }
   });
 

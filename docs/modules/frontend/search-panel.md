@@ -86,18 +86,18 @@ Contrato de búsqueda:
   - Virtualización implementada sin dependencias nuevas: ventana deslizante sobre `filteredMatches` con `ROW_HEIGHT=40`, `OVERSCAN=10`. En JSDOM `containerHeight` por defecto 320 px; se actualiza desde `clientHeight` en el evento `onScroll`. Sin `ResizeObserver` para no requerir mock adicional en setupTests.
   - `focusedMatchIndexRef` es un ref paralelo al estado `focusedMatchIndex`, actualizado síncronamente en `navigateMatch` para evitar lecturas obsoletas del closure en llamadas consecutivas de teclado.
   - Atajos globales en `window`: `Escape` siempre limpia; `/`, `n`, `p` solo actúan cuando el input NO tiene foco (`e.target !== inputRef.current`).
-  - Filtros por `source` son cliente-puro: no re-lanzan la petición API. `onResults` recibe siempre el resultado crudo; el filtrado afecta solo la lista visible en el panel y el índice pasado a `onMatchFocus`.
+  - Filtros por `source` son cliente-puro: no re-lanzan la petición API. Desde 2026-05-19, `onResults` recibe los matches filtrados para que F5/F6 resalten sólo lo visible.
   - `onMatchFocus` ahora recibe `(match, index)` donde `index` es el índice en `filteredMatches`.
 - **Deuda / follow-ups**:
   - Cancelación real de peticiones de autocompletado requiere que `ApiClient.searchItems` exponga `AbortSignal`. Actualmente se ignoran respuestas obsoletas vía `searchGenRef` pero la petición HTTP sigue en vuelo.
   - Tests AT con axe-core no incluidos en este ciclo.
-  - El filtrado cliente-puro no actualiza `onResults` con los matches filtrados. Si `highlight-overlay` debe mostrar solo los matches visibles, se necesita propagar el resultado filtrado. Documentar y coordinar con F5/F6 en iteraciones futuras.
+  - Cerrado 2026-05-19: el filtrado cliente-puro actualiza `onResults` con los matches filtrados.
 
 ### Evolución propuesta para paridad con TerraMap
 
 Brechas actuales:
 - No hay acción separada de "highlight all" porque actualmente todos los resultados se resaltan siempre.
-- Los filtros por `source` solo afectan a la lista visible; `onResults` conserva el resultado crudo.
+- Los filtros por `source` afectan a la lista visible y al overlay mediante `onResults`.
 
 Contrato propuesto v2:
 ```ts

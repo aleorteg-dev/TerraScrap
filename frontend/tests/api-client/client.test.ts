@@ -181,6 +181,25 @@ describe('searchInWorld', () => {
     );
     expect(mock).toHaveBeenCalledWith(expect.stringContaining('item_id=757'), undefined);
   });
+
+  it('T-04b searchInWorld sends frame filters and include_containers options', async () => {
+    const mock = makeFetch(200, { item_id: 21, total: 0, matches: [] });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+
+    await client.searchInWorld('world-id-1', 21, {
+      includeContainers: false,
+      frameX: 300,
+      frameY: 18,
+    });
+
+    expect(mock).toHaveBeenCalledWith(expect.stringContaining('item_id=21'), undefined);
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('include_containers=false'),
+      undefined
+    );
+    expect(mock).toHaveBeenCalledWith(expect.stringContaining('frame_x=300'), undefined);
+    expect(mock).toHaveBeenCalledWith(expect.stringContaining('frame_y=18'), undefined);
+  });
 });
 
 // ── T-05 ─────────────────────────────────────────────────────────────────────

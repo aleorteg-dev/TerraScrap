@@ -378,7 +378,7 @@ Todos los módulos del orden de construcción B1→B6, F1→F6, P1 están implem
 | B4 tile-search | ✅ cerrado | 89% | iter-12 |
 | B5 api-rest | ✅ cerrado | 97% | iter-11 |
 | B6 app-bootstrap | ✅ cerrado | 92% | iter-07 |
-| F1 api-client | ✅ cerrado | 79%* | iter-032 |
+| F1 api-client | ✅ cerrado | 100% `errors.ts`* | iter-032 + deuda-2026-05-19 |
 | F2 ui-upload | ✅ cerrado | 89% | iter-032 |
 | F3 world-canvas | ✅ cerrado | 94% | iter-024 |
 | F4 search-panel | ✅ cerrado | 94% | iter-18 |
@@ -386,17 +386,19 @@ Todos los módulos del orden de construcción B1→B6, F1→F6, P1 están implem
 | F6 app-shell | ✅ cerrado | 91% | iter-19 |
 | P1 deployment-docker | ✅ cerrado | — | iter-020 |
 
-*`api-client/errors.ts` 79% (1 punto bajo umbral 80%) — deuda DEUDA-F1-01 abierta.
+*`api-client/errors.ts` cerró DEUDA-F1-01 con cobertura 100% en `npx vitest run tests/api-client --coverage`.
 
-**Deuda abierta al cierre v0.2:**
-- DEUDA-P1-01: `--legacy-peer-deps` hasta openapi-typescript con soporte TypeScript 6.
-- DEUDA-P1-02: trivy en CI pipeline (script listo, falta workflow).
-- DEUDA-F1-01: `api-client/errors.ts` 79% cobertura (1pt bajo umbral).
-- DEUDA-B5-01: `api_rest/errors.py` 68% cobertura (complex HTTP handler branches).
-- DEUDA-B3-01: `item_catalog/refresh.py` 70% cobertura (CLI script, difícil aislar).
+**Deuda abierta / cerrada tras iter-deuda-2026-05-19:**
+- DEUDA-P1-01 cerrada: frontend fija `typescript@~5.9.3`, `npm ci` ya no requiere `--legacy-peer-deps` y `docker/frontend.Dockerfile` usa `npm ci`.
+- DEUDA-P1-02 cerrada en repo: `.github/workflows/ci.yml` ejecuta `docker/smoke.sh` y `docker/scan.sh` con Trivy instalado. Evidencia local de script real queda para CI remoto.
+- DEUDA-F1-01 cerrada: `api-client/errors.ts` 100% cobertura en suite `tests/api-client`.
+- DEUDA-B5-01 cerrada: `api_rest/errors.py` 91% cobertura.
+- DEUDA-B3-01 cerrada: `item_catalog/refresh.py` 97% cobertura.
+- Sigue abierta PERF-01: RNF-03 Large <500 ms requiere rediseño B1/B4 con arrays auxiliares/vectorización.
+- Sigue abierta DATA-EXPAND-01: ampliar `item_world_map.json` con más objetos/biomas/eventos.
 
 **Métricas finales:**
-- Backend: `mypy --strict` ✅ | `ruff` ✅ | 203 unit tests | 90% cobertura total
-- Frontend: ESLint+Prettier ✅ | `tsc` ✅ | 91.02% cobertura total | bundle 73.82 kB gzip
+- Backend: `mypy --strict` ✅ | `ruff` ✅ | 227 unit tests | 93% cobertura total
+- Frontend: ESLint+Prettier ✅ | `tsc` ✅ | `errors.ts` 100% | bundle 71.99 kB gzip
 - API: OpenAPI v0.2, snapshot sincronizado (`openapi_snapshot.json`)
 - Docker: smoke T-01a..T-01j | `scan.sh` listo | bundle <2 MB target cumplido

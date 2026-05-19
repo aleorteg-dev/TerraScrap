@@ -26,6 +26,7 @@ const INITIAL_ZOOM = 2;
 export interface WorldCanvasHandle {
   centerOn(x: number, y: number): void;
   setZoom(level: number): void;
+  zoomToFit(): number | null;
   redraw(): void;
   screenToWorld(px: number, py: number): { x: number; y: number };
   worldToScreen(x: number, y: number): { px: number; py: number };
@@ -41,6 +42,9 @@ export interface WorldCanvasProps {
   onTileSelected?: (tile: { x: number; y: number }) => void;
   showLayerLines?: boolean;
   showSpawnPoint?: boolean;
+  showWalls?: boolean;
+  showLiquids?: boolean;
+  showWires?: boolean;
 }
 
 export const WorldCanvas: FC<WorldCanvasProps> = ({
@@ -52,13 +56,15 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   onTileSelected,
   showLayerLines = false,
   showSpawnPoint = true,
+  showWalls = true,
+  showLiquids = true,
+  showWires = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const viewRef = useRef<ViewState>({ panX: 0, panY: 0, zoom: INITIAL_ZOOM });
   const viewInitializedRef = useRef(false);
-  const chunkCacheRef = useRef(new Map<string, Int16Array>());
   const bitmapCacheRef = useRef<ChunkBitmapCache>(createChunkBitmapCache());
   const pendingRef = useRef(new Set<string>());
   const rafRef = useRef(0);
@@ -74,6 +80,9 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   const onReadyRef = useRef(onReady);
   const showLayerLinesRef = useRef(showLayerLines);
   const showSpawnPointRef = useRef(showSpawnPoint);
+  const showWallsRef = useRef(showWalls);
+  const showLiquidsRef = useRef(showLiquids);
+  const showWiresRef = useRef(showWires);
 
   useEffect(() => {
     metadataRef.current = metadata;
@@ -84,6 +93,9 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
     onReadyRef.current = onReady;
     showLayerLinesRef.current = showLayerLines;
     showSpawnPointRef.current = showSpawnPoint;
+    showWallsRef.current = showWalls;
+    showLiquidsRef.current = showLiquids;
+    showWiresRef.current = showWires;
   });
 
   // ─── Core render loop ────────────────────────────────────────────────────────
@@ -152,10 +164,10 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
     (cx: number, cy: number) => {
       const key = `${cx}:${cy}`;
       const hasBitmap = bitmapCacheRef.current.get(worldIdRef.current, cx, cy) !== undefined;
-      if (hasBitmap || chunkCacheRef.current.has(key) || pendingRef.current.has(key)) return;
+      if (hasBitmap || pendingRef.current.has(key)) return;
       pendingRef.current.add(key);
       apiClientRef.current
-        .getTilesChunk(worldIdRef.current, cx, cy, CHUNK_SIZE)
+        .getTilesChunk(worldIdRef.current, cx, cy, CHUNK_SIZE, 'base64-rle-v2')
         .then((chunk: TilesChunk) => {
           const meta = metadataRef.current;
           let rendered: RenderedChunk;
@@ -168,11 +180,15 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
               decoded,
               CHUNK_SIZE,
               meta.width,
-              meta.height
+              meta.height,
+              {
+                showWalls: showWallsRef.current,
+                showLiquids: showLiquidsRef.current,
+                showWires: showWiresRef.current,
+              }
             );
           } else {
             const tiles = decodeBase64RleV1(chunk.payload, chunk.width, chunk.height);
-            chunkCacheRef.current.set(key, tiles);
             rendered = renderChunkBitmap(
               worldIdRef.current,
               cx,
@@ -219,13 +235,19 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
     const prevId = prevWorldIdRef.current;
     if (prevId !== worldId) {
       bitmapCacheRef.current.clearWorld(prevId);
-      chunkCacheRef.current.clear();
       pendingRef.current.clear();
       prevWorldIdRef.current = worldId;
       loadVisibleChunks();
       scheduleRedraw();
     }
   }, [worldId, loadVisibleChunks, scheduleRedraw]);
+
+  useEffect(() => {
+    bitmapCacheRef.current.clearWorld(worldId);
+    pendingRef.current.clear();
+    loadVisibleChunks();
+    scheduleRedraw();
+  }, [worldId, showWalls, showLiquids, showWires, loadVisibleChunks, scheduleRedraw]);
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -293,6 +315,24 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         }
         loadVisibleChunks();
         scheduleRedraw();
+      },
+      zoomToFit(): number | null {
+        const canvas = canvasRef.current;
+        if (!canvas) return null;
+        const meta = metadataRef.current;
+        const nextZoom = clampZoom(
+          Math.min(canvas.width / meta.width, canvas.height / meta.height),
+          MIN_ZOOM,
+          MAX_ZOOM
+        );
+        viewRef.current = {
+          zoom: nextZoom,
+          panX: meta.width / 2 - canvas.width / (2 * nextZoom),
+          panY: meta.height / 2 - canvas.height / (2 * nextZoom),
+        };
+        loadVisibleChunks();
+        scheduleRedraw();
+        return nextZoom;
       },
       redraw: scheduleRedraw,
       screenToWorld: (px: number, py: number) => screenToWorld(px, py, viewRef.current),
