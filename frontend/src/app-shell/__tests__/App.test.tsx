@@ -569,6 +569,78 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByTestId('tile-detail-panel')).toBeInTheDocument());
   });
 
+  it('tile detail panel shows names instead of internal ids', async () => {
+    mockGetTileDetail.mockResolvedValue({
+      ...mockTileDetail,
+      tile_id: 21,
+      wall_id: 1,
+      chest_id: 5,
+    });
+
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    act(() => {
+      capturedCanvasProps?.onTileSelected?.({ x: 10, y: 20 });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('tile-detail-panel')).toBeInTheDocument());
+
+    expect(screen.getAllByText('Cofre').length).toBeGreaterThan(0);
+    expect(screen.getByText('Pared de piedra')).toBeInTheDocument();
+    expect(screen.queryByText(/tile id/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/wall id/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/cofre id/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('21')).not.toBeInTheDocument();
+  });
+
+  it('tile detail panel resolves wall ids known in tileColors but not previously named', async () => {
+    mockGetTileDetail.mockResolvedValue({
+      ...mockTileDetail,
+      tile_id: 1,
+      wall_id: 3,
+    });
+
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    act(() => {
+      capturedCanvasProps?.onTileSelected?.({ x: 10, y: 20 });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('tile-detail-panel')).toBeInTheDocument());
+
+    expect(screen.queryByText(/pared desconocida/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/pared de ebonita/i)).toBeInTheDocument();
+  });
+
+  it('tile detail panel falls back to id placeholder when name is unknown', async () => {
+    mockGetTileDetail.mockResolvedValue({
+      ...mockTileDetail,
+      tile_id: 999,
+      wall_id: 999,
+    });
+
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    act(() => {
+      capturedCanvasProps?.onTileSelected?.({ x: 10, y: 20 });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('tile-detail-panel')).toBeInTheDocument());
+
+    expect(screen.getByText('Terreno #999')).toBeInTheDocument();
+    expect(screen.getByText('Pared #999')).toBeInTheDocument();
+    expect(screen.queryByText(/desconocid[ao]/i)).not.toBeInTheDocument();
+  });
+
   it('NPC list click centers canvas on NPC coords', async () => {
     const user = userEvent.setup();
     mockListNpcs.mockResolvedValue(mockNpcs);

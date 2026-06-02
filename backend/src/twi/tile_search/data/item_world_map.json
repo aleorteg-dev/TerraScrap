@@ -1,117 +1,4201 @@
 {
-  "schema_version": "2.0.0",
-  "items": {
-    "2": [{"category": "block", "tile_id": 0}],
-    "3": [{"category": "block", "tile_id": 1}],
-    "8": [{"category": "object", "tile_id": 4}],
-    "9": [{"category": "block", "tile_id": 30}],
-    "11": [{"category": "block", "tile_id": 6}],
-    "12": [{"category": "block", "tile_id": 7}],
-    "13": [{"category": "block", "tile_id": 8}],
-    "14": [{"category": "block", "tile_id": 9}],
-    "26": [{"category": "wall", "wall_id": 1}],
-    "29": [{"category": "object", "tile_id": 12, "frame_xy": [0, 0]}],
-    "30": [{"category": "wall", "wall_id": 2}],
-    "56": [{"category": "block", "tile_id": 22}],
-    "61": [{"category": "block", "tile_id": 25}],
-    "93": [{"category": "wall", "wall_id": 4}],
-    "109": [
-      {"category": "object", "tile_id": 29},
-      {"category": "object", "tile_id": 639}
-    ],
-    "116": [{"category": "block", "tile_id": 37}],
-    "135": [{"category": "wall", "wall_id": 7}],
-    "138": [{"category": "wall", "wall_id": 8}],
-    "140": [{"category": "wall", "wall_id": 9}],
-    "169": [{"category": "block", "tile_id": 53}],
-    "172": [{"category": "block", "tile_id": 57}],
-    "173": [{"category": "block", "tile_id": 56}],
-    "174": [{"category": "block", "tile_id": 58}],
-    "176": [{"category": "block", "tile_id": 59}],
-    "221": [{"category": "object", "tile_id": 77}],
-    "63": [{"category": "object", "tile_id": 27}],
-    "275": [{"category": "object", "tile_id": 81}],
-    "276": [{"category": "block", "tile_id": 80}],
-    "364": [{"category": "block", "tile_id": 107}],
-    "365": [{"category": "block", "tile_id": 108}],
-    "366": [{"category": "block", "tile_id": 111}],
-    "409": [{"category": "block", "tile_id": 117}],
-    "438": [{"category": "object", "tile_id": 105, "frame_xy": [72, 0]}],
-    "473": [{"category": "object", "tile_id": 105, "frame_xy": [1332, 0]}],
-    "524": [{"category": "object", "tile_id": 133, "frame_xy": [0, 0]}],
-    "593": [{"category": "block", "tile_id": 147}],
-    "608": [{"category": "wall", "wall_id": 34}],
-    "699": [{"category": "block", "tile_id": 166}],
-    "700": [{"category": "block", "tile_id": 167}],
-    "701": [{"category": "block", "tile_id": 168}],
-    "702": [{"category": "block", "tile_id": 169}],
-    "750": [{"category": "wall", "wall_id": 72}],
-    "836": [{"category": "block", "tile_id": 203}],
-    "880": [{"category": "block", "tile_id": 204}],
-    "947": [{"category": "block", "tile_id": 211}],
-    "966": [{"category": "object", "tile_id": 215}],
-    "1101": [{"category": "block", "tile_id": 226}],
-    "1104": [{"category": "block", "tile_id": 221}],
-    "1105": [{"category": "block", "tile_id": 222}],
-    "1106": [{"category": "block", "tile_id": 223}],
-    "1221": [{"category": "object", "tile_id": 133, "frame_xy": [54, 0]}],
-    "1378": [{"category": "wall", "wall_id": 94}],
-    "1379": [{"category": "wall", "wall_id": 95}],
-    "1380": [{"category": "wall", "wall_id": 96}],
-    "1381": [{"category": "wall", "wall_id": 97}],
-    "1382": [{"category": "wall", "wall_id": 98}],
-    "1383": [{"category": "wall", "wall_id": 99}],
-    "3081": [{"category": "block", "tile_id": 367}],
-    "3086": [{"category": "block", "tile_id": 368}],
-    "3271": [{"category": "block", "tile_id": 396}],
-    "3272": [{"category": "block", "tile_id": 397}],
-    "3273": [{"category": "wall", "wall_id": 187}],
-    "3274": [{"category": "block", "tile_id": 398}],
-    "3275": [{"category": "block", "tile_id": 399}],
-    "3276": [{"category": "block", "tile_id": 400}],
-    "3277": [{"category": "block", "tile_id": 401}],
-    "3338": [{"category": "block", "tile_id": 402}],
-    "3339": [{"category": "block", "tile_id": 403}],
-    "3340": [{"category": "wall", "wall_id": 216}],
-    "3341": [{"category": "wall", "wall_id": 217}],
-    "3342": [{"category": "wall", "wall_id": 218}],
-    "3343": [{"category": "wall", "wall_id": 219}],
-    "3344": [{"category": "wall", "wall_id": 220}],
-    "3345": [{"category": "wall", "wall_id": 221}],
-    "3346": [{"category": "wall", "wall_id": 222}],
-    "3347": [{"category": "block", "tile_id": 404}],
-    "4051": [{"category": "block", "tile_id": 479}],
-    "4053": [{"category": "wall", "wall_id": 235}],
-    "4349": [{"category": "block", "tile_id": 179}],
-    "4350": [{"category": "block", "tile_id": 180}],
-    "4351": [{"category": "block", "tile_id": 181}],
-    "4352": [{"category": "block", "tile_id": 182}],
-    "4353": [{"category": "block", "tile_id": 183}],
-    "4354": [{"category": "block", "tile_id": 381}],
-    "4377": [{"category": "block", "tile_id": 534}],
-    "4378": [{"category": "block", "tile_id": 536}],
-    "4389": [{"category": "block", "tile_id": 539}],
-    "4390": [{"category": "block", "tile_id": 484}],
-    "4525": [{"category": "wall", "wall_id": 200}],
-    "4526": [{"category": "wall", "wall_id": 201}],
-    "4527": [{"category": "wall", "wall_id": 202}],
-    "4528": [{"category": "wall", "wall_id": 203}],
-    "5127": [{"category": "block", "tile_id": 625}],
-    "5128": [{"category": "block", "tile_id": 627}],
-    "2175": [{"category": "object", "tile_id": 286}],
-    "5439": [{"category": "block", "tile_id": 687}],
-    "5440": [{"category": "block", "tile_id": 688}],
-    "5441": [{"category": "block", "tile_id": 689}],
-    "5442": [{"category": "block", "tile_id": 690}],
-    "5443": [{"category": "block", "tile_id": 691}],
-    "5444": [{"category": "block", "tile_id": 692}],
-    "5445": [{"category": "wall", "wall_id": 341}],
-    "5446": [{"category": "wall", "wall_id": 342}],
-    "5447": [{"category": "wall", "wall_id": 343}],
-    "5448": [{"category": "wall", "wall_id": 344}],
-    "5449": [{"category": "wall", "wall_id": 345}],
-    "5450": [{"category": "wall", "wall_id": 346}],
-    "5532": [{"category": "object", "tile_id": 26, "frame_xy": [0, 0]}],
-    "5533": [{"category": "object", "tile_id": 26, "frame_xy": [54, 0]}]
-  }
+  "schema_version": "3.0.0",
+  "items": [
+    {
+      "item_id": 2,
+      "item_name": "Dirt Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 0,
+          "world_name": "Dirt Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3,
+      "item_name": "Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 1,
+          "world_name": "Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 8,
+      "item_name": "Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 9,
+      "item_name": "Wood",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 30,
+          "world_name": "Wood",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 11,
+      "item_name": "Iron Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 6,
+          "world_name": "Iron Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 12,
+      "item_name": "Copper Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 7,
+          "world_name": "Copper Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 13,
+      "item_name": "Gold Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 8,
+          "world_name": "Gold Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 14,
+      "item_name": "Silver Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 9,
+          "world_name": "Silver Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 26,
+      "item_name": "Stone Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 1,
+          "world_name": "Stone Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 29,
+      "item_name": "Life Crystal",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 12,
+          "world_name": "Life Crystal",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 30,
+      "item_name": "Dirt Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 2,
+          "world_name": "Dirt Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 31,
+      "item_name": "Bottle",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 13,
+          "world_name": "Bottle",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 32,
+      "item_name": "Wooden Table",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 14,
+          "world_name": "Wooden Table",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 33,
+      "item_name": "Furnace",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 17,
+          "world_name": "Furnace",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 34,
+      "item_name": "Wooden Chair",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 15,
+          "world_name": "Wooden Chair",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 35,
+      "item_name": "Iron Anvil",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 16,
+          "world_name": "Iron Anvil",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 36,
+      "item_name": "Work Bench",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 18,
+          "world_name": "Work Bench",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 48,
+      "item_name": "Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        },
+        {
+          "category": "object",
+          "world_id": 441,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        },
+        {
+          "category": "object",
+          "world_id": 467,
+          "world_name": "Containers2",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        },
+        {
+          "category": "object",
+          "world_id": 468,
+          "world_name": "Dressers/Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 56,
+      "item_name": "Demonite Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 22,
+          "world_name": "Demonite Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 61,
+      "item_name": "Ebonstone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 25,
+          "world_name": "Ebonstone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 63,
+      "item_name": "Sunflower",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 27,
+          "world_name": "Sunflower",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 85,
+      "item_name": "Chain",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 214,
+          "world_name": "Chain",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 93,
+      "item_name": "Wood Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 4,
+          "world_name": "Wood Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 94,
+      "item_name": "Wood Platform",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 19,
+          "world_name": "Wood Platform",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 109,
+      "item_name": "Mana Crystal",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 29,
+          "world_name": "Mana Crystal",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        },
+        {
+          "category": "object",
+          "world_id": 639,
+          "world_name": "Mana Crystal",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 116,
+      "item_name": "Meteorite",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 37,
+          "world_name": "Meteorite",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 129,
+      "item_name": "Gray Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 38,
+          "world_name": "Gray Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 131,
+      "item_name": "Red Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 39,
+          "world_name": "Red Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 133,
+      "item_name": "Clay Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 40,
+          "world_name": "Clay Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 135,
+      "item_name": "Blue Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 7,
+          "world_name": "Blue Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 138,
+      "item_name": "Green Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 8,
+          "world_name": "Green Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 140,
+      "item_name": "Pink Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 9,
+          "world_name": "Pink Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 147,
+      "item_name": "Spike",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 48,
+          "world_name": "Spike",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 169,
+      "item_name": "Sand Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 53,
+          "world_name": "Sand Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 170,
+      "item_name": "Glass",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 54,
+          "world_name": "Glass",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 172,
+      "item_name": "Ash Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 57,
+          "world_name": "Ash Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 173,
+      "item_name": "Obsidian",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 56,
+          "world_name": "Obsidian",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 174,
+      "item_name": "Hellstone",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 58,
+          "world_name": "Hellstone",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 176,
+      "item_name": "Mud Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 59,
+          "world_name": "Mud Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 192,
+      "item_name": "Obsidian Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 75,
+          "world_name": "Obsidian Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 214,
+      "item_name": "Hellstone Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 76,
+          "world_name": "Hellstone Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 221,
+      "item_name": "Hellforge",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 77,
+          "world_name": "Hellforge",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 222,
+      "item_name": "Clay Pot",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 78,
+          "world_name": "Clay Pot",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 224,
+      "item_name": "Bed",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 79,
+          "world_name": "Bed",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 275,
+      "item_name": "Coral",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 81,
+          "world_name": "Coral",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 276,
+      "item_name": "Cactus",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 80,
+          "world_name": "Cactus",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 306,
+      "item_name": "Gold Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            36,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 328,
+      "item_name": "Shadow Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            144,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 332,
+      "item_name": "Loom",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 86,
+          "world_name": "Loom",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 333,
+      "item_name": "Piano",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 87,
+          "world_name": "Piano",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 334,
+      "item_name": "Dresser",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 88,
+          "world_name": "Dresser",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 354,
+      "item_name": "Bookcase",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 101,
+          "world_name": "Bookcase",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 355,
+      "item_name": "Throne",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 102,
+          "world_name": "Throne",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 356,
+      "item_name": "Bowl",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 103,
+          "world_name": "Bowl",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 359,
+      "item_name": "Grandfather Clock",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 104,
+          "world_name": "Grandfather Clock",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 363,
+      "item_name": "Sawmill",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 106,
+          "world_name": "Sawmill",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 364,
+      "item_name": "Cobalt Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 107,
+          "world_name": "Cobalt Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 365,
+      "item_name": "Mythril Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 108,
+          "world_name": "Mythril Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 366,
+      "item_name": "Adamantite Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 111,
+          "world_name": "Adamantite Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 370,
+      "item_name": "Ebonsand Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 112,
+          "world_name": "Ebonsand Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 398,
+      "item_name": "Tinkerer's Workshop",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 114,
+          "world_name": "Tinkerer's Workshop",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 408,
+      "item_name": "Pearlsand Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 116,
+          "world_name": "Pearlsand Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 409,
+      "item_name": "Pearlstone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 117,
+          "world_name": "Pearlstone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 412,
+      "item_name": "Pearlstone Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 118,
+          "world_name": "Pearlstone Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 413,
+      "item_name": "Iridescent Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 119,
+          "world_name": "Iridescent Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 414,
+      "item_name": "Mudstone Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 120,
+          "world_name": "Mudstone Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 415,
+      "item_name": "Cobalt Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 121,
+          "world_name": "Cobalt Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 416,
+      "item_name": "Mythril Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 122,
+          "world_name": "Mythril Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 424,
+      "item_name": "Silt Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 123,
+          "world_name": "Silt Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 438,
+      "item_name": "Star Statue",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 105,
+          "world_name": "Statue",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            72,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 473,
+      "item_name": "Heart Statue",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 105,
+          "world_name": "Statue",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            1332,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 480,
+      "item_name": "Wooden Beam",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 124,
+          "world_name": "Wooden Beam",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 487,
+      "item_name": "Crystal Ball",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 125,
+          "world_name": "Crystal Ball",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 488,
+      "item_name": "Disco Ball",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 126,
+          "world_name": "Disco Ball",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 511,
+      "item_name": "Active Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 130,
+          "world_name": "Active Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 512,
+      "item_name": "Inactive Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 131,
+          "world_name": "Inactive Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 513,
+      "item_name": "Lever",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 132,
+          "world_name": "Lever",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 524,
+      "item_name": "Adamantite Forge",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 133,
+          "world_name": "Mythril/Orichalcum Anvil",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 538,
+      "item_name": "Switch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 136,
+          "world_name": "Switch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 540,
+      "item_name": "Boulder",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 138,
+          "world_name": "Boulder",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 593,
+      "item_name": "Snow Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 147,
+          "world_name": "Snow Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 608,
+      "item_name": "Sandstone Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 34,
+          "world_name": "Sandstone Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 625,
+      "item_name": "Ebonwood Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            252,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 626,
+      "item_name": "Rich Mahogany Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            288,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 627,
+      "item_name": "Pearlwood Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            324,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 664,
+      "item_name": "Ice Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 148,
+          "world_name": "Ice Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 680,
+      "item_name": "Ivy Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            360,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 681,
+      "item_name": "Frozen Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            396,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 699,
+      "item_name": "Tin Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 166,
+          "world_name": "Tin Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 700,
+      "item_name": "Lead Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 167,
+          "world_name": "Lead Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 701,
+      "item_name": "Tungsten Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 168,
+          "world_name": "Tungsten Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 702,
+      "item_name": "Platinum Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 169,
+          "world_name": "Platinum Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 750,
+      "item_name": "Cactus Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 72,
+          "world_name": "Cactus Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 762,
+      "item_name": "Slime Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 193,
+          "world_name": "Slime Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 763,
+      "item_name": "Flesh Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 195,
+          "world_name": "Flesh Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 765,
+      "item_name": "Rain Cloud",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 196,
+          "world_name": "Rain Cloud",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 766,
+      "item_name": "Bone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 194,
+          "world_name": "Bone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 767,
+      "item_name": "Frozen Slime Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 197,
+          "world_name": "Frozen Slime Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 775,
+      "item_name": "Asphalt Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 198,
+          "world_name": "Asphalt Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 824,
+      "item_name": "Sunplate Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 202,
+          "world_name": "Sunplate Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 831,
+      "item_name": "Living Wood Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            432,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 835,
+      "item_name": "Red Ice Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 200,
+          "world_name": "Red Ice Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 836,
+      "item_name": "Crimstone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 203,
+          "world_name": "Crimstone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 838,
+      "item_name": "Skyware Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            468,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 880,
+      "item_name": "Crimtane Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 204,
+          "world_name": "Crimtane Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 883,
+      "item_name": "Ice Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 206,
+          "world_name": "Ice Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 911,
+      "item_name": "Shadewood",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 208,
+          "world_name": "Shadewood",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 937,
+      "item_name": "Land Mine",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 210,
+          "world_name": "Land Mine",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 947,
+      "item_name": "Chlorophyte Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 211,
+          "world_name": "Chlorophyte Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 951,
+      "item_name": "Snowball Launcher",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 212,
+          "world_name": "Snowball Launcher",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 952,
+      "item_name": "Web Covered Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            540,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 965,
+      "item_name": "Rope",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 213,
+          "world_name": "Rope",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 966,
+      "item_name": "Campfire",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 215,
+          "world_name": "Campfire",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 995,
+      "item_name": "Blend-O-Matic",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 217,
+          "world_name": "Blend-O-Matic",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 996,
+      "item_name": "Meat Grinder",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 218,
+          "world_name": "Meat Grinder",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 997,
+      "item_name": "Extractinator",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 219,
+          "world_name": "Extractinator",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 998,
+      "item_name": "Solidifier",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 220,
+          "world_name": "Solidifier",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1101,
+      "item_name": "Lihzahrd Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 226,
+          "world_name": "Lihzahrd Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1103,
+      "item_name": "Slush Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 224,
+          "world_name": "Slush Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1104,
+      "item_name": "Palladium Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 221,
+          "world_name": "Palladium Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1105,
+      "item_name": "Orichalcum Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 222,
+          "world_name": "Orichalcum Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1106,
+      "item_name": "Titanium Ore",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 223,
+          "world_name": "Titanium Ore",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1120,
+      "item_name": "Dye Vat",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 228,
+          "world_name": "Dye Vat",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1124,
+      "item_name": "Hive",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 225,
+          "world_name": "Hive",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1125,
+      "item_name": "Honey Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 229,
+          "world_name": "Honey Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1127,
+      "item_name": "Crispy Honey Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 230,
+          "world_name": "Crispy Honey Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1142,
+      "item_name": "Lihzahrd Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            576,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 1150,
+      "item_name": "Wooden Spike",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 232,
+          "world_name": "Wooden Spike",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1221,
+      "item_name": "Titanium Forge",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 133,
+          "world_name": "Mythril/Orichalcum Anvil",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            54,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 1246,
+      "item_name": "Crimsand Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 234,
+          "world_name": "Crimsand Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1292,
+      "item_name": "Lihzahrd Altar",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 237,
+          "world_name": "Lihzahrd Altar",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1298,
+      "item_name": "Water Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            612,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 1378,
+      "item_name": "Blue Slab Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 94,
+          "world_name": "Blue Slab Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1379,
+      "item_name": "Blue Tiled Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 95,
+          "world_name": "Blue Tiled Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1380,
+      "item_name": "Pink Slab Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 96,
+          "world_name": "Pink Slab Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1381,
+      "item_name": "Pink Tiled Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 97,
+          "world_name": "Pink Tiled Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1382,
+      "item_name": "Green Slab Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 98,
+          "world_name": "Green Slab Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1383,
+      "item_name": "Green Tiled Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 99,
+          "world_name": "Green Tiled Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 1528,
+      "item_name": "Jungle Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            648,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 1529,
+      "item_name": "Corruption Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            684,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 1530,
+      "item_name": "Crimson Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            720,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 1531,
+      "item_name": "Hallowed Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            756,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 2175,
+      "item_name": "Glowing Snail Cage",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 286,
+          "world_name": "Crystal Shard cage frame",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2192,
+      "item_name": "Bone Welder",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 300,
+          "world_name": "Bone Welder",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2193,
+      "item_name": "Flesh Cloning Vat",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 301,
+          "world_name": "Flesh Cloning Vat",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2194,
+      "item_name": "Glass Kiln",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 302,
+          "world_name": "Glass Kiln",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2195,
+      "item_name": "Lihzahrd Furnace",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 303,
+          "world_name": "Lihzahrd Furnace",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2196,
+      "item_name": "Living Loom",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 304,
+          "world_name": "Living Loom",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2197,
+      "item_name": "Sky Mill",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 305,
+          "world_name": "Sky Mill",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2198,
+      "item_name": "Ice Machine",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 306,
+          "world_name": "Ice Machine",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2203,
+      "item_name": "Steampunk Boiler",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 307,
+          "world_name": "Steampunk Boiler",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2204,
+      "item_name": "Honey Dispenser",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 308,
+          "world_name": "Honey Dispenser",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2260,
+      "item_name": "Dynasty Wood",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 311,
+          "world_name": "Dynasty Wood",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2435,
+      "item_name": "Coralstone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 315,
+          "world_name": "Coralstone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2503,
+      "item_name": "Boreal Wood",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 321,
+          "world_name": "Boreal Wood",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2504,
+      "item_name": "Palm Wood",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 322,
+          "world_name": "Palm Wood",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2692,
+      "item_name": "Tin Plating",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 325,
+          "world_name": "Tin Plating",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2693,
+      "item_name": "Waterfall Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 326,
+          "world_name": "Waterfall Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2694,
+      "item_name": "Lavafall Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 327,
+          "world_name": "Lavafall Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2695,
+      "item_name": "Confetti Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 328,
+          "world_name": "Confetti Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2697,
+      "item_name": "Midnight Confetti Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 329,
+          "world_name": "Midnight Confetti Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2699,
+      "item_name": "Weapon Rack",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 334,
+          "world_name": "Weapon Rack",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2700,
+      "item_name": "Fireworks Box",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 335,
+          "world_name": "Fireworks Box",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2701,
+      "item_name": "Living Fire Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 336,
+          "world_name": "Living Fire Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2738,
+      "item_name": "Firework Fountain",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 338,
+          "world_name": "Firework Fountain",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2751,
+      "item_name": "Living Cursed Fire Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 340,
+          "world_name": "Living Cursed Fire Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2752,
+      "item_name": "Living Demon Fire Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 341,
+          "world_name": "Living Demon Fire Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2753,
+      "item_name": "Living Frost Fire Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 342,
+          "world_name": "Living Frost Fire Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2754,
+      "item_name": "Living Ichor Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 343,
+          "world_name": "Living Ichor Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2755,
+      "item_name": "Living Ultrabright Fire Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 344,
+          "world_name": "Living Ultrabright Fire Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2787,
+      "item_name": "Honeyfall Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 345,
+          "world_name": "Honeyfall Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2792,
+      "item_name": "Chlorophyte Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 346,
+          "world_name": "Chlorophyte Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2793,
+      "item_name": "Crimtane Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 347,
+          "world_name": "Crimtane Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2794,
+      "item_name": "Shroomite Plating",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 348,
+          "world_name": "Shroomite Plating",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2860,
+      "item_name": "Martian Conduit Plating",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 350,
+          "world_name": "Martian Conduit Plating",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2868,
+      "item_name": "Smoke Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 351,
+          "world_name": "Smoke Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2996,
+      "item_name": "Vine Rope",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 353,
+          "world_name": "Vine Rope",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2999,
+      "item_name": "Bewitching Table",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 354,
+          "world_name": "Bewitching Table",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3000,
+      "item_name": "Alchemy Table",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 355,
+          "world_name": "Alchemy Table",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3064,
+      "item_name": "Enchanted Sundial",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 356,
+          "world_name": "Enchanted Sundial",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3066,
+      "item_name": "Smooth Marble Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 357,
+          "world_name": "Smooth Marble Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3077,
+      "item_name": "Silk Rope",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 365,
+          "world_name": "Silk Rope",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3078,
+      "item_name": "Web Rope",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 366,
+          "world_name": "Web Rope",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3081,
+      "item_name": "Marble Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 367,
+          "world_name": "Marble Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3086,
+      "item_name": "Granite Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 368,
+          "world_name": "Granite Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3087,
+      "item_name": "Smooth Granite Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 369,
+          "world_name": "Smooth Granite Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3100,
+      "item_name": "Meteorite Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 370,
+          "world_name": "Meteorite Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3113,
+      "item_name": "Pink Slime Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 371,
+          "world_name": "Pink Slime Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3117,
+      "item_name": "Peace Candle",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 372,
+          "world_name": "Peace Candle",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3182,
+      "item_name": "Magic Water Dropper",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 373,
+          "world_name": "Magic Water Dropper",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3184,
+      "item_name": "Magic Lava Dropper",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 374,
+          "world_name": "Magic Lava Dropper",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3185,
+      "item_name": "Magic Honey Dropper",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 375,
+          "world_name": "Magic Honey Dropper",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3198,
+      "item_name": "Sharpening Station",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 377,
+          "world_name": "Sharpening Station",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3202,
+      "item_name": "Target Dummy",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 378,
+          "world_name": "Target Dummy",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3214,
+      "item_name": "Bubble",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 379,
+          "world_name": "Bubble",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3234,
+      "item_name": "Crystal Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 385,
+          "world_name": "Crystal Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3253,
+      "item_name": "Lava Lamp",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 390,
+          "world_name": "Lava Lamp",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3270,
+      "item_name": "Item Frame",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 395,
+          "world_name": "Item Frame",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3271,
+      "item_name": "Sandstone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 396,
+          "world_name": "Sandstone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3272,
+      "item_name": "Hardened Sand Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 397,
+          "world_name": "Hardened Sand Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3273,
+      "item_name": "Sandstone Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 187,
+          "world_name": "Sandstone Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3274,
+      "item_name": "Hardened Ebonsand Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 398,
+          "world_name": "Hardened Ebonsand Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3275,
+      "item_name": "Hardened Crimsand Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 399,
+          "world_name": "Hardened Crimsand Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3276,
+      "item_name": "Ebonsandstone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 400,
+          "world_name": "Ebonsandstone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3277,
+      "item_name": "Crimsandstone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 401,
+          "world_name": "Crimsandstone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3338,
+      "item_name": "Hardened Pearlsand Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 402,
+          "world_name": "Hardened Pearlsand Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3339,
+      "item_name": "Pearlsandstone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 403,
+          "world_name": "Pearlsandstone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3340,
+      "item_name": "Hardened Sand Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 216,
+          "world_name": "Hardened Sand Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3341,
+      "item_name": "Hardened Ebonsand Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 217,
+          "world_name": "Hardened Ebonsand Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3342,
+      "item_name": "Hardened Crimsand Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 218,
+          "world_name": "Hardened Crimsand Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3343,
+      "item_name": "Hardened Pearlsand Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 219,
+          "world_name": "Hardened Pearlsand Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3344,
+      "item_name": "Ebonsandstone Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 220,
+          "world_name": "Ebonsandstone Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3345,
+      "item_name": "Crimsandstone Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 221,
+          "world_name": "Crimsandstone Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3346,
+      "item_name": "Pearlsandstone Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 222,
+          "world_name": "Pearlsandstone Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3347,
+      "item_name": "Desert Fossil",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 404,
+          "world_name": "Desert Fossil",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3364,
+      "item_name": "Fireplace",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 405,
+          "world_name": "Fireplace",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3365,
+      "item_name": "Chimney",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 406,
+          "world_name": "Chimney",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3380,
+      "item_name": "Sturdy Fossil",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 407,
+          "world_name": "Sturdy Fossil",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3460,
+      "item_name": "Luminite",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 408,
+          "world_name": "Luminite",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3461,
+      "item_name": "Luminite Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 409,
+          "world_name": "Luminite Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3545,
+      "item_name": "Detonator",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 411,
+          "world_name": "Detonator",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3549,
+      "item_name": "Ancient Manipulator",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 412,
+          "world_name": "Ancient Manipulator",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3616,
+      "item_name": "Junction Box",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 424,
+          "world_name": "Junction Box",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3617,
+      "item_name": "Announcement Box",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 425,
+          "world_name": "Announcement Box",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3629,
+      "item_name": "Wire Bulb",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 429,
+          "world_name": "Wire Bulb",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3722,
+      "item_name": "Geyser",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 443,
+          "world_name": "Geyser",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3725,
+      "item_name": "Pixel Box",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 445,
+          "world_name": "Pixel Box",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3746,
+      "item_name": "Pigronata",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 454,
+          "world_name": "Pigronata",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3747,
+      "item_name": "Party Center",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 455,
+          "world_name": "Party Center",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3749,
+      "item_name": "Party Present",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 457,
+          "world_name": "Party Present",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3754,
+      "item_name": "Sandfall Block",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 458,
+          "world_name": "Sandfall Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3755,
+      "item_name": "Snowfall Block",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 459,
+          "world_name": "Snowfall Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3756,
+      "item_name": "Snow Cloud",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 460,
+          "world_name": "Snow Cloud",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3782,
+      "item_name": "Magic Sand Dropper",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 461,
+          "world_name": "Magic Sand Dropper",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3795,
+      "item_name": "Desert Spirit Lamp",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 462,
+          "world_name": "Desert Spirit Lamp",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3813,
+      "item_name": "Defender's Forge",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 463,
+          "world_name": "Defender's Forge",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3814,
+      "item_name": "War Table",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 464,
+          "world_name": "War Table",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3815,
+      "item_name": "War Table Banner",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 465,
+          "world_name": "War Table Banner",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3816,
+      "item_name": "Eternia Crystal Stand",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 466,
+          "world_name": "Eternia Crystal Stand",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3951,
+      "item_name": "Iron Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 472,
+          "world_name": "Iron Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3953,
+      "item_name": "Lead Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 473,
+          "world_name": "Lead Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3955,
+      "item_name": "Lesion Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 474,
+          "world_name": "Lesion Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3977,
+      "item_name": "Hat Rack",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 475,
+          "world_name": "Hat Rack",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4040,
+      "item_name": "Golf Cup",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 476,
+          "world_name": "Golf Cup",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4050,
+      "item_name": "Crimstone Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 478,
+          "world_name": "Crimstone Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4051,
+      "item_name": "Smooth Sandstone",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 479,
+          "world_name": "Smooth Sandstone",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4053,
+      "item_name": "Smooth Sandstone Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 235,
+          "world_name": "Smooth Sandstone Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4054,
+      "item_name": "Blood Moon Monolith",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 480,
+          "world_name": "Blood Moon Monolith",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4063,
+      "item_name": "Drum Set",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 486,
+          "world_name": "Drum Set",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4064,
+      "item_name": "Picnic Table",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 487,
+          "world_name": "Picnic Table",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4074,
+      "item_name": "Pin Wheel",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 489,
+          "world_name": "Pin Wheel",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4075,
+      "item_name": "Weather Vane",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 490,
+          "world_name": "Weather Vane",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4076,
+      "item_name": "Void Vault",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 491,
+          "world_name": "Void Vault",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4089,
+      "item_name": "Golf Tee",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 494,
+          "world_name": "Golf Tee",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4090,
+      "item_name": "Shell Pile",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 495,
+          "world_name": "Shell Pile",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4091,
+      "item_name": "Anti-Portal Block",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 496,
+          "world_name": "Anti-Portal Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4139,
+      "item_name": "Spider Nest Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 498,
+          "world_name": "Spider Nest Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4142,
+      "item_name": "Decay Chamber",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 499,
+          "world_name": "Decay Chamber",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4229,
+      "item_name": "Solar Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 500,
+          "world_name": "Solar Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4230,
+      "item_name": "Vortex Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 501,
+          "world_name": "Vortex Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4231,
+      "item_name": "Nebula Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 502,
+          "world_name": "Nebula Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4232,
+      "item_name": "Stardust Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 503,
+          "world_name": "Stardust Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4238,
+      "item_name": "Cracked Blue Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 481,
+          "world_name": "Cracked Blue Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4239,
+      "item_name": "Cracked Green Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 482,
+          "world_name": "Cracked Green Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4240,
+      "item_name": "Cracked Pink Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 483,
+          "world_name": "Cracked Pink Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4276,
+      "item_name": "Bast Statue",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 506,
+          "world_name": "Bast Statue",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4277,
+      "item_name": "Gold Starry Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 507,
+          "world_name": "Gold Starry Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4278,
+      "item_name": "Blue Starry Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 508,
+          "world_name": "Blue Starry Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4318,
+      "item_name": "Void Monolith",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 509,
+          "world_name": "Void Monolith",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4319,
+      "item_name": "Arrow Sign",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 510,
+          "world_name": "Arrow Sign",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4320,
+      "item_name": "Painted Arrow Sign",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 511,
+          "world_name": "Painted Arrow Sign",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4326,
+      "item_name": "Plate",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 520,
+          "world_name": "Plate",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4349,
+      "item_name": "Green Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 179,
+          "world_name": "Green Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4350,
+      "item_name": "Brown Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 180,
+          "world_name": "Brown Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4351,
+      "item_name": "Red Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 181,
+          "world_name": "Red Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4352,
+      "item_name": "Blue Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 182,
+          "world_name": "Blue Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4353,
+      "item_name": "Purple Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 183,
+          "world_name": "Purple Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4354,
+      "item_name": "Lava Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 381,
+          "world_name": "Lava Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4377,
+      "item_name": "Krypton Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 534,
+          "world_name": "Krypton Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4378,
+      "item_name": "Xenon Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 536,
+          "world_name": "Xenon Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4389,
+      "item_name": "Argon Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 539,
+          "world_name": "Argon Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4390,
+      "item_name": "Rolling Cactus",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 484,
+          "world_name": "Rolling Cactus",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4392,
+      "item_name": "Echo Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 541,
+          "world_name": "Echo Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4420,
+      "item_name": "Lawn Flamingo",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 545,
+          "world_name": "Lawn Flamingo",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4525,
+      "item_name": "Hallowed Prism Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 200,
+          "world_name": "Hallowed Prism Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4526,
+      "item_name": "Hallowed Cavern Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 201,
+          "world_name": "Hallowed Cavern Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4527,
+      "item_name": "Hallowed Shard Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 202,
+          "world_name": "Hallowed Shard Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4528,
+      "item_name": "Hallowed Crystalline Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 203,
+          "world_name": "Hallowed Crystalline Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4552,
+      "item_name": "Fog Machine",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 565,
+          "world_name": "Fog Machine",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4553,
+      "item_name": "Plasma Lamp",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 564,
+          "world_name": "Plasma Lamp",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4554,
+      "item_name": "Marble Column",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 561,
+          "world_name": "Marble Column",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4564,
+      "item_name": "Bamboo",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 562,
+          "world_name": "Bamboo",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4609,
+      "item_name": "Garden Gnome",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 567,
+          "world_name": "Garden Gnome",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4640,
+      "item_name": "Amethyst Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 67,
+          "world_name": "Amethyst Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4641,
+      "item_name": "Topaz Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 66,
+          "world_name": "Topaz Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4642,
+      "item_name": "Sapphire Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 63,
+          "world_name": "Sapphire Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4643,
+      "item_name": "Emerald Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 65,
+          "world_name": "Emerald Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4644,
+      "item_name": "Ruby Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 64,
+          "world_name": "Ruby Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4645,
+      "item_name": "Diamond Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 68,
+          "world_name": "Diamond Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4646,
+      "item_name": "Amber Stone Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 566,
+          "world_name": "Amber Stone Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4710,
+      "item_name": "Tattered Wood Sign",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 573,
+          "world_name": "Tattered Wood Sign",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4717,
+      "item_name": "Boreal Beam",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 574,
+          "world_name": "Boreal Beam",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4718,
+      "item_name": "Rich Mahogany Beam",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 575,
+          "world_name": "Rich Mahogany Beam",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4719,
+      "item_name": "Granite Column",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 576,
+          "world_name": "Granite Column",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4720,
+      "item_name": "Sandstone Column",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 577,
+          "world_name": "Sandstone Column",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4721,
+      "item_name": "Mushroom Beam",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 578,
+          "world_name": "Mushroom Beam",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4868,
+      "item_name": "Mini Volcano",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 593,
+          "world_name": "Mini Volcano",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4869,
+      "item_name": "Large Volcano",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 594,
+          "world_name": "Large Volcano",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 4962,
+      "item_name": "Stone Accent Slab",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 618,
+          "world_name": "Stone Accent Slab",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5008,
+      "item_name": "Teapot",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 622,
+          "world_name": "Teapot",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5066,
+      "item_name": "Bee Hive",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 444,
+          "world_name": "Bee Hive",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5067,
+      "item_name": "Antlion Eggs",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 485,
+          "world_name": "Antlion Eggs",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5127,
+      "item_name": "Neon Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 625,
+          "world_name": "Neon Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5128,
+      "item_name": "Helium Moss",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 627,
+          "world_name": "Helium Moss",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5133,
+      "item_name": "Stinkbug Cage",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 629,
+          "world_name": "Stinkbug Cage",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5137,
+      "item_name": "Stinkbug Blocker",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 630,
+          "world_name": "Stinkbug Blocker",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5138,
+      "item_name": "Ghostly Stinkbug Blocker",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 631,
+          "world_name": "Ghostly Stinkbug Blocker",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5215,
+      "item_name": "Ash Wood",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 635,
+          "world_name": "Ash Wood",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5296,
+      "item_name": "Chlorophyte Extractinator",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 642,
+          "world_name": "Chlorophyte Extractinator",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5306,
+      "item_name": "Reef Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 641,
+          "world_name": "Reef Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5333,
+      "item_name": "Glow Tulip",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 656,
+          "world_name": "Glow Tulip",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5351,
+      "item_name": "Faeling in a Bottle",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 660,
+          "world_name": "Faeling in a Bottle",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5383,
+      "item_name": "Bouncy Boulder",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 664,
+          "world_name": "Bouncy Boulder",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5384,
+      "item_name": "Life Crystal Boulder",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 665,
+          "world_name": "Life Crystal Boulder",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5395,
+      "item_name": "Poo",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 666,
+          "world_name": "Poo",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5400,
+      "item_name": "The Dirtiest Block",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 668,
+          "world_name": "The Dirtiest Block",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5439,
+      "item_name": "Lava Moss Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 687,
+          "world_name": "Lava Moss Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5440,
+      "item_name": "Argon Moss Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 688,
+          "world_name": "Argon Moss Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5441,
+      "item_name": "Krypton Moss Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 689,
+          "world_name": "Krypton Moss Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5442,
+      "item_name": "Xenon Moss Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 690,
+          "world_name": "Xenon Moss Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5443,
+      "item_name": "Neon Moss Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 691,
+          "world_name": "Neon Moss Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5444,
+      "item_name": "Helium Moss Brick",
+      "matchers": [
+        {
+          "category": "block",
+          "world_id": 692,
+          "world_name": "Helium Moss Brick",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5445,
+      "item_name": "Lava Moss Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 341,
+          "world_name": "Lava Moss Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5446,
+      "item_name": "Argon Moss Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 342,
+          "world_name": "Argon Moss Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5447,
+      "item_name": "Krypton Moss Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 343,
+          "world_name": "Krypton Moss Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5448,
+      "item_name": "Xenon Moss Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 344,
+          "world_name": "Xenon Moss Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5449,
+      "item_name": "Neon Moss Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 345,
+          "world_name": "Neon Moss Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5450,
+      "item_name": "Helium Moss Brick Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 346,
+          "world_name": "Helium Moss Brick Wall",
+          "source_url": "https://terraria.wiki.gg/wiki/Wall_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5532,
+      "item_name": "Demon Altar",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 26,
+          "world_name": "Demon/Crimson Altar",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 5533,
+      "item_name": "Crimson Altar",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 26,
+          "world_name": "Demon/Crimson Altar",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            54,
+            0
+          ]
+        }
+      ]
+    }
+  ]
 }

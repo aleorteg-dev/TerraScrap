@@ -19,8 +19,8 @@ docker/
 
 Servicios expuestos:
 - `backend`: puerto interno 8000.
-- `frontend`: puerto 80 (nginx) que sirve estáticos y proxea `/api` → `backend:8000`.
-- Puerto público por defecto: `8080:80`.
+- `frontend`: puerto 8080 (nginx no-root) que sirve estáticos y proxea `/api` → `backend:8000`.
+- Puerto público por defecto: `8080:8080`.
 
 Variables de entorno soportadas (ver `PROJECT.md` sección 3):
 - `TWI_MAX_UPLOAD_MB` (default 200)

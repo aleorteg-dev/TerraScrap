@@ -49,36 +49,58 @@ def create_tile_search_engine(
 
 ## 4. Formato de `item_world_map.json`
 
-Version actual documentada: `2.0.0` (iter-12).
+Version actual documentada: `3.0.0` (iter-13). Formato legible inspirado en el catalogo de items: `items` es una lista de entradas, cada una con `item_id`, `item_name` y `matchers`. Cada matcher usa `world_id` (tile o wall segun categoria) y admite campos opcionales de legibilidad (`world_name`, `world_internal_name`, `source_url`, `sub_id`, `safe`).
 
 ```json
 {
-  "schema_version": "2.0.0",
-  "items": {
-    "<item_id>": [
-      { "category": "block", "tile_id": 0 },
-      { "category": "wall", "wall_id": 1 },
-      { "category": "wall", "wall_ids": [10, 20, 30] },
-      { "category": "object", "tile_id": 105, "frame_xy": [72, 0] },
-      { "category": "object", "tile_id": 250, "frame_xys": [[0, 0], [18, 0]] }
-    ]
-  }
+  "schema_version": "3.0.0",
+  "items": [
+    {
+      "item_id": 48,
+      "item_name": "Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "frame_xy": [0, 0],
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs/Part1"
+        }
+      ]
+    },
+    {
+      "item_id": 30,
+      "item_name": "Dirt Wall",
+      "matchers": [
+        {
+          "category": "wall",
+          "world_id": 2,
+          "world_name": "Dirt Wall",
+          "world_internal_name": "DirtWall",
+          "safe": true
+        }
+      ]
+    }
+  ]
 }
 ```
 
 Reglas:
 
 - La raiz solo admite `items` y `schema_version`.
-- `schema_version` debe coincidir exactamente con la constante `SCHEMA_VERSION` (`"2.0.0"`); cualquier otra cosa lanza `MappingStaleError` al cargar.
-- Las claves de `items` son `item_id` numericos como string.
-- Cada `item_id` mapea a una lista NO vacia de matchers (alias: un mismo item puede mapear a varios `(tile_id, frame)` distintos, p.ej. Mana Crystal -> tile 29 y tile 639).
-- Cada matcher define una `category` y los campos pertinentes:
-  - `category="block"` requiere `tile_id`. Prohibe `wall_id`/`wall_ids`/`frame_xy`/`frame_xys`.
-  - `category="wall"` requiere exactamente uno de `wall_id` (single) o `wall_ids` (lista no vacia, multi-wall). Prohibe `tile_id`/`frame_xy`/`frame_xys`.
-  - `category="object"` requiere `tile_id` y admite a lo sumo uno de `frame_xy` (single) o `frame_xys` (lista no vacia, multi-frame). Si no se da ninguno, el motor deduce la esquina superior izquierda por continuidad de frames.
-- No se permiten claves desconocidas en root ni en matcher.
-- Colisiones detectadas al cargar: dos items distintos compartiendo el mismo `block tile_id`, el mismo `wall_id`, o el mismo `object tile_id` sin `frame_*`.
-- `MappingStaleError` extiende `ValueError`; se importa desde `twi.tile_search._mapping` y permite a callers diferenciar JSON desactualizado de errores semanticos.
+- `schema_version` debe coincidir exactamente con `SCHEMA_VERSION` (`"3.0.0"`); cualquier otra cosa lanza `MappingStaleError`. **No hay compatibilidad con `2.0.0`**: el campo `items` ahora es una lista, los matchers usan `world_id`/`world_ids` y se rechaza la forma legacy dict-of-string-id.
+- Cada entrada de `items` admite solo `item_id`, `item_name`, `matchers`.
+- `item_id`: entero positivo unico en la lista.
+- `item_name`: string no vacio.
+- `matchers`: lista no vacia. Alias soportado: un mismo `item_id` puede declarar varios matchers.
+- Cada matcher admite solo: `category`, `world_id`, `world_ids`, `world_name`, `world_internal_name`, `item_id` (debe coincidir con el padre si esta presente), `item_name` (idem), `frame_xy`, `frame_xys`, `sub_id`, `safe`, `source`, `source_url`.
+  - `category="block"` requiere `world_id`. Prohibe `world_ids`/`frame_xy`/`frame_xys`/`safe`.
+  - `category="wall"` requiere exactamente uno de `world_id` (single) o `world_ids` (lista no vacia, multi-wall). Prohibe `frame_xy`/`frame_xys`. Admite `safe: bool` opcional.
+  - `category="object"` requiere `world_id` y admite a lo sumo uno de `frame_xy` o `frame_xys`. Sin frame, el motor deduce la esquina superior izquierda por continuidad de frames.
+- Los campos `world_name`, `world_internal_name`, `source`, `source_url` deben ser strings no vacios cuando estan presentes; `sub_id` debe ser int. Estos campos no afectan la busqueda; solo aportan trazabilidad.
+- Colisiones detectadas al cargar: dos items distintos compartiendo el mismo `block world_id`, el mismo `wall_id` o el mismo `object world_id` sin `frame_*`.
+- `MappingStaleError` extiende `ValueError`.
+- El motor sigue construyendo internamente `ItemMatcher(category, tile_id, wall_ids, frame_xys)`; el contrato publico no cambia.
 
 ## 5. Alcance de datos de esta iteracion
 
@@ -99,8 +121,10 @@ Cobertura minima congelada:
 Notas de datos:
 
 - Para `Demon Altar` y `Crimson Altar`, B3 contiene tambien items icon-only `6135/6136`. Esta iteracion usa `5532/5533`, que son los item IDs placeables indicados por wiki.gg para Terraria 1.4.5.
-- `Mana Crystal` no tiene tile placeable directo; se cubre como tile `ManaCrystal`/`Repaired Mana Crystal` (`tile_id=639`) porque ese objeto colocado suelta Mana Crystal. Queda marcado como alias pragmatico.
-- Paredes con variantes safe/unsafe quedan representadas por un solo `wall_id` primario en esta version del formato.
+- `Mana Crystal` no tiene tile placeable directo; se cubre como tile `ManaCrystal`/`Repaired Mana Crystal` (`world_id=639`) porque ese objeto colocado suelta Mana Crystal. Queda marcado como alias pragmatico.
+- Paredes con variantes safe/unsafe quedan representadas por un solo `world_id` primario en esta version del formato. El campo `safe: bool` opcional documenta la variante cuando aplica.
+- Criterio de inclusion: solo se mapean tiles/walls cuyo item placeable correspondiente exista en el catalogo B3 y este verificado en terraria.wiki.gg/wiki/Tile_IDs o /wiki/Wall_IDs. Tiles puramente naturales, decorativos o internos sin item asociado quedan fuera.
+- `backend/src/twi/tile_search/data/item_tile_map.json` es legacy y no se utiliza: el motor por defecto carga `item_world_map.json`. Su ausencia/borrado no afecta a la busqueda.
 
 ## 6. Especificacion (SDD)
 
@@ -137,8 +161,10 @@ Notas de datos:
 ## 8. Notas de implementacion
 
 - El motor mantiene compatibilidad con `item_to_tile_mapping` y `item_to_wall_mapping` inyectados para tests existentes, y agrega `item_to_object_mapping` + `item_to_object_frame_mapping`.
-- `_mapping.py` separa parseo/validacion del JSON del matcher del mundo.
-- La carga por defecto usa `data/item_world_map.json`; el fichero legado `item_tile_map.json` queda sin uso.
+- `_mapping.py` separa parseo/validacion del JSON v3 del matcher interno (`ItemMatcher` no cambia su forma: `category`, `tile_id`, `wall_ids`, `frame_xys`).
+- Los campos legibles del JSON (`world_name`, `world_internal_name`, `item_name`, `source*`, `sub_id`, `safe`) se validan pero NO afectan la busqueda: el motor solo construye `ItemMatcher` a partir de `world_id`/`world_ids` y `frame_xy`/`frame_xys`.
+- La carga por defecto usa `data/item_world_map.json`; el fichero legacy `item_tile_map.json` queda sin uso y puede borrarse.
+- `backend/scripts/_gen_world_map.py` es un generador one-shot del JSON v3 a partir del catalogo de items. Solo se ejecuta manualmente para regenerar el fichero.
 - La iteracion del grid branch-ea por categoria antes de recorrer el mundo para no pagar checks de `object` en busquedas de bloque/pared.
 - Los matches se devuelven ordenados por `(y, x)` para orden consistente en el frontend.
 
@@ -158,16 +184,15 @@ Notas de datos:
 ## 11. Estado
 
 - **Version del contrato**: v4 (sin cambio de contrato publico)
-- **Ultimo cierre**: 2026-05-31
-- **Iteracion actual**: cerrada (deuda-2026-05-31)
-- **Version JSON**: `2.0.0` (root key `schema_version`, items mapean a lista de matchers).
-- **Conteo cubierto**: 109 items totales; 62 matchers `block`, 33 `wall`, 15 `object`. Item `109` (Mana Crystal) lleva 2 matchers (alias `tile_id=29` + `tile_id=639`).
-- **Verificacion** (2026-05-31):
-  - `python -m pytest tests/unit/tile_search/test_tile_search.py -q`: 33 passed.
-  - `python -m pytest -q`: 227 passed, sin `--ignore` ni workarounds.
+- **Ultimo cierre**: 2026-06-02
+- **Iteracion actual**: cerrada (iter-13 schema v3 legibility).
+- **Version JSON**: `3.0.0` (root key `schema_version`, items es ahora una lista de entradas `{item_id, item_name, matchers[]}` con campos legibles `world_id`/`world_name`/`world_internal_name`/`safe`/`source_url`). Sin compatibilidad con `2.0.0`.
+- **Conteo cubierto**: 340 entradas totales; 160 `block`, 33 `wall`, 151 `object` (344 matchers). Incluye chest variants por frame, statues, altares, forges, muebles, estaciones de crafteo y decoraciones placeables. Item `109` (Mana Crystal) sigue con alias multi-matcher (`world_id=29` + `world_id=639`).
+- **Verificacion** (2026-06-02):
+  - `python -m pytest tests/unit/tile_search/test_tile_search.py -q`: 43 passed.
   - `python -m mypy src/twi/tile_search src/twi/wld_parser --strict`: sin errores.
-  - `python -m ruff check src/twi/tile_search src/twi/wld_parser tests/unit/tile_search`: All checks passed.
-  - `python -m ruff format src/twi/tile_search src/twi/wld_parser tests/unit/tile_search --check`: 11 files already formatted.
+  - `python -m ruff check src/twi/tile_search tests/unit/tile_search`: All checks passed.
+  - `python -m ruff format src/twi/tile_search tests/unit/tile_search --check`: 6 files already formatted.
   - Perf real cubierta por tests: 1M tiles < 500 ms y 20M tiles < 500 ms.
 - **Deuda / follow-ups**:
   - **VERIFY-EXT-01 (cerrada 2026-05-31)**: suite backend completa verde con `python -m pytest -q` (227 passed), sin `--ignore` ni workarounds. Caches locales `.pytest_cache`/`.ruff_cache` normalizadas en Windows.

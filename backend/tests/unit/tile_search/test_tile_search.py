@@ -133,7 +133,23 @@ MINIMUM_ITEM_COVERAGE: dict[str, set[int]] = {
         5449,
         5450,
     },
-    "object": {8, 29, 63, 109, 221, 275, 438, 473, 524, 966, 1221, 2175, 5532, 5533},
+    "object": {
+        8,
+        29,
+        48,
+        63,
+        109,
+        221,
+        275,
+        438,
+        473,
+        524,
+        966,
+        1221,
+        2175,
+        5532,
+        5533,
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -243,10 +259,19 @@ def _world_map_json() -> dict[str, object]:
     return raw
 
 
-def _write_world_map(tmp_path: Path, items: dict[str, object]) -> Path:
+def _write_world_map(tmp_path: Path, items: dict[str, list[dict[str, object]]]) -> Path:
+    """Convert legacy short-form dict {<item_id>: [matchers...]} into schema 3.0.0."""
+    entries: list[dict[str, object]] = [
+        {
+            "item_id": int(item_id),
+            "item_name": f"Item {item_id}",
+            "matchers": matchers,
+        }
+        for item_id, matchers in items.items()
+    ]
     payload: dict[str, object] = {
         "schema_version": SCHEMA_VERSION,
-        "items": items,
+        "items": entries,
     }
     target = tmp_path / "world_map.json"
     target.write_text(json.dumps(payload), encoding="utf-8")
@@ -326,6 +351,96 @@ def test_engine_finds_object_match_once_per_instance() -> None:
         total=1,
         matches=(SearchMatch(x=4, y=2, source="object"),),
     )
+
+
+def test_default_world_map_finds_placed_chest_tiles_once_per_chest() -> None:
+    world = _world(
+        width=6,
+        height=4,
+        tile_overrides={
+            **_object_instance(
+                x=1,
+                y=1,
+                tile_id=21,
+                frame_x=0,
+                frame_y=0,
+                width=2,
+                height=2,
+            ),
+            **_object_instance(
+                x=4,
+                y=1,
+                tile_id=467,
+                frame_x=0,
+                frame_y=0,
+                width=2,
+                height=2,
+            ),
+        },
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=48)
+
+    assert result == SearchResult(
+        item_id=48,
+        total=2,
+        matches=(
+            SearchMatch(x=1, y=1, source="object"),
+            SearchMatch(x=4, y=1, source="object"),
+        ),
+    )
+
+
+def test_default_world_map_gold_chest_finds_only_gold_chest_frame() -> None:
+    world = _world(
+        width=8,
+        height=4,
+        tile_overrides={
+            **_object_instance(
+                x=1, y=1, tile_id=21, frame_x=0, frame_y=0, width=2, height=2
+            ),
+            **_object_instance(
+                x=4, y=1, tile_id=21, frame_x=36, frame_y=0, width=2, height=2
+            ),
+        },
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=306)
+
+    assert result == SearchResult(
+        item_id=306,
+        total=1,
+        matches=(SearchMatch(x=4, y=1, source="object"),),
+    )
+
+
+def test_default_world_map_chest_generic_still_finds_all_variants() -> None:
+    world = _world(
+        width=12,
+        height=4,
+        tile_overrides={
+            **_object_instance(
+                x=0, y=1, tile_id=21, frame_x=0, frame_y=0, width=2, height=2
+            ),
+            **_object_instance(
+                x=3, y=1, tile_id=21, frame_x=36, frame_y=0, width=2, height=2
+            ),
+            **_object_instance(
+                x=6, y=1, tile_id=21, frame_x=144, frame_y=0, width=2, height=2
+            ),
+            **_object_instance(
+                x=9, y=1, tile_id=467, frame_x=0, frame_y=0, width=2, height=2
+            ),
+        },
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=48)
+
+    assert result.total == 4
+    assert {(m.x, m.y) for m in result.matches} == {(0, 1), (3, 1), (6, 1), (9, 1)}
 
 
 def test_engine_unknown_item_returns_empty() -> None:
@@ -427,22 +542,31 @@ def test_engine_chest_match_still_works() -> None:
     )
 
 
-def test_data_file_has_minimum_coverage() -> None:
+def _data_file_index_by_category() -> dict[str, set[int]]:
+    """Return {category: {item_id, ...}} from the default v3 JSON."""
     data = _world_map_json()
-    items = data.get("items")
-    assert isinstance(items, dict)
+    raw_items = data.get("items")
+    assert isinstance(raw_items, list)
 
+    by_category: dict[str, set[int]] = {"block": set(), "wall": set(), "object": set()}
+    for entry in raw_items:
+        assert isinstance(entry, dict)
+        item_id = entry["item_id"]
+        assert isinstance(item_id, int)
+        matchers = entry["matchers"]
+        assert isinstance(matchers, list)
+        for matcher in matchers:
+            assert isinstance(matcher, dict)
+            category = matcher["category"]
+            assert isinstance(category, str)
+            by_category[category].add(item_id)
+    return by_category
+
+
+def test_data_file_has_minimum_coverage() -> None:
+    by_category = _data_file_index_by_category()
     for category, item_ids in MINIMUM_ITEM_COVERAGE.items():
-        missing: set[int] = set()
-        for item_id in item_ids:
-            entry = items.get(str(item_id))
-            if not isinstance(entry, list):
-                missing.add(item_id)
-                continue
-            if not any(
-                isinstance(m, dict) and m.get("category") == category for m in entry
-            ):
-                missing.add(item_id)
+        missing = item_ids - by_category[category]
         assert not missing, f"missing {category} mappings: {sorted(missing)}"
 
 
@@ -453,35 +577,52 @@ def test_data_file_schema_valid() -> None:
     assert data["schema_version"] == SCHEMA_VERSION
 
     items = data["items"]
-    assert isinstance(items, dict)
+    assert isinstance(items, list)
+    assert items
 
     allowed_categories = {"block", "wall", "object"}
-    allowed_keys = {
+    allowed_entry_keys = {"item_id", "item_name", "matchers"}
+    allowed_matcher_keys = {
         "category",
-        "tile_id",
-        "wall_id",
-        "wall_ids",
+        "world_id",
+        "world_ids",
+        "world_name",
+        "world_internal_name",
+        "item_id",
+        "item_name",
         "frame_xy",
         "frame_xys",
+        "sub_id",
+        "safe",
+        "source",
+        "source_url",
     }
-    block_owner: dict[int, str] = {}
-    wall_owner: dict[int, str] = {}
-    object_unframed_owner: dict[int, str] = {}
+    seen_item_ids: set[int] = set()
+    block_owner: dict[int, int] = {}
+    wall_owner: dict[int, int] = {}
+    object_unframed_owner: dict[int, int] = {}
 
-    for item_id, entry in items.items():
-        assert isinstance(item_id, str)
-        assert item_id.isdecimal()
-        assert isinstance(entry, list)
-        assert entry, f"item {item_id} must have at least one matcher"
+    for entry in items:
+        assert isinstance(entry, dict)
+        assert set(entry) <= allowed_entry_keys
+        item_id = entry["item_id"]
+        assert isinstance(item_id, int) and item_id > 0
+        assert item_id not in seen_item_ids, f"duplicate item_id {item_id}"
+        seen_item_ids.add(item_id)
 
-        for matcher in entry:
+        item_name = entry["item_name"]
+        assert isinstance(item_name, str) and item_name.strip()
+
+        matchers = entry["matchers"]
+        assert isinstance(matchers, list) and matchers
+
+        for matcher in matchers:
             assert isinstance(matcher, dict)
-            assert set(matcher) <= allowed_keys
+            assert set(matcher) <= allowed_matcher_keys
             category = matcher.get("category")
             assert category in allowed_categories
 
             if category == "wall":
-                assert "tile_id" not in matcher
                 assert "frame_xy" not in matcher
                 assert "frame_xys" not in matcher
                 wall_ids = _extract_wall_ids(matcher)
@@ -493,19 +634,20 @@ def test_data_file_schema_valid() -> None:
                     wall_owner[wall_id] = item_id
                 continue
 
-            assert "wall_id" not in matcher
-            assert "wall_ids" not in matcher
-            tile_id = matcher.get("tile_id")
-            assert isinstance(tile_id, int)
+            assert "world_ids" not in matcher
+            assert "safe" not in matcher
+            world_id = matcher.get("world_id")
+            assert isinstance(world_id, int)
 
             if category == "block":
                 assert "frame_xy" not in matcher
                 assert "frame_xys" not in matcher
-                previous = block_owner.get(tile_id)
+                previous = block_owner.get(world_id)
                 assert previous is None or previous == item_id, (
-                    f"collision block tile_id={tile_id}: items {previous} and {item_id}"
+                    f"collision block world_id={world_id}: "
+                    f"items {previous} and {item_id}"
                 )
-                block_owner[tile_id] = item_id
+                block_owner[world_id] = item_id
                 continue
 
             frame_xy = matcher.get("frame_xy")
@@ -523,21 +665,21 @@ def test_data_file_schema_valid() -> None:
                     assert len(pair) == 2
                     assert all(isinstance(v, int) for v in pair)
             else:
-                previous = object_unframed_owner.get(tile_id)
+                previous = object_unframed_owner.get(world_id)
                 msg = (
-                    f"collision object tile_id={tile_id}: "
+                    f"collision object world_id={world_id}: "
                     f"items {previous} and {item_id}"
                 )
                 assert previous is None or previous == item_id, msg
-                object_unframed_owner[tile_id] = item_id
+                object_unframed_owner[world_id] = item_id
 
 
 def _extract_wall_ids(matcher: dict[str, object]) -> list[int]:
-    if "wall_id" in matcher:
-        wall_id = matcher["wall_id"]
+    if "world_id" in matcher:
+        wall_id = matcher["world_id"]
         assert isinstance(wall_id, int)
         return [wall_id]
-    raw = matcher["wall_ids"]
+    raw = matcher["world_ids"]
     assert isinstance(raw, list)
     assert raw
     out: list[int] = []
@@ -596,7 +738,7 @@ def test_engine_multi_wall_match(tmp_path: Path) -> None:
     """An item mapped to N wall_ids must match all of them as source='wall'."""
     path = _write_world_map(
         tmp_path,
-        {"500": [{"category": "wall", "wall_ids": [10, 20, 30]}]},
+        {"500": [{"category": "wall", "world_ids": [10, 20, 30]}]},
     )
     world = _world(
         width=5,
@@ -625,7 +767,7 @@ def test_engine_multi_frame_match(tmp_path: Path) -> None:
             "600": [
                 {
                     "category": "object",
-                    "tile_id": 250,
+                    "world_id": 250,
                     "frame_xys": [[0, 0], [18, 0], [36, 0]],
                 }
             ]
@@ -656,8 +798,8 @@ def test_engine_alias_multi_matchers(tmp_path: Path) -> None:
         tmp_path,
         {
             "109": [
-                {"category": "object", "tile_id": 29},
-                {"category": "object", "tile_id": 639},
+                {"category": "object", "world_id": 29},
+                {"category": "object", "world_id": 639},
             ]
         },
     )
@@ -683,9 +825,9 @@ def test_match_source_field_per_kind(tmp_path: Path) -> None:
     path = _write_world_map(
         tmp_path,
         {
-            "1": [{"category": "block", "tile_id": 1}],
-            "2": [{"category": "wall", "wall_id": 5}],
-            "3": [{"category": "object", "tile_id": 100}],
+            "1": [{"category": "block", "world_id": 1}],
+            "2": [{"category": "wall", "world_id": 5}],
+            "3": [{"category": "object", "world_id": 100}],
         },
     )
     chest = _chest_with_item(chest_id=0, x=0, y=4, slot=0, item_id=4, stack=2)
@@ -1159,6 +1301,206 @@ def test_create_tile_search_engine_uses_default_tile_mapping() -> None:
         total=1,
         matches=(SearchMatch(x=2, y=2, source="block"),),
     )
+
+
+# ---------------------------------------------------------------------------
+# Iteration 13: schema 3.0.0 legibility fields
+# ---------------------------------------------------------------------------
+
+
+def test_load_v3_schema_accepts_legible_format(tmp_path: Path) -> None:
+    """New schema with readable fields produces equivalent ItemMatcher entries."""
+    path = tmp_path / "v3.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "items": [
+                    {
+                        "item_id": 48,
+                        "item_name": "Chest",
+                        "matchers": [
+                            {
+                                "category": "object",
+                                "world_id": 21,
+                                "world_name": "Containers",
+                                "frame_xy": [0, 0],
+                                "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+                            }
+                        ],
+                    },
+                    {
+                        "item_id": 30,
+                        "item_name": "Dirt Wall",
+                        "matchers": [
+                            {
+                                "category": "wall",
+                                "world_id": 2,
+                                "world_name": "Dirt Wall",
+                                "world_internal_name": "DirtWall",
+                                "safe": True,
+                            }
+                        ],
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    world_map = load_item_world_map(path)
+
+    assert world_map.schema_version == "3.0.0"
+    assert set(world_map.entries) == {48, 30}
+    chest_matchers = world_map.entries[48]
+    assert len(chest_matchers) == 1
+    assert chest_matchers[0].category == "object"
+    assert chest_matchers[0].tile_id == 21
+    assert chest_matchers[0].frame_xys == ((0, 0),)
+    dirt_wall_matchers = world_map.entries[30]
+    assert dirt_wall_matchers[0].category == "wall"
+    assert dirt_wall_matchers[0].wall_ids == (2,)
+
+
+def test_load_v3_rejects_v2_legacy_dict_items(tmp_path: Path) -> None:
+    """Old v2 dict-style ``items`` no longer loads (clean break)."""
+    path = tmp_path / "v2.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "items": {"2": [{"category": "block", "tile_id": 0}]},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        load_item_world_map(path)
+
+
+def test_load_v3_rejects_mismatched_redundant_item_id(tmp_path: Path) -> None:
+    path = tmp_path / "bad.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "items": [
+                    {
+                        "item_id": 48,
+                        "item_name": "Chest",
+                        "matchers": [
+                            {
+                                "category": "object",
+                                "world_id": 21,
+                                "item_id": 999,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        load_item_world_map(path)
+
+
+def test_engine_searches_object_with_legible_fields(tmp_path: Path) -> None:
+    """world_name/item_name on matchers do not break the search path."""
+    path = tmp_path / "object.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "items": [
+                    {
+                        "item_id": 473,
+                        "item_name": "Heart Statue",
+                        "matchers": [
+                            {
+                                "category": "object",
+                                "world_id": 105,
+                                "world_name": "Statue",
+                                "world_internal_name": "Statues",
+                                "frame_xy": [1332, 0],
+                                "source_url": (
+                                    "https://terraria.wiki.gg/wiki/Tile_IDs/Part3"
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    world = _world(
+        width=8,
+        height=6,
+        tile_overrides=_object_instance(
+            x=4, y=2, tile_id=105, frame_x=1332, frame_y=0, width=2, height=3
+        ),
+    )
+    engine = create_tile_search_engine(world_map_path=path)
+
+    result = engine.search(world, item_id=473)
+
+    assert result == SearchResult(
+        item_id=473,
+        total=1,
+        matches=(SearchMatch(x=4, y=2, source="object"),),
+    )
+
+
+def test_engine_searches_wall_with_safe_and_internal_name(tmp_path: Path) -> None:
+    """safe/world_internal_name on wall matchers do not break the search path."""
+    path = tmp_path / "wall.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "items": [
+                    {
+                        "item_id": 30,
+                        "item_name": "Dirt Wall",
+                        "matchers": [
+                            {
+                                "category": "wall",
+                                "world_id": 2,
+                                "world_name": "Dirt Wall",
+                                "world_internal_name": "DirtWall",
+                                "safe": True,
+                                "source_url": (
+                                    "https://terraria.wiki.gg/wiki/Wall_IDs"
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    world = _world(
+        width=4,
+        height=3,
+        tile_overrides={
+            (1, 1): _tile(None, wall_id=2),
+            (2, 2): _tile(None, wall_id=2),
+            (3, 0): _tile(None, wall_id=99),
+        },
+    )
+    engine = create_tile_search_engine(world_map_path=path)
+
+    result = engine.search(world, item_id=30)
+
+    assert result.total == 2
+    assert {(m.x, m.y, m.source) for m in result.matches} == {
+        (1, 1, "wall"),
+        (2, 2, "wall"),
+    }
 
 
 def test_tile_search_module_passes_mypy_strict() -> None:

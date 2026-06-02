@@ -646,9 +646,11 @@
   color: var(--ink-dim);
 }
 .td-row .v {
-  font-family: var(--font-mono);
   font-size: 16px;
+  font-weight: 600;
   color: var(--ink);
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 /* ── Map chrome ────────────────────────────────────────────────────────── */

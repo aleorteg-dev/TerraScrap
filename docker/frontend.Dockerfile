@@ -10,4 +10,13 @@ RUN npm run gen:api && npm run build
 
 FROM nginx:1.27-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /workspace/frontend/dist /usr/share/nginx/html
+COPY --from=build --chown=nginx:nginx /workspace/frontend/dist /usr/share/nginx/html
+# Run nginx as the non-root `nginx` user (SP-06):
+# - pid moved to /tmp (writable for non-root)
+# - cache/log dirs chowned to nginx
+RUN sed -i 's,pid\s*/.*nginx\.pid;,pid /tmp/nginx.pid;,' /etc/nginx/nginx.conf \
+ && chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d \
+ && touch /tmp/nginx.pid \
+ && chown nginx:nginx /tmp/nginx.pid
+USER nginx
+EXPOSE 8080
