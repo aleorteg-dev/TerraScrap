@@ -46,7 +46,11 @@ export interface ApiClient {
   ): Promise<TilesChunk>;
   getTileDetail(worldId: string, x: number, y: number): Promise<TileDetail>;
   listNpcs(worldId: string, opts?: { townOnly?: boolean }): Promise<Npc[]>;
-  searchItems(query: string, limit?: number): Promise<ItemSummary[]>;
+  searchItems(
+    query: string,
+    limit?: number,
+    opts?: { signal?: AbortSignal }
+  ): Promise<ItemSummary[]>;
   getItem(itemId: number): Promise<ItemDetail>;
   searchInWorld(
     worldId: string,
@@ -235,10 +239,14 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
       return dto.npcs;
     },
 
-    async searchItems(query: string, limit?: number) {
+    async searchItems(query: string, limit?: number, opts?: { signal?: AbortSignal }) {
       const params = new URLSearchParams({ q: query });
       if (limit !== undefined) params.set('limit', String(limit));
-      const dto = await doRequest<ItemListDto>(fetchImpl, `${baseUrl}/items?${params.toString()}`);
+      const dto = await doRequest<ItemListDto>(
+        fetchImpl,
+        `${baseUrl}/items?${params.toString()}`,
+        opts?.signal ? { signal: opts.signal } : undefined
+      );
       return dto.items;
     },
 

@@ -32,7 +32,7 @@ Contrato transversal de errores HTTP:
 - `RequestValidationError` -> 422 `ErrorDto`, `code:"validation_error"`, `details` es una lista normalizada de errores.
 - `StarletteHTTPException` -> `ErrorDto` usando codigos de dominio cuando el status tiene canon definido (`413 -> upload_too_large`, `404 -> world_not_found` cuando aplique); si no hay canon, usa `http_error`.
 - `Exception` no controlada -> 500 `ErrorDto`, `code:"internal_error"`, sin traza ni detalles internos.
-- `XApiVersionMiddleware` añade `X-API-Version: v0.1.0` a toda respuesta, incluidas validacion, errores de framework y limite de upload.
+- `XApiVersionMiddleware` añade `X-API-Version: 0.2` a toda respuesta, incluidas validacion, errores de framework y limite de upload.
 
 Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
 - Query param `encoding`: `"base64-rle-v1"` (default) | `"base64-rle-v2"`. Otro valor → 400 `code:"invalid_encoding"`.
@@ -64,7 +64,7 @@ Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
 - **SP-08** `GET /api/items?q=zen` → lista con ≤ 20 `ItemSummaryDto` por defecto.
 - **SP-09** `GET /api/items/{id}` → `ItemDetailDto` o 404.
 - **SP-10** `DELETE /api/worlds/{id}` → 204; repetido sobre id inexistente → 404.
-- **SP-11** Todas las respuestas incluyen header `X-API-Version: v0.1.0`.
+- **SP-11** Todas las respuestas incluyen header `X-API-Version: 0.2`.
 - **SP-12** El schema OpenAPI generado por FastAPI coincide con `docs/contracts/api-contract.md` (snapshot test).
 - **SP-13** Todo 413 de upload usa `ErrorDto` y `code:"upload_too_large"`.
 - **SP-14** El 413 producido por el router y el 413 producido por el limite de `app-bootstrap` devuelven el mismo `code`.
@@ -181,8 +181,8 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
   `RequestValidationError`, `UploadTooLargeError`, `StarletteHTTPException` y
   `Exception` no controlada.
 - `XApiVersionMiddleware` queda como contrato publico de B5 y anade
-  `X-API-Version: v0.1.0` a respuestas 2xx, 4xx y 5xx, incluido el path de
-  limite de upload.
+  `X-API-Version` a respuestas 2xx, 4xx y 5xx, incluido el path de
+  limite de upload. Valor inicial `v0.1.0`; promovido a `0.2` en iter-11.
 - `ErrorDetailDto.details` admite `dict | list | None` para permitir la lista
   normalizada de errores de validacion FastAPI sin romper los detalles de dominio.
 - Se regeneraron `docs/contracts/openapi.json` y el snapshot unitario de B5. No se

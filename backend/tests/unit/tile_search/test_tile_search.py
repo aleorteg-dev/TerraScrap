@@ -17,6 +17,7 @@ from twi.tile_search._mapping import (
     load_item_world_map,
 )
 from twi.wld_parser import Chest, ChestItem, Tile, TileGrid, World, WorldMetadata
+from twi.wld_parser._types import TileEntity
 
 # ---------------------------------------------------------------------------
 # Shared sentinel for air tiles
@@ -49,6 +50,7 @@ MINIMUM_ITEM_COVERAGE: dict[str, set[int]] = {
         173,
         174,
         176,
+        276,
         364,
         365,
         366,
@@ -67,6 +69,34 @@ MINIMUM_ITEM_COVERAGE: dict[str, set[int]] = {
         1106,
         3081,
         3086,
+        3271,
+        3272,
+        3274,
+        3275,
+        3276,
+        3277,
+        3338,
+        3339,
+        3347,
+        4051,
+        4349,
+        4350,
+        4351,
+        4352,
+        4353,
+        4354,
+        4377,
+        4378,
+        4389,
+        4390,
+        5127,
+        5128,
+        5439,
+        5440,
+        5441,
+        5442,
+        5443,
+        5444,
     },
     "wall": {
         26,
@@ -85,8 +115,25 @@ MINIMUM_ITEM_COVERAGE: dict[str, set[int]] = {
         4526,
         4527,
         4528,
+        608,
+        750,
+        3273,
+        3340,
+        3341,
+        3342,
+        3343,
+        3344,
+        3345,
+        3346,
+        4053,
+        5445,
+        5446,
+        5447,
+        5448,
+        5449,
+        5450,
     },
-    "object": {8, 29, 109, 221, 438, 473, 524, 1221, 5532, 5533},
+    "object": {8, 29, 63, 109, 221, 275, 438, 473, 524, 966, 1221, 2175, 5532, 5533},
 }
 
 # ---------------------------------------------------------------------------
@@ -292,6 +339,74 @@ def test_engine_unknown_item_returns_empty() -> None:
     result = engine.search(world, item_id=999_999)
 
     assert result == SearchResult(item_id=999_999, total=0, matches=())
+
+
+def test_engine_finds_item_inside_tile_entity() -> None:
+    item_frame = TileEntity(
+        id=1,
+        entity_type=1,
+        x=12,
+        y=8,
+        data={"item_id": 757, "prefix_id": 0, "stack": 1},
+    )
+    world = World(
+        metadata=_meta(width=20, height=10),
+        tiles=_grid(20, 10, None),
+        chests=(),
+        signs=(),
+        tile_entities=[item_frame],
+    )
+    engine = create_tile_search_engine(
+        item_to_tile_mapping={},
+        item_to_wall_mapping={},
+        item_to_object_mapping={},
+    )
+
+    result = engine.search(world, item_id=757)
+
+    assert result == SearchResult(
+        item_id=757,
+        total=1,
+        matches=(SearchMatch(x=12, y=8, source="object", stack=1),),
+    )
+
+
+def test_engine_finds_item_inside_mannequin_dye_slot() -> None:
+    mannequin = TileEntity(
+        id=2,
+        entity_type=3,
+        x=5,
+        y=3,
+        data={
+            "pose": 0,
+            "item_0_id": 0,
+            "item_0_prefix": 0,
+            "item_0_stack": 0,
+            "dye_1_id": 1234,
+            "dye_1_prefix": 0,
+            "dye_1_stack": 1,
+        },
+    )
+    world = World(
+        metadata=_meta(width=10, height=10),
+        tiles=_grid(10, 10, None),
+        chests=(),
+        signs=(),
+        tile_entities=[mannequin],
+    )
+    engine = create_tile_search_engine(
+        item_to_tile_mapping={},
+        item_to_wall_mapping={},
+        item_to_object_mapping={},
+    )
+
+    result = engine.search(world, item_id=1234)
+
+    assert result.total == 1
+    assert result.matches[0].x == 5
+    assert result.matches[0].y == 3
+    assert result.matches[0].source == "object"
+    assert result.matches[0].stack == 1
 
 
 def test_engine_chest_match_still_works() -> None:
@@ -860,9 +975,7 @@ def test_search_is_pure_and_deterministic() -> None:
 
 @pytest.mark.perf
 def test_search_large_world_completes_within_budget() -> None:
-    """Regression guard: search over a Large world (8400x2400) must finish
-    in < 3.5 s on any CI host (pure-Python O(W*H) loop).
-    RNF-03 (< 500 ms) requires numpy vectorisation — tracked in deuda."""
+    """Large-world search must finish within the RNF-03 500 ms budget."""
     width, height = 8400, 2400
     columns: list[list[Tile]] = [[AIR] * height for _ in range(width)]
     target_tile_id = 1
@@ -899,7 +1012,7 @@ def test_search_large_world_completes_within_budget() -> None:
     elapsed = time.perf_counter() - start
 
     assert result.total == 2
-    assert elapsed < 3.5, f"search took {elapsed:.3f}s — exceeds 3.5 s CI budget"
+    assert elapsed < 0.5, f"search took {elapsed:.3f}s - exceeds 500 ms budget"
 
 
 # ---------------------------------------------------------------------------

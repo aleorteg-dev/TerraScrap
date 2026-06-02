@@ -294,11 +294,14 @@ Referencia local revisada: `C:\Users\aleja\Desktop\Alejandro\Universidad\DRA\ter
 
 Brechas pendientes tras v0.2. Cada bullet debe materializarse en una iteración SDD/TDD aislada por módulo, con cambio de contrato documentado si aplica:
 
-- **Tile entities en búsqueda**: B1 ya modela tile entities y B5 expone detalle de tile; queda alinear B4/B5 si se introduce `source="tile_entity"` o búsqueda por inventarios de entidades.
-- **Render con paleta completa**: F3 pinta paredes/líquidos con v2, pero la paleta sigue siendo mínima frente a TerraMap.
-- **Zoom-to-fit**: `WorldCanvasHandle.zoomToFit()` en F3 + control global en F6.
-- **Export PNG con overlay**: F6 exporta el canvas base; falta componer el overlay de resaltados si se quiere incluirlo en la imagen.
-- **Panel propiedades del mundo**: F6 debe mostrar metadata enriquecida (`spawn_x/y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`).
+- **Render con paleta completa**: F3 pinta paredes/líquidos con v2, pero la paleta sigue siendo mínima frente a TerraMap. Ampliación incremental desde `MapHelper.js`.
+- **Búsqueda v0.3 por inventarios de tile entities**: requeriría `source="tile_entity"` en contrato API + B4 + F1/F4/F5. Reservado para v0.3.
+
+Cerradas:
+- Tile entities en B1/B5: B1 modela tile entities, B5 expone `tile_entity_id` en `GET /tile`.
+- Zoom-to-fit: `WorldCanvasHandle.zoomToFit()` + control toolbar (iter-19).
+- Export PNG con overlay: F6 compone canvas visibles (iter-19).
+- Panel propiedades del mundo: `WorldPropertiesPanel` muestra metadata v0.2 (iter-19).
 
 No se aborda como refactor transversal. Una brecha → una iteración.
 
@@ -363,6 +366,8 @@ Cada cambio de contrato (API o módulo) se añade aquí.
 | 2026-05-11 | F4 search-panel | Contrato v2.0 (breaking): `onMatchFocus(match, index)` añade índice en lista filtrada. Virtualización sin deps nuevas (`ROW_HEIGHT=40`, `OVERSCAN=10`). Navegación next/prev (`n`/`p`) + atajos `Escape`/`/` via `window.addEventListener`. Filtros client-side por `source` (multi-select). Autocompletado con generación-counter para ignorar respuestas obsoletas. A11y: `role="listbox"` + `aria-selected` en matches. 20 tests (T-01..T-17). | iter-18 |
 | 2026-05-11 | F6 app-shell | Contrato v2.0: reducer extendido (`selectedTile/tileDetail/npcs/layers/maskMode/sidebarOpen/panels/zoom`). `AppContext` (no exportado) para sub-componentes. `Toolbar` (zoom+/−/reset, layer toggles, mask mode, export PNG). `NpcPanel` (carga lazy, click centra canvas). `TileDetailPanel` (muestra `TileDetailDto`, cierre limpia selección). Layout móvil: `data-open` en sidebar + CSS `@media max-width:767px`. `onMatchFocus` → centra canvas + selecciona tile + carga detail. 21 tests (T-01..T-07 + layout + 6 nuevos). | iter-19 |
 | 2026-05-11 | P1 deployment-docker | **v0.2 — CIERRE GLOBAL** Contrato v0.2.0: `--legacy-peer-deps` documentado con justificación en Dockerfile. `docker/scan.sh` creado (trivy, CRITICAL bloquea, HIGH loguea, umbral configurable, graceful no-op si trivy ausente). `docker/smoke.sh` ampliado a T-01a..T-01j (items vacío, POST fixture, GET tiles, GET npcs, DELETE, 404 post-delete). `docker/smoke_world.wld` fixture 550 B (v269, 8×4). Bundle frontend: 73.82 kB gzipped (target <2 MB cumplido; code splitting innecesario). Backend: mypy OK, ruff OK, 203 tests, 90% cobertura. Frontend: ESLint+Prettier OK, 91.02% cobertura, build OK. Deuda abierta: DEUDA-P1-01 (legacy-peer-deps), DEUDA-P1-02 (trivy en CI). | iter-020 |
+| 2026-05-31 | B1/B4 deuda técnica | Cerradas PERF-01, DATA-EXPAND-01 y VERIFY-EXT-01. `TileGrid` añade índices compactos por `tile_id`/`wall_id`; B4 busca usando esos índices y el test Large 8400×2400 exige <500 ms. `item_world_map.json` ampliado a 109 items (62 block, 33 wall, 15 object). Suite backend completa: 227 passed sin `--ignore`. | deuda-2026-05-31 |
+| 2026-05-31 | docs + F1/F4/F3 | Limpieza drift docs↔código: api-contract.md (encoding via query, include_containers solo excluye chest), api-rest.md (X-API-Version 0.2), api-client.md (cliente sí valida versión), CLAUDE.md (encoding v0.2). F1 `searchItems` admite `{signal}`; F4 SearchPanel aborta autocompletado en vuelo con `AbortController`. F3 `tileColors.ts` ampliado (~70 tile ids + walls hardmode/dungeon). +5 tests nuevos (T-05b/c API, T-18 SearchPanel, 9 tileColors). | deuda-2026-05-31b |
 
 ---
 
@@ -394,8 +399,9 @@ Todos los módulos del orden de construcción B1→B6, F1→F6, P1 están implem
 - DEUDA-F1-01 cerrada: `api-client/errors.ts` 100% cobertura en suite `tests/api-client`.
 - DEUDA-B5-01 cerrada: `api_rest/errors.py` 91% cobertura.
 - DEUDA-B3-01 cerrada: `item_catalog/refresh.py` 97% cobertura.
-- Sigue abierta PERF-01: RNF-03 Large <500 ms requiere rediseño B1/B4 con arrays auxiliares/vectorización.
-- Sigue abierta DATA-EXPAND-01: ampliar `item_world_map.json` con más objetos/biomas/eventos.
+- PERF-01 cerrada 2026-05-31: RNF-03 Large <500 ms cubierto con índices compactos en `TileGrid` y búsqueda B4 por candidatos.
+- DATA-EXPAND-01 cerrada 2026-05-31: `item_world_map.json` ampliado a 109 items, incluyendo desert/ocean/glowing moss y paredes asociadas.
+- VERIFY-EXT-01 cerrada 2026-05-31: `python -m pytest -q` completo en backend pasa 227 tests sin `--ignore` ni workarounds.
 
 **Métricas finales:**
 - Backend: `mypy --strict` ✅ | `ruff` ✅ | 227 unit tests | 93% cobertura total

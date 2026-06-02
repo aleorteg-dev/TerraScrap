@@ -1213,6 +1213,82 @@ def test_get_tiles_default_encoding_is_v1(
     assert response.json()["encoding"] == "base64-rle-v1"
 
 
+def test_encode_chunk_v2_handles_negative_frame_coordinates() -> None:
+    """`_read_tiles` returns `frame_x`/`frame_y` as signed int16; negative
+    values must not crash `_encode_chunk_v2`. Stored as raw 16-bit bit
+    pattern (two's complement)."""
+    framed_neg = Tile(
+        tile_id=21,
+        wall_id=4,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+        frame_x=-1,
+        frame_y=-2,
+    )
+    grid = TileGrid([[framed_neg]])
+    width, height, payload = _encode_chunk_v2(grid, 0, 0, 8)
+    assert width == 1 and height == 1
+    raw = base64.b64decode(payload)
+    # 8B header + 10B run + 6B frame block
+    assert len(raw) == 24
+    assert raw[:4] == b"TWv2"
+    # run record layout: tile_id(2) wall(2) liq_t(1) liq_a(1) fx_hi(1) flags(1) count(2)
+    fx_hi = raw[8 + 6]
+    flags_byte = raw[8 + 7]
+    assert fx_hi == 0xFF
+    assert flags_byte & 0x01 == 0x01
+    # frame block: fx_lo=0xFF, reserved=0, frame_y=0xFFFE (=-2 reinterpreted)
+    fx_lo = raw[8 + 10 + 2]
+    fres = raw[8 + 10 + 3]
+    frame_y = _struct.unpack_from("<H", raw, 8 + 10 + 4)[0]
+    assert fx_lo == 0xFF
+    assert fres == 0
+    assert frame_y == 0xFFFE
+
+
+def test_get_tiles_v2_with_negative_frames_returns_200(
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    """Regression: a real-world tile with negative int16 frame coords used
+    to make `GET /tiles?encoding=base64-rle-v2` return 500 (`internal_error`),
+    leaving holes in the canvas. Must now return 200."""
+    framed_neg = Tile(
+        tile_id=21,
+        wall_id=4,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+        frame_x=-1,
+        frame_y=-1,
+    )
+    grid = TileGrid([[framed_neg]])
+    meta = WorldMetadata(
+        name="N",
+        width=1,
+        height=1,
+        version=279,
+        seed="0",
+        size="small",
+        hardmode=False,
+    )
+    world = World(metadata=meta, tiles=grid, chests=(), signs=())
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    client = _make_client(repo, catalog, search_engine)
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/tiles", params={"encoding": "base64-rle-v2"}
+    )
+
+    assert resp.status_code == 200, resp.json()
+    body = resp.json()
+    assert body["encoding"] == "base64-rle-v2"
+    raw = base64.b64decode(body["payload"])
+    assert raw[:4] == b"TWv2"
+
+
 def test_get_tiles_unknown_encoding_returns_400(
     repo: _FakeRepo,
     catalog: _FakeCatalog,

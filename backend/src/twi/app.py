@@ -38,7 +38,7 @@ from twi.tile_search import create_tile_search_engine
 from twi.world_repository import WorldRepository, create_in_memory_repository
 
 _DEFAULT_SEED_PATH: Path = (
-    Path(__file__).parent / "item_catalog" / "data" / "items_seed.v2.json"
+    Path(__file__).parent / "item_catalog" / "data" / "items.seed.json"
 )
 
 _LOG_LEVELS: dict[str, int] = {

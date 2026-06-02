@@ -218,6 +218,34 @@ describe('searchItems', () => {
     expect(mock).toHaveBeenCalledWith(expect.stringContaining('q=zenith'), undefined);
     expect(mock).toHaveBeenCalledWith(expect.stringContaining('limit=5'), undefined);
   });
+
+  it('T-05b searchItems forwards AbortSignal to fetch as init.signal', async () => {
+    const mock = makeFetch(200, { items: [] });
+    const client = createApiClient({ fetchImpl: asFetch(mock) });
+    const controller = new AbortController();
+
+    await client.searchItems('zen', undefined, { signal: controller.signal });
+
+    const lastCall = mock.mock.lastCall as [string, RequestInit | undefined] | undefined;
+    expect(lastCall?.[1]?.signal).toBe(controller.signal);
+  });
+
+  it('T-05c searchItems rejects when AbortSignal aborts mid-flight', async () => {
+    const controller = new AbortController();
+    const abortFetch = vi.fn().mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new DOMException('aborted', 'AbortError');
+            reject(err);
+          });
+        })
+    );
+    const client = createApiClient({ fetchImpl: asFetch(abortFetch) });
+    const promise = client.searchItems('zen', undefined, { signal: controller.signal });
+    controller.abort();
+    await expect(promise).rejects.toMatchObject({ code: 'network_error' });
+  });
 });
 
 // ── T-06 ─────────────────────────────────────────────────────────────────────

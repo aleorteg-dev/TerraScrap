@@ -55,6 +55,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
   const isUserTypingRef = useRef(false);
   const searchGenRef = useRef(0);
+  const autocompleteAbortRef = useRef<AbortController | null>(null);
   // Stable ref for focusedMatchIndex so navigateMatch doesn't stale-close over it
   const focusedMatchIndexRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,25 +73,32 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
     if (el && el.clientHeight > 0) setContainerHeight(el.clientHeight);
   }, []);
 
-  // Autocomplete debounce + stale-response prevention via generation counter
+  // Autocomplete debounce + real cancellation via AbortController (also keeps a
+  // generation counter as belt-and-suspenders for mocks that ignore signal).
   useEffect(() => {
     if (!isUserTypingRef.current || query.trim().length === 0) return;
     const gen = ++searchGenRef.current;
     const timer = setTimeout(() => {
+      autocompleteAbortRef.current?.abort();
+      const controller = new AbortController();
+      autocompleteAbortRef.current = controller;
       apiClient
-        .searchItems(query)
+        .searchItems(query, undefined, { signal: controller.signal })
         .then((items) => {
-          if (gen !== searchGenRef.current) return;
+          if (gen !== searchGenRef.current || controller.signal.aborted) return;
           setSuggestions(items);
           setIsDropdownOpen(items.length > 0);
         })
         .catch(() => {
-          if (gen !== searchGenRef.current) return;
+          if (gen !== searchGenRef.current || controller.signal.aborted) return;
           setSuggestions([]);
           setIsDropdownOpen(false);
         });
     }, 200);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      autocompleteAbortRef.current?.abort();
+    };
   }, [query, apiClient]);
 
   // Client-side source filter
@@ -173,6 +181,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const handleClear = useCallback((): void => {
     isUserTypingRef.current = false;
     searchGenRef.current++;
+    autocompleteAbortRef.current?.abort();
     focusedMatchIndexRef.current = null;
     setQuery('');
     setSuggestions([]);

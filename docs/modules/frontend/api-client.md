@@ -62,7 +62,7 @@ No hay manejo ad-hoc por función. `parseError` es el único punto de conversió
 
 `deleteWorld` swallow 404 antes de llamar a `parseError` (SP-06 idempotente).
 
-El cliente NO valida `X-API-Version` todavía (planned follow-up); sí lo lee y lo expone en `ApiError.apiVersion` para diagnóstico.
+El cliente valida `X-API-Version` en `checkApiVersion()` (constante `EXPECTED_API_VERSION = '0.2'`); si el header presente difiere, lanza `ApiVersionMismatchError` (subclase de `ApiError`). El header también se expone en `ApiError.apiVersion` para diagnóstico cuando aparece en respuestas de error.
 
 ## 4. Regeneración de tipos
 

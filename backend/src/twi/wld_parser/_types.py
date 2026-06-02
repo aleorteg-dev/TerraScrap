@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from array import array
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -74,12 +75,15 @@ class Npc:
 class TileGrid:
     """Read-only tile grid, indexable as grid[x][y]."""
 
-    __slots__ = ("_columns", "_width", "_height")
+    __slots__ = ("_columns", "_height", "_tile_positions", "_wall_positions", "_width")
 
     def __init__(self, columns: list[list[Tile]]) -> None:
         self._columns = columns
         self._width = len(columns)
         self._height = len(columns[0]) if columns else 0
+        self._tile_positions: dict[int, array[int]] = {}
+        self._wall_positions: dict[int, array[int]] = {}
+        self._build_position_indexes()
 
     @property
     def width(self) -> int:
@@ -92,6 +96,12 @@ class TileGrid:
     def __getitem__(self, x: int) -> Sequence[Tile]:
         return self._columns[x]
 
+    def iter_tile_positions(self, tile_id: int) -> Iterator[tuple[int, int]]:
+        yield from self._iter_positions(self._tile_positions.get(tile_id))
+
+    def iter_wall_positions(self, wall_id: int) -> Iterator[tuple[int, int]]:
+        yield from self._iter_positions(self._wall_positions.get(wall_id))
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, TileGrid):
             return NotImplemented
@@ -99,6 +109,27 @@ class TileGrid:
 
     def __hash__(self) -> int:
         return hash(tuple(tuple(col) for col in self._columns))
+
+    def _build_position_indexes(self) -> None:
+        height = self._height
+        for x, col in enumerate(self._columns):
+            for y, tile in enumerate(col):
+                encoded = x * height + y
+                tile_id = tile.tile_id
+                if tile_id is not None:
+                    self._tile_positions.setdefault(tile_id, array("I")).append(encoded)
+                wall_id = tile.wall_id
+                if wall_id is not None:
+                    self._wall_positions.setdefault(wall_id, array("I")).append(encoded)
+
+    def _iter_positions(
+        self, positions: array[int] | None
+    ) -> Iterator[tuple[int, int]]:
+        if positions is None:
+            return
+        height = self._height
+        for encoded in positions:
+            yield divmod(encoded, height)
 
 
 @dataclass(frozen=True)

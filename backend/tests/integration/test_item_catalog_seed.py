@@ -17,6 +17,15 @@ def test_items_query_dirt_returns_results_from_seed(tmp_path: Path) -> None:
     assert any("dirt" in item["name"].lower() for item in items)
 
 
+def test_items_query_zenith_returns_full_seed_entry(tmp_path: Path) -> None:
+    settings = Settings(item_cache_path=tmp_path / "nonexistent_items.json")
+    client = TestClient(create_app(settings))
+    resp = client.get("/api/items?q=Zenith")
+    assert resp.status_code == 200
+    names = [item["name"] for item in resp.json()["items"]]
+    assert any(name == "Zenith" for name in names)
+
+
 def test_items_query_empty_returns_empty_items(tmp_path: Path) -> None:
     settings = Settings(item_cache_path=tmp_path / "nonexistent_items.json")
     client = TestClient(create_app(settings))

@@ -76,8 +76,9 @@ Devuelve tiles empaquetados para el renderer.
 - Encoding `base64-rle-v1` (v0.1, compatible): runs `(tileId:int16LE, count:uint16LE)`, 4 bytes/run.
   Aire = -1. Orden fila-mayor (y externo, x interno). Máx. run: 65535.
 - **[v0.2]** Encoding `base64-rle-v2`: ver §4.2 para spec completo.
-- **[v0.2]** Negociación: cliente envía header `Accept-Encoding-TWI: base64-rle-v2` para preferir v2;
-  servidor devuelve v2 si disponible, v1 si no. Sin header → servidor elige (actualmente v1).
+- **[v0.2]** Negociación: cliente solicita un encoding concreto vía query param
+  `?encoding=base64-rle-v1|base64-rle-v2`. Valor por defecto: `base64-rle-v1`. Encoding
+  desconocido → 400 `code:"invalid_encoding"` con `details.supported` listando los válidos.
 
 #### `GET /api/worlds/{world_id}/search`
 Busca un ítem en el mundo cargado.
@@ -88,7 +89,8 @@ Busca un ítem en el mundo cargado.
   - **[v0.2]** `frame_x=<int>` (opcional) — filtra tiles `source="block"` por frame_x exacto
   - **[v0.2]** `frame_y=<int>` (opcional) — filtra tiles `source="block"` por frame_y exacto
 - Si se proveen `frame_x/frame_y`, solo se incluyen tiles cuyo `(frame_x, frame_y)` coincida exactamente.
-- `include_containers=false` excluye `"chest"` **[v0.2]** y `"object"` (objetos/tile frames mapeados por B4).
+- `include_containers=false` excluye únicamente `"chest"`. Los matches `"object"` (objetos/tile
+  frames mapeados por B4) siguen apareciendo porque no son contenedores semánticos.
 - **200**:
   ```json
   {
@@ -193,15 +195,15 @@ Lista de NPCs del mundo cargado.
 
 ## 4. Checklist al cambiar este documento
 
-- [ ] `docs/contracts/openapi.json` actualizado — **se regenera en iter-011** (implementación B5.1).
-- [ ] Tipos frontend regenerados con `openapi-typescript` — **se regeneran en iter-011**.
+- [ ] `docs/contracts/openapi.json` regenerado desde `twi.app.create_app().openapi()`.
+- [ ] `backend/tests/unit/api_rest/openapi_snapshot.json` regenerado.
+- [ ] Tipos frontend regenerados con `openapi-typescript` desde el openapi.json.
 - [ ] Sección `Estado` del módulo `api-rest` actualizada con versión de contrato.
 - [ ] Sección `Estado` del módulo `api-client` actualizada con versión de contrato.
 - [ ] Entrada añadida en changelog de `PROJECT.md`.
 
-> `docs/contracts/openapi.json` y `backend/tests/unit/api_rest/openapi_snapshot.json` reflejan
-> v0.1.1 (último regenerado en iter-032) hasta que iter-011 implemente B5.1.
-> No editar esos artefactos a mano.
+> Los artefactos (`docs/contracts/openapi.json`, snapshot unitario, schema generado del
+> frontend) viven sincronizados con v0.2 desde iter-11. No editar a mano.
 
 ---
 
@@ -322,7 +324,7 @@ Endpoints que aceptan ambos encodings:
 - Sin más endpoints que devuelvan tile bulk en v0.2.
 
 El cliente siempre inspecciona `TilesChunkDto.encoding` antes de decodificar.
-La negociación ocurre via header `Accept-Encoding-TWI` (sin header → servidor devuelve v1).
+La negociación ocurre via query param `?encoding=` (sin valor → servidor devuelve v1).
 
 ### 5.3. DTOs nuevos
 

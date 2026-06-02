@@ -74,6 +74,7 @@ class _Engine:
                                 stack=ci.stack,
                             )
                         )
+            _append_tile_entity_matches(world, item_id, matches)
 
         matches.sort(key=lambda m: (m.y, m.x))
         result_tuple = tuple(matches)
@@ -84,6 +85,43 @@ class _Engine:
         )
 
 
+_TILE_ENTITY_ITEM_KEY_PREFIXES: tuple[str, ...] = ("item_", "dye_", "misc_")
+
+
+def _append_tile_entity_matches(
+    world: World,
+    item_id: int,
+    matches: list[SearchMatch],
+) -> None:
+    for entity in world.tile_entities:
+        stack: int | None = None
+        found = False
+        for key, value in entity.data.items():
+            if not isinstance(value, int) or value != item_id:
+                continue
+            if not key.endswith("_id"):
+                continue
+            if not key.startswith(_TILE_ENTITY_ITEM_KEY_PREFIXES):
+                continue
+            found = True
+            stack_key = key[:-3] + "_stack"
+            stack_value = entity.data.get(stack_key)
+            if not isinstance(stack_value, int):
+                stack_value = entity.data.get("stack")
+            if isinstance(stack_value, int):
+                stack = stack_value
+            break
+        if found:
+            matches.append(
+                SearchMatch(
+                    x=entity.x,
+                    y=entity.y,
+                    source="object",
+                    stack=stack,
+                )
+            )
+
+
 def _scan_blocks_and_walls(
     world: World,
     block_targets: set[int],
@@ -91,20 +129,12 @@ def _scan_blocks_and_walls(
     matches: list[SearchMatch],
 ) -> None:
     append = matches.append
-    width = world.tiles.width
-    has_blocks = bool(block_targets)
-    has_walls = bool(wall_targets)
-    for x in range(width):
-        col = world.tiles[x]
-        for y, tile in enumerate(col):
-            if has_blocks:
-                tile_id = tile.tile_id
-                if tile_id is not None and tile_id in block_targets:
-                    append(SearchMatch(x=x, y=y, source="block"))
-            if has_walls:
-                wall_id = tile.wall_id
-                if wall_id is not None and wall_id in wall_targets:
-                    append(SearchMatch(x=x, y=y, source="wall"))
+    for tile_id in block_targets:
+        for x, y in world.tiles.iter_tile_positions(tile_id):
+            append(SearchMatch(x=x, y=y, source="block"))
+    for wall_id in wall_targets:
+        for x, y in world.tiles.iter_wall_positions(wall_id):
+            append(SearchMatch(x=x, y=y, source="wall"))
 
 
 def _append_object_matches(
@@ -119,14 +149,10 @@ def _append_object_matches(
         set(matcher.frame_xys) if matcher.frame_xys else None
     )
     append = matches.append
-    width = world.tiles.width
-    for x in range(width):
-        col = world.tiles[x]
-        for y, tile in enumerate(col):
-            if tile.tile_id != tile_id_target:
-                continue
-            if _is_object_match(world, x, y, tile, target_frames):
-                append(SearchMatch(x=x, y=y, source="object"))
+    for x, y in world.tiles.iter_tile_positions(tile_id_target):
+        tile = world.tiles[x][y]
+        if _is_object_match(world, x, y, tile, target_frames):
+            append(SearchMatch(x=x, y=y, source="object"))
 
 
 def _is_object_match(

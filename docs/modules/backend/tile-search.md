@@ -145,10 +145,10 @@ Notas de datos:
 ## 9. Performance
 
 - Target historico: world large (8400x2400 aprox. 20M tiles) + 1000 chests < 500 ms.
-- Estado actual (iter-12): single-pass combinado para block+wall, set-lookup O(1) por target. Mediciones locales:
-  - 1000x1000 (1M tiles), Dirt: ~70 ms (budget 500 ms). 5 corridas: 69.7, 65.4, 65.7, 77.9, 69.9 ms.
-  - 8400x2400 (20.16M tiles), tile sintetico: ~1.4 s (budget 3.5 s).
-- RNF-03 (< 500 ms para Large) sigue requiriendo vectorizacion o arrays auxiliares en B1: deuda PERF-01.
+- Estado actual (deuda-2026-05-31): B1 `TileGrid` construye indices compactos `tile_id -> posiciones` y `wall_id -> posiciones`; B4 consulta esos indices, por lo que cada busqueda queda acotada por candidatos del item en lugar de `width * height`.
+  - 1000x1000 (1M tiles), Dirt: < 500 ms (`test_search_one_million_tiles_under_500_ms`).
+  - 8400x2400 (20.16M tiles), tile sintetico: < 500 ms (`test_search_large_world_completes_within_budget`).
+- RNF-03 (< 500 ms para Large) queda cubierto por test de regresion: cierra PERF-01.
 
 ## 10. Errores
 
@@ -157,22 +157,21 @@ Notas de datos:
 
 ## 11. Estado
 
-- **Version del contrato**: v4 (iter-12)
-- **Ultimo cierre**: 2026-05-10
-- **Iteracion actual**: cerrada (iter-12)
+- **Version del contrato**: v4 (sin cambio de contrato publico)
+- **Ultimo cierre**: 2026-05-31
+- **Iteracion actual**: cerrada (deuda-2026-05-31)
 - **Version JSON**: `2.0.0` (root key `schema_version`, items mapean a lista de matchers).
-- **Conteo cubierto**: 59 items totales; 33 `block`, 16 `wall`, 10 `object`. Item `109` (Mana Crystal) lleva 2 matchers (alias `tile_id=29` + `tile_id=639`).
-- **Verificacion** (2026-05-10):
+- **Conteo cubierto**: 109 items totales; 62 matchers `block`, 33 `wall`, 15 `object`. Item `109` (Mana Crystal) lleva 2 matchers (alias `tile_id=29` + `tile_id=639`).
+- **Verificacion** (2026-05-31):
   - `python -m pytest tests/unit/tile_search/test_tile_search.py -q`: 33 passed.
-  - `python -m pytest tests/unit/api_rest -q`: 58 passed (sin regresiones).
-  - `python -m coverage run --source=src/twi/tile_search -m pytest tests/unit/tile_search/test_tile_search.py -q` + `python -m coverage report --fail-under=80`: 89%.
-  - `python -m mypy src/twi/tile_search --strict`: sin errores.
-  - `python -m ruff check src/twi/tile_search tests/unit/tile_search`: All checks passed.
-  - `python -m ruff format src/twi/tile_search tests/unit/tile_search --check`: 6 files already formatted.
-  - Perf real: 1M tiles 65-78 ms (budget 500 ms); 20M tiles 1.4 s (budget 3.5 s).
+  - `python -m pytest -q`: 227 passed, sin `--ignore` ni workarounds.
+  - `python -m mypy src/twi/tile_search src/twi/wld_parser --strict`: sin errores.
+  - `python -m ruff check src/twi/tile_search src/twi/wld_parser tests/unit/tile_search`: All checks passed.
+  - `python -m ruff format src/twi/tile_search src/twi/wld_parser tests/unit/tile_search --check`: 11 files already formatted.
+  - Perf real cubierta por tests: 1M tiles < 500 ms y 20M tiles < 500 ms.
 - **Deuda / follow-ups**:
-  - **VERIFY-EXT-01**: resolver permisos de pytest tmp/cache en el entorno Windows para poder cerrar la suite completa sin `--ignore` ni workarounds. Iter-12 evita `os.chmod` en tests; sigue abierto a nivel de suite global.
-  - **DATA-EXPAND-01**: ampliar muebles, decoracion, objetos de eventos, NPC-related tiles, bioma desert/ocean/glowing moss y variantes modernas fuera de la lista minima de 50+ items. Iter-12 no introduce items nuevos: el set base ya contiene 59 items por encima del minimo.
+  - **VERIFY-EXT-01 (cerrada 2026-05-31)**: suite backend completa verde con `python -m pytest -q` (227 passed), sin `--ignore` ni workarounds. Caches locales `.pytest_cache`/`.ruff_cache` normalizadas en Windows.
+  - **DATA-EXPAND-01 (cerrada 2026-05-31)**: `item_world_map.json` ampliado de 59 a 109 items con desert/ocean/glowing moss, paredes asociadas y objetos adicionales.
   - **API-DOCS-OBJECT**: cerrado documentalmente 2026-05-19. En v0.2 `source="object"` sigue siendo el contrato público para objetos/tile frames; `tile_entity` no se introduce como source público hasta una futura versión de contrato.
-  - **PERF-01**: RNF-03 (< 500 ms) en world Large requiere arrays vectorizables desde B1; iter-12 mejora el caso 1M tiles (65-78 ms) pero el caso 20M sigue alrededor de 1.4 s.
+  - **PERF-01 (cerrada 2026-05-31)**: `TileGrid` expone indices compactos por `tile_id`/`wall_id`; B4 los usa para busquedas block/wall/object. `test_search_large_world_completes_within_budget` exige RNF-03 < 500 ms para 20.16M tiles.
   - **SOURCE-TILE_ENTITY**: decisión 2026-05-19: mantener `source ∈ {block, wall, chest, object}` en v0.2. `tile_entity` queda reservado para v0.3 si se amplía contrato API + engine.

@@ -40,6 +40,7 @@ export interface WorldCanvasProps {
   onReady?: (handle: WorldCanvasHandle) => void;
   onTileClick?: (tile: { x: number; y: number }) => void;
   onTileSelected?: (tile: { x: number; y: number }) => void;
+  onError?: (err: Error) => void;
   showLayerLines?: boolean;
   showSpawnPoint?: boolean;
   showWalls?: boolean;
@@ -54,6 +55,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   onReady,
   onTileClick,
   onTileSelected,
+  onError,
   showLayerLines = false,
   showSpawnPoint = true,
   showWalls = true,
@@ -77,6 +79,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   const apiClientRef = useRef<ApiClient>(apiClient);
   const onTileClickRef = useRef(onTileClick);
   const onTileSelectedRef = useRef(onTileSelected);
+  const onErrorRef = useRef(onError);
   const onReadyRef = useRef(onReady);
   const showLayerLinesRef = useRef(showLayerLines);
   const showSpawnPointRef = useRef(showSpawnPoint);
@@ -90,6 +93,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
     apiClientRef.current = apiClient;
     onTileClickRef.current = onTileClick;
     onTileSelectedRef.current = onTileSelected;
+    onErrorRef.current = onError;
     onReadyRef.current = onReady;
     showLayerLinesRef.current = showLayerLines;
     showSpawnPointRef.current = showSpawnPoint;
@@ -203,8 +207,10 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
           pendingRef.current.delete(key);
           scheduleRedraw();
         })
-        .catch(() => {
+        .catch((err: unknown) => {
           pendingRef.current.delete(key);
+          const error = err instanceof Error ? err : new Error('Chunk load failed');
+          onErrorRef.current?.(error);
         });
     },
     [scheduleRedraw]
@@ -250,11 +256,6 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   }, [worldId, showWalls, showLiquids, showWires, loadVisibleChunks, scheduleRedraw]);
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    loadVisibleChunks();
-    scheduleRedraw();
-  }, [loadVisibleChunks, scheduleRedraw]);
 
   // ResizeObserver: keep canvas sized to its container
   useEffect(() => {

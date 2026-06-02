@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { createApiClient } from '../api-client';
-import type { ApiClient, SearchMatch, SearchResult, WorldMetadata } from '../api-client';
+import { createApiClient, WorldNotFoundError } from '../api-client';
+import type { ApiClient, SearchMatch, SearchResult } from '../api-client';
 import { UploadWorld } from '../ui-upload';
 import type { UploadResult } from '../ui-upload';
 import { WorldCanvas } from '../world-canvas';
@@ -8,7 +8,7 @@ import type { WorldCanvasHandle } from '../world-canvas';
 import { SearchPanel } from '../search-panel';
 import { HighlightOverlay } from '../highlight-overlay';
 import { AppContext } from './AppContext';
-import { appReducer, INITIAL_ZOOM } from './appState';
+import { appReducer } from './appState';
 import { Toolbar } from './components/Toolbar';
 import { NpcPanel } from './components/NpcPanel';
 import { TileDetailPanel } from './components/TileDetailPanel';
@@ -24,31 +24,21 @@ export interface AppProps {
 const SK_ID = 'terra_world_id';
 const SK_META = 'terra_world_metadata';
 
-function readSessionState() {
+function readPersistedWorldId(): string | null {
   try {
-    const id = sessionStorage.getItem(SK_ID);
-    const raw = sessionStorage.getItem(SK_META);
-    if (id !== null && raw !== null) {
-      const metadata = JSON.parse(raw) as WorldMetadata;
-      return {
-        kind: 'WorldLoaded' as const,
-        worldId: id,
-        metadata,
-        matches: [] as SearchMatch[],
-        selectedTile: null,
-        tileDetail: null,
-        npcs: null,
-        layers: { walls: true, liquids: true, wires: true, grid: false },
-        maskMode: false,
-        sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
-        panels: { npcs: false, tile: false },
-        zoom: INITIAL_ZOOM,
-      };
-    }
+    return sessionStorage.getItem(SK_ID);
   } catch {
-    // corrupt — ignore
+    return null;
   }
-  return { kind: 'NoWorld' as const };
+}
+
+function clearPersistedSession(): void {
+  try {
+    sessionStorage.removeItem(SK_ID);
+    sessionStorage.removeItem(SK_META);
+  } catch {
+    // ignore
+  }
 }
 
 // ── Error boundary ────────────────────────────────────────────────────────────
@@ -77,7 +67,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
   const client = useMemo(() => apiClientProp ?? createApiClient(), [apiClientProp]);
 
-  const [state, dispatch] = useReducer(appReducer, undefined, readSessionState);
+  const [state, dispatch] = useReducer(appReducer, { kind: 'NoWorld' } as const);
+  const [restoring, setRestoring] = useState<boolean>(() => readPersistedWorldId() !== null);
   const [canvasHandle, setCanvasHandle] = useState<WorldCanvasHandle | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,6 +87,42 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
       setToast(null);
     }, 4000);
   }, []);
+
+  // ── Restore from sessionStorage ──────────────────────────────────────────
+  // Validate the persisted world_id against the backend before mounting
+  // WorldCanvas. If the backend lost the session (server restart, TTL, etc.)
+  // surface a toast and fall back to the upload screen.
+
+  useEffect(() => {
+    const persistedId = readPersistedWorldId();
+    if (persistedId === null) return;
+    let cancelled = false;
+    void client
+      .getWorldMetadata(persistedId)
+      .then((metadata) => {
+        if (cancelled) return;
+        try {
+          sessionStorage.setItem(SK_META, JSON.stringify(metadata));
+        } catch {
+          // ignore
+        }
+        dispatch({ type: 'UPLOAD_SUCCESS', worldId: persistedId, metadata });
+        setRestoring(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        clearPersistedSession();
+        setRestoring(false);
+        if (err instanceof WorldNotFoundError) {
+          showToast('El mundo guardado ya no está disponible. Vuelve a subir el .wld.');
+        } else {
+          showToast(err instanceof Error ? err.message : 'Error restaurando el mundo');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, showToast]);
 
   // ── Upload ────────────────────────────────────────────────────────────────
 
@@ -137,11 +164,26 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Error al cerrar el mundo');
     }
-    sessionStorage.removeItem(SK_ID);
-    sessionStorage.removeItem(SK_META);
+    clearPersistedSession();
     dispatch({ type: 'CLOSE_WORLD' });
     setCanvasHandle(null);
   }, [state, client, showToast]);
+
+  // ── Canvas chunk errors (mid-session world disappearance) ────────────────
+
+  const handleCanvasError = useCallback(
+    (err: Error) => {
+      if (err instanceof WorldNotFoundError) {
+        clearPersistedSession();
+        dispatch({ type: 'CLOSE_WORLD' });
+        setCanvasHandle(null);
+        showToast('El mundo guardado ya no está disponible. Vuelve a subir el .wld.');
+      } else {
+        showToast(err.message);
+      }
+    },
+    [showToast]
+  );
 
   // ── NPC loading (lazy, once per world) ───────────────────────────────────
 
@@ -193,7 +235,12 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
     <ErrorBoundary>
       <AppContext.Provider value={ctxValue}>
         <div className="app">
-          {state.kind === 'NoWorld' ? (
+          {restoring ? (
+            <div className="app-upload-center" role="status" data-testid="app-restoring">
+              <h1 className="app-title">TerraScrap</h1>
+              <p>Restaurando mundo…</p>
+            </div>
+          ) : state.kind === 'NoWorld' ? (
             <div className="app-upload-center">
               <h1 className="app-title">TerraScrap</h1>
               <UploadWorld onUploaded={handleUploaded} apiClient={client} />
@@ -249,6 +296,7 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                     apiClient={client}
                     onReady={setCanvasHandle}
                     onTileSelected={handleTileSelected}
+                    onError={handleCanvasError}
                     showLayerLines={state.layers.grid}
                     showWalls={state.layers.walls}
                     showLiquids={state.layers.liquids}

@@ -203,15 +203,23 @@ def _encode_chunk_v2(
         while run < 65535 and i + run < len(flat) and _tile_eq_v2(flat[i + run], cur):
             run += 1
 
-        tile_id = -1 if cur.tile_id is None else cur.tile_id
-        wall_id = cur.wall_id if cur.wall_id is not None else 0
+        # `_read_tiles` produces frame_x/frame_y as signed int16 and tile_id /
+        # wall_id from uint16 reads. We store the raw 16-bit bit pattern
+        # (two's complement) so the format is robust to negative or full-range
+        # values without raising `struct.error`. Decoders treat tile_id as
+        # int16 (so 0xFFFF round-trips to -1 = air) and frame coords as the
+        # underlying signed int16 bit pattern.
+        tile_id_raw = 0xFFFF if cur.tile_id is None else cur.tile_id & 0xFFFF
+        wall_id_raw = (cur.wall_id or 0) & 0xFFFF
         liq_t = _LIQUID_TYPE_TO_INT[cur.liquid_type]
-        liq_a = cur.liquid_amount
+        liq_a = cur.liquid_amount & 0xFF
         if cur.frame_x is not None and cur.frame_y is not None:
-            fx_hi = (cur.frame_x >> 8) & 0xFF
-            fx_lo = cur.frame_x & 0xFF
+            fx_u16 = cur.frame_x & 0xFFFF
+            fy_u16 = cur.frame_y & 0xFFFF
+            fx_hi = (fx_u16 >> 8) & 0xFF
+            fx_lo = fx_u16 & 0xFF
             flags_byte = 0x01
-            frame_buf.extend(struct.pack("<HBBH", run_idx, fx_lo, 0, cur.frame_y))
+            frame_buf.extend(struct.pack("<HBBH", run_idx, fx_lo, 0, fy_u16))
             frame_count += 1
         else:
             fx_hi = 0
@@ -219,9 +227,9 @@ def _encode_chunk_v2(
 
         runs_buf.extend(
             struct.pack(
-                "<hHBBBBH",
-                tile_id,
-                wall_id,
+                "<HHBBBBH",
+                tile_id_raw,
+                wall_id_raw,
                 liq_t,
                 liq_a,
                 fx_hi,

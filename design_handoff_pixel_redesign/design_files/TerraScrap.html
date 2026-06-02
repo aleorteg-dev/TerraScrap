@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TerraScrap — Explorador de mundos</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  VIEW: LANDING / UPLOAD                                                -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <section class="view active" id="view-landing" data-screen-label="Landing / Upload">
+    <div class="landing">
+      <!-- Left: pitch -->
+      <div class="landing-pitch">
+        <div class="landing-top">
+          <div class="brand">
+            <span class="brand-glyph"></span>
+            <span class="brand-name">Terra<b>Scrap</b></span>
+          </div>
+          <span class="landing-version mono">v0.2 · in-browser</span>
+        </div>
+
+        <div class="landing-hero">
+          <span class="landing-kicker eyebrow"><span class="dot"></span>Cartógrafo de inventarios</span>
+          <h1>Encuentra <span class="accent">cualquier ítem</span> en tu mundo de Terraria.</h1>
+          <p class="landing-lede">Sube tu archivo <span class="mono">.wld</span> y revélalo entero — sin niebla de guerra. Busca un objeto por nombre o ID y TerraScrap te marca cada bloque, pared y cofre donde aparece.</p>
+
+          <div class="landing-features">
+            <div class="feature">
+              <span class="feature-num">01</span>
+              <div class="feature-body">
+                <h3>Mundo revelado al instante</h3>
+                <p>Parseo local de mundos hasta «Large». Nada sale de tu equipo.</p>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-num">02</span>
+              <div class="feature-body">
+                <h3>Rastrea dentro de cofres</h3>
+                <p>¿Dejaste la Zenith en algún cofre? Rastrea inventarios, no solo bloques.</p>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-num">03</span>
+              <div class="feature-body">
+                <h3>Resaltado imposible de perder</h3>
+                <p>Marcadores pulsantes y modo foco que atenúa todo lo demás.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="landing-foot">
+          <span><b>Sin cuenta.</b> Sesión en memoria.</span>
+          <span><b>Máx 200&nbsp;MB.</b> Solo lectura.</span>
+        </div>
+      </div>
+
+      <!-- Right: upload stage -->
+      <div class="landing-stage">
+        <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Suelta un archivo .wld o pulsa para explorar">
+          <div class="dropzone-icon" id="dz-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V4M12 4l-4 4M12 4l4 4" />
+              <path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+            </svg>
+          </div>
+          <h2 id="dz-title">Suelta tu <span class="mono" style="color:var(--gold)">.wld</span> aquí</h2>
+          <p id="dz-sub">o pulsa para explorar tus archivos</p>
+          <span class="dropzone-cta" id="dz-cta">Cargar mundo de ejemplo</span>
+          <div class="upload-bar" id="dz-bar" hidden><span></span></div>
+          <span class="dropzone-note">Terraria v230–v319 · 1.4.x</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  VIEW: EXPLORER                                                        -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <section class="view" id="view-explorer" data-screen-label="Explorador del mundo">
+
+    <!-- ── Topbar ──────────────────────────────────────────────────────── -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-glyph"></span>
+        <span class="brand-name">Terra<b>Scrap</b></span>
+      </div>
+      <span class="topbar-divider"></span>
+      <div class="world-tag">
+        <span class="seed-dot"></span>
+        <span class="wt-name">Terralandia</span>
+        <span class="wt-meta">8400 × 2400 · v279</span>
+      </div>
+
+      <div class="toolbar">
+        <div class="tool-group">
+          <button class="tool-btn icon-only" id="zoom-out" aria-label="Alejar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+          </button>
+          <span class="zoom-label" id="zoom-val">100%</span>
+          <button class="tool-btn icon-only" id="zoom-in" aria-label="Acercar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button class="tool-btn icon-only" id="zoom-fit" aria-label="Ajustar a pantalla" title="Ajustar a pantalla">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          </button>
+        </div>
+
+        <div class="tool-group">
+          <button class="tool-btn layer-btn active" data-layer="walls">Paredes</button>
+          <button class="tool-btn layer-btn active" data-layer="liquids">Líquidos</button>
+          <button class="tool-btn layer-btn" data-layer="wires">Cables</button>
+          <button class="tool-btn layer-btn" data-layer="grid">Rejilla</button>
+        </div>
+
+        <div class="tool-group">
+          <button class="tool-btn" id="mask-toggle" title="Atenuar todo salvo las coincidencias">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/></svg>
+            Modo foco
+          </button>
+          <button class="tool-btn icon-only" id="export-btn" title="Exportar PNG">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <button class="btn-ghost danger" id="close-world">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        Cerrar mundo
+      </button>
+    </header>
+
+    <!-- ── Workspace ───────────────────────────────────────────────────── -->
+    <div class="workspace">
+
+      <!-- Sidebar -->
+      <aside class="sidebar">
+
+        <!-- Search -->
+        <div class="search-panel">
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input class="search-input" id="search-input" type="text" placeholder="Nombre o ID del ítem…" autocomplete="off" aria-label="Buscar ítem" />
+            <button class="search-clear" id="search-clear" aria-label="Limpiar" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+            <div class="autocomplete" id="autocomplete"></div>
+          </div>
+          <div class="search-opts">
+            <label class="toggle">
+              <input type="checkbox" id="incl-containers" checked />
+              <span class="track"></span>
+              Incluir cofres
+            </label>
+            <span style="display:flex;gap:5px;align-items:center;color:var(--ink-faint);font-size:11.5px">
+              <span class="kbd">/</span> buscar
+            </span>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div id="results-zone">
+          <div class="results-meta">
+            <span class="results-count" id="results-count"><b>—</b></span>
+            <div class="nav-mini">
+              <button id="nav-prev" title="Anterior (p)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+              </button>
+              <button id="nav-next" title="Siguiente (n)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="source-filters" id="source-filters"></div>
+          <div class="match-list" id="match-list"></div>
+        </div>
+
+        <!-- World properties -->
+        <div class="panel" id="panel-props">
+          <button class="panel-head" data-panel="props">
+            <span class="ph-title">
+              <span class="eyebrow">Propiedades del mundo</span>
+            </span>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="panel-body">
+            <dl class="prop-grid">
+              <dt>Tamaño</dt><dd>8400 × 2400</dd>
+              <dt>Semilla</dt><dd>1.4.4.9</dd>
+              <dt>Dificultad</dt><dd><span class="hard">Hardmode</span></dd>
+              <dt>Maldad</dt><dd><span class="tag">Corruption</span></dd>
+              <dt>Spawn</dt><dd>4200, 358</dd>
+              <dt>Cofres</dt><dd>1 184</dd>
+              <dt>Versión</dt><dd>v279</dd>
+            </dl>
+          </div>
+        </div>
+
+        <!-- NPCs -->
+        <div class="panel collapsed" id="panel-npcs">
+          <button class="panel-head" data-panel="npcs">
+            <span class="ph-title">
+              <span class="eyebrow">NPCs</span>
+              <span class="count-pill">9</span>
+            </span>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="panel-body">
+            <div class="npc-list" id="npc-list"></div>
+          </div>
+        </div>
+
+        <!-- Tile detail (injected) -->
+        <div id="tile-detail-slot"></div>
+
+        <div class="hint-text">
+          Atajos: <span class="kbd">n</span>/<span class="kbd">p</span> navegar coincidencias · <span class="kbd">/</span> enfocar búsqueda · <span class="kbd">Esc</span> limpiar.
+        </div>
+      </aside>
+
+      <!-- Map -->
+      <div class="map-region" id="map-region">
+        <div class="world" id="world"></div>
+        <div class="map-grid" id="map-grid" hidden></div>
+
+        <span class="strata-label" style="top:17%">Surface</span>
+        <span class="strata-label" style="top:46%">Cavern</span>
+        <span class="strata-label" style="top:90%">Underworld</span>
+
+        <div class="coord-readout">
+          <span class="lbl">X</span><span class="val" id="cx">4218</span>
+          <span class="sep">·</span>
+          <span class="lbl">Y</span><span class="val" id="cy">1146</span>
+        </div>
+
+        <div class="map-toast" id="map-toast" hidden>
+          <span class="spark"></span>
+          <span id="map-toast-text">Mundo revelado · 20.16 M tiles</span>
+        </div>
+
+        <!-- markers injected here -->
+        <div id="marker-layer"></div>
+
+        <div class="map-legend" id="map-legend" hidden>
+          <div class="lg-title"><span>Coincidencias</span><span class="mono" id="legend-total">0</span></div>
+          <div id="legend-rows"></div>
+        </div>
+
+        <div class="map-hud">
+          <div class="hud-stack">
+            <button class="hud-btn" aria-label="Acercar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button class="hud-btn" aria-label="Alejar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+            </button>
+            <button class="hud-btn" aria-label="Centrar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Error toast -->
+  <div class="toast" id="toast">
+    <span class="ic">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+    </span>
+    <span id="toast-text">El mundo guardado ya no está disponible.</span>
+  </div>
+
+</div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

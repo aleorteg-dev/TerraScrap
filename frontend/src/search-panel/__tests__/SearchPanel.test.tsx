@@ -111,7 +111,11 @@ describe('SearchPanel', () => {
     vi.useRealTimers();
 
     await waitFor(() => expect(searchItems).toHaveBeenCalledTimes(1));
-    expect(searchItems).toHaveBeenCalledWith('zen');
+    expect(searchItems).toHaveBeenCalledWith(
+      'zen',
+      undefined,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
   });
 
   it('T-03 selecting an item triggers searchInWorld', async () => {
@@ -187,7 +191,11 @@ describe('SearchPanel', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /incluir contenedores/i }));
 
     await waitFor(() => expect(searchInWorld).toHaveBeenCalledTimes(2));
-    expect(searchItems).toHaveBeenCalledWith('zen');
+    expect(searchItems).toHaveBeenCalledWith(
+      'zen',
+      undefined,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
     expect(searchInWorld).toHaveBeenNthCalledWith(1, 'w1', 2, true);
     expect(searchInWorld).toHaveBeenNthCalledWith(2, 'w1', 2, false);
   });
@@ -339,7 +347,52 @@ describe('SearchPanel', () => {
     });
     vi.useRealTimers();
     await waitFor(() => expect(searchItems).toHaveBeenCalledTimes(1));
-    expect(searchItems).toHaveBeenCalledWith('ab');
+    expect(searchItems).toHaveBeenCalledWith(
+      'ab',
+      undefined,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it('T-18 typing again aborts the in-flight autocomplete request via AbortSignal', async () => {
+    const signals: AbortSignal[] = [];
+    const searchItems = vi
+      .fn()
+      .mockImplementation((_q: string, _l: number | undefined, opts?: { signal?: AbortSignal }) => {
+        if (opts?.signal) signals.push(opts.signal);
+        return new Promise(() => {
+          /* never resolves */
+        });
+      });
+    const client = {
+      uploadWorld: vi.fn(),
+      getWorldMetadata: vi.fn(),
+      getTilesChunk: vi.fn(),
+      searchItems,
+      searchInWorld: vi.fn(),
+      deleteWorld: vi.fn(),
+    } as unknown as ApiClient;
+
+    vi.useFakeTimers();
+    render(
+      <SearchPanel worldId="w1" apiClient={client} onResults={vi.fn()} onMatchFocus={vi.fn()} />
+    );
+    const input = screen.getByRole('combobox');
+    fireEvent.change(input, { target: { value: 'ze' } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(false);
+
+    fireEvent.change(input, { target: { value: 'zen' } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    vi.useRealTimers();
+
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals).toHaveLength(2);
   });
 
   it('T-17 matches listbox has role listbox and items have aria-selected attribute', async () => {

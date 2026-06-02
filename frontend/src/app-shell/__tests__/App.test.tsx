@@ -9,6 +9,7 @@ import type { UploadProps } from '../../ui-upload';
 import type { WorldCanvasProps } from '../../world-canvas';
 import type { SearchPanelProps } from '../../search-panel';
 import type { SearchMatch, WorldMetadata, TileDetail, Npc, ApiClient } from '../../api-client';
+import { WorldNotFoundError } from '../../api-client';
 import { INITIAL_ZOOM, ZOOM_STEP } from '../appState';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
@@ -75,10 +76,11 @@ const mockHandle = {
 const mockDeleteWorld = vi.fn();
 const mockGetTileDetail = vi.fn();
 const mockListNpcs = vi.fn();
+const mockGetWorldMetadata = vi.fn();
 
 const mockApiClient: ApiClient = {
   uploadWorld: vi.fn(),
-  getWorldMetadata: vi.fn(),
+  getWorldMetadata: mockGetWorldMetadata,
   getTilesChunk: vi.fn(),
   getTileDetail: mockGetTileDetail,
   listNpcs: mockListNpcs,
@@ -195,6 +197,7 @@ beforeEach(() => {
   setViewportWidth(1440);
 
   mockDeleteWorld.mockResolvedValue(undefined);
+  mockGetWorldMetadata.mockResolvedValue(mockMetadata);
   // Never resolves by default — prevents unexpected state updates in other tests
   mockGetTileDetail.mockReturnValue(new Promise<TileDetail>(() => {}));
   mockListNpcs.mockReturnValue(new Promise<Npc[]>(() => {}));
@@ -258,11 +261,14 @@ function renderAppInRoot(): HTMLElement {
   return root;
 }
 
-function renderLoadedAppInRoot(): HTMLElement {
+async function renderLoadedAppInRoot(): Promise<HTMLElement> {
   sessionStorage.setItem('terra_world_id', WORLD_ID);
   sessionStorage.setItem('terra_world_metadata', JSON.stringify(mockMetadata));
+  mockGetWorldMetadata.mockResolvedValue(mockMetadata);
 
-  return renderAppInRoot();
+  const root = renderAppInRoot();
+  await waitFor(() => expect(screen.getByTestId('world-canvas')).toBeInTheDocument());
+  return root;
 }
 
 // ── Tests: existing ───────────────────────────────────────────────────────────
@@ -319,14 +325,59 @@ describe('App', () => {
     expect(screen.queryByTestId('world-canvas')).not.toBeInTheDocument();
   });
 
-  it('T-06 recovers worldId from sessionStorage on mount', () => {
+  it('T-06 recovers worldId from sessionStorage on mount', async () => {
     sessionStorage.setItem('terra_world_id', WORLD_ID);
     sessionStorage.setItem('terra_world_metadata', JSON.stringify(mockMetadata));
+    mockGetWorldMetadata.mockResolvedValue(mockMetadata);
 
     render(<App apiClient={mockApiClient} />);
 
-    expect(screen.getByTestId('world-canvas')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId('world-canvas')).toBeInTheDocument()
+    );
+    expect(mockGetWorldMetadata).toHaveBeenCalledWith(WORLD_ID);
     expect(screen.queryByTestId('upload-world')).not.toBeInTheDocument();
+  });
+
+  it('T-06b does not mount WorldCanvas while getWorldMetadata is pending', () => {
+    sessionStorage.setItem('terra_world_id', WORLD_ID);
+    sessionStorage.setItem('terra_world_metadata', JSON.stringify(mockMetadata));
+    mockGetWorldMetadata.mockReturnValue(new Promise<WorldMetadata>(() => {}));
+
+    render(<App apiClient={mockApiClient} />);
+
+    expect(screen.queryByTestId('world-canvas')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('search-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('highlight-overlay')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('upload-world')).not.toBeInTheDocument();
+    expect(screen.getByTestId('app-restoring')).toBeInTheDocument();
+    expect(mockGetWorldMetadata).toHaveBeenCalledWith(WORLD_ID);
+  });
+
+  it('T-06c clears session and shows toast when restore hits world_not_found', async () => {
+    sessionStorage.setItem('terra_world_id', WORLD_ID);
+    sessionStorage.setItem('terra_world_metadata', JSON.stringify(mockMetadata));
+    mockGetWorldMetadata.mockRejectedValue(
+      new WorldNotFoundError('world_not_found', 404, 'world_not_found')
+    );
+
+    render(<App apiClient={mockApiClient} />);
+
+    await waitFor(() => expect(screen.getByTestId('upload-world')).toBeInTheDocument());
+    expect(screen.queryByTestId('world-canvas')).not.toBeInTheDocument();
+    expect(sessionStorage.getItem('terra_world_id')).toBeNull();
+    expect(sessionStorage.getItem('terra_world_metadata')).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/ya no está disponible/i)
+    );
+  });
+
+  it('T-06d handleUploaded persists worldId and metadata to sessionStorage', () => {
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    expect(sessionStorage.getItem('terra_world_id')).toBe(WORLD_ID);
+    expect(sessionStorage.getItem('terra_world_metadata')).toBe(JSON.stringify(mockMetadata));
   });
 
   it('T-07 shows toast on API error', async () => {
@@ -369,8 +420,8 @@ describe('App', () => {
     expect(window.getComputedStyle(root).textAlign).not.toBe('center');
   });
 
-  it('test_layout_grid_two_columns', () => {
-    const root = renderLoadedAppInRoot();
+  it('test_layout_grid_two_columns', async () => {
+    const root = await renderLoadedAppInRoot();
     const appMain = root.querySelector<HTMLElement>('.app-main');
 
     expect(appMain).not.toBeNull();
@@ -380,19 +431,19 @@ describe('App', () => {
     expect(appMain!.children[1]).toHaveClass('app-canvas-container');
   });
 
-  it('test_canvas_host_grows_with_viewport', () => {
+  it('test_canvas_host_grows_with_viewport', async () => {
     setViewportWidth(1920);
-    const root = renderLoadedAppInRoot();
+    const root = await renderLoadedAppInRoot();
     const canvasHost = root.querySelector<HTMLElement>('.app-canvas-container');
 
     expect(canvasHost).not.toBeNull();
     expect(canvasHost!.clientWidth).toBeGreaterThan(1500);
   });
 
-  it('test_search_panel_has_stable_width', () => {
+  it('test_search_panel_has_stable_width', async () => {
     for (const viewportWidth of [1024, 1440, 1920]) {
       setViewportWidth(viewportWidth);
-      const root = renderLoadedAppInRoot();
+      const root = await renderLoadedAppInRoot();
 
       try {
         const appMain = root.querySelector<HTMLElement>('.app-main');
@@ -540,9 +591,9 @@ describe('App', () => {
     expect(mockCenterOn).toHaveBeenCalledWith(150, 300);
   });
 
-  it('mobile: sidebar has data-open=false at viewport <768px', () => {
+  it('mobile: sidebar has data-open=false at viewport <768px', async () => {
     setViewportWidth(767);
-    const root = renderLoadedAppInRoot();
+    const root = await renderLoadedAppInRoot();
     const sidebar = root.querySelector('.app-sidebar');
 
     expect(sidebar).not.toBeNull();

@@ -327,4 +327,23 @@ describe('WorldCanvas', () => {
     fireEvent.click(canvas, { clientX: 100, clientY: 200 });
     expect(onTileSelected).toHaveBeenCalledWith({ x: 1950, y: 190 });
   });
+
+  it('T-18 onError fires when getTilesChunk rejects', async () => {
+    const onError = vi.fn();
+    const apiClient = {
+      getTilesChunk: vi.fn().mockRejectedValue(new Error('boom')),
+    } as unknown as ApiClient;
+    render(
+      <WorldCanvas
+        worldId="w1"
+        metadata={mockMeta}
+        apiClient={apiClient}
+        onError={onError}
+      />
+    );
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalled();
+      expect(onError.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+    });
+  });
 });

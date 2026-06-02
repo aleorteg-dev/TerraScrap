@@ -178,13 +178,15 @@ Referencia local acotada:
   - leer solo tablas `tileColors`, `wallColors`, `liquidColors` y la lógica de capas de cielo/tierra/roca/infierno.
 
 Brechas actuales:
-- `tileColors.ts` es una paleta mínima; TerraMap cubre cientos de tiles, walls y líquidos.
+- `tileColors.ts` ampliada con tiles/walls/liquids principales de TerraMap (deuda-2026-05-31).
+  Sigue siendo incompleta frente a TerraMap (cientos de IDs); ampliación incremental futura.
 - zoom-to-fit ya existe en `WorldCanvasHandle`; export PNG con overlay se compone desde F6.
 
 Cambios candidatos:
 
 **Render por capas**:
-- ampliar paletas de `tileColors`, `wallColors`, `liquidColors` y `layerColors` para acercarse a TerraMap.
+- seguir ampliando `tileColors`, `wallColors`, `liquidColors` cuando aparezcan IDs visibles
+  no mapeados sobre mundos reales.
 
 **Zoom-to-fit**:
 - Implementado 2026-05-19: `WorldCanvasHandle.zoomToFit(): number | null` calcula `zoom = min(viewportW / worldW, viewportH / worldH)` clamped a `[minZoom, maxZoom]`, centra `(worldW/2, worldH/2)` y devuelve el zoom aplicado para sincronizar F6.
