@@ -1,4 +1,4 @@
-import { type FC } from 'react';
+import { useState, type FC } from 'react';
 import type { WorldMetadata } from '../../api-client';
 
 interface WorldPropertiesPanelProps {
@@ -6,9 +6,10 @@ interface WorldPropertiesPanelProps {
 }
 
 export const WorldPropertiesPanel: FC<WorldPropertiesPanelProps> = ({ metadata }) => {
+  const [collapsed, setCollapsed] = useState(false);
   const rows = [
-    ['Tamaño', `${metadata.width} x ${metadata.height}`],
-    ['Versión', String(metadata.version)],
+    ['Tamaño', `${metadata.width} × ${metadata.height}`],
+    ['Versión', `v${metadata.version}`],
     ['Seed', metadata.seed],
     ['Modo difícil', metadata.hardmode ? 'Sí' : 'No'],
     ['Spawn', `${metadata.spawn_x}, ${metadata.spawn_y}`],
@@ -18,16 +19,33 @@ export const WorldPropertiesPanel: FC<WorldPropertiesPanelProps> = ({ metadata }
   ] as const;
 
   return (
-    <section className="app-world-properties" aria-label="Propiedades del mundo">
-      <h2>Propiedades</h2>
-      <dl>
-        {rows.map(([label, value]) => (
-          <div key={label} className="app-world-property-row">
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
+    <section
+      className={`panel app-world-properties${collapsed ? ' collapsed' : ''}`}
+      aria-label="Propiedades del mundo"
+    >
+      <button
+        type="button"
+        className="panel-head"
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed((v) => !v)}
+      >
+        <span className="ph-title">
+          <span className="eyebrow">Propiedades</span>
+        </span>
+        <span className="chevron" aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      <div className="panel-body">
+        <dl className="prop-grid">
+          {rows.map(([label, value]) => (
+            <div key={label} className="app-world-property-row">
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
     </section>
   );
 };

@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600;700&family=VT323&display=swap');
+
+:root {
+  /* Surfaces */
+  --bg-void: oklch(0.165 0.028 268);
+  --bg-base: oklch(0.205 0.032 268);
+  --bg-panel: oklch(0.255 0.038 268);
+  --bg-raised: oklch(0.305 0.042 268);
+  --bg-hover: oklch(0.355 0.046 268);
+  --bg-input: oklch(0.17 0.03 268);
+
+  /* Bevels */
+  --bevel-lt: oklch(0.52 0.05 268);
+  --bevel-dk: oklch(0.11 0.022 268);
+  --line: oklch(0.4 0.04 268);
+  --line-soft: oklch(0.3 0.035 268);
+  --line-strong: oklch(0.5 0.05 268);
+
+  /* Ink */
+  --ink: oklch(0.95 0.01 90);
+  --ink-mid: oklch(0.78 0.02 250);
+  --ink-dim: oklch(0.62 0.025 255);
+  --ink-faint: oklch(0.5 0.025 258);
+
+  /* Gold */
+  --gold: oklch(0.81 0.15 82);
+  --gold-bright: oklch(0.88 0.16 88);
+  --gold-deep: oklch(0.64 0.13 70);
+  --gold-glow: oklch(0.81 0.15 82 / 0.45);
+
+  --wood: oklch(0.46 0.07 58);
+  --wood-dk: oklch(0.34 0.055 55);
+
+  /* Source palette */
+  --src-chest: oklch(0.81 0.15 82);
+  --src-block: oklch(0.78 0.17 150);
+  --src-wall: oklch(0.72 0.15 252);
+  --src-object: oklch(0.74 0.18 330);
+
+  --danger: oklch(0.62 0.2 28);
+  --danger-bright: oklch(0.72 0.21 30);
+
+  --r-sm: 0px;
+  --r-md: 0px;
+  --r-lg: 0px;
+  --r-xl: 0px;
+
+  --shadow-md: 4px 4px 0 oklch(0.1 0.02 268 / 0.55);
+  --shadow-lg: 8px 8px 0 oklch(0.08 0.02 268 / 0.6);
+
+  --font-display: 'Press Start 2P', monospace;
+  --font-ui: 'Pixelify Sans', system-ui, sans-serif;
+  --font-mono: 'VT323', ui-monospace, monospace;
+
+  --sidebar-w: 352px;
+
+  --bevel-raise: inset 2px 2px 0 0 var(--bevel-lt), inset -2px -2px 0 0 var(--bevel-dk);
+  --bevel-sink: inset 2px 2px 0 0 var(--bevel-dk), inset -2px -2px 0 0 var(--bevel-lt);
+}
+
+body {
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  font-family: var(--font-ui);
+  background: var(--bg-void);
+  color: var(--ink);
+}
+
+img,
+canvas {
+  image-rendering: pixelated;
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--bg-void);
+}
+
+*::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+*::-webkit-scrollbar-track {
+  background: var(--bg-void);
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border: 2px solid var(--bg-void);
+  box-shadow: var(--bevel-raise);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--line-strong);
+}

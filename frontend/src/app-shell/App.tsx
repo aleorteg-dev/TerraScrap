@@ -241,13 +241,70 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
               <p>Restaurando mundo…</p>
             </div>
           ) : state.kind === 'NoWorld' ? (
-            <div className="app-upload-center">
-              <h1 className="app-title">TerraScrap</h1>
-              <UploadWorld onUploaded={handleUploaded} apiClient={client} />
+            <div className="landing">
+              <div className="landing-pitch">
+                <div className="landing-top">
+                  <div className="brand">
+                    <span className="brand-glyph" aria-hidden="true" />
+                    <span className="brand-name">
+                      Terra<b>Scrap</b>
+                    </span>
+                  </div>
+                  <span className="landing-version">v0.2</span>
+                </div>
+                <div className="landing-hero">
+                  <div className="landing-kicker">
+                    <span className="dot" aria-hidden="true" />
+                    <span className="eyebrow">EXPLORADOR DE MUNDOS</span>
+                  </div>
+                  <h1>
+                    Encuentra cualquier <span className="accent">ítem</span> en tu mundo de
+                    Terraria.
+                  </h1>
+                  <p className="landing-lede">
+                    Sube tu <span className="mono">.wld</span> y revela el mapa al completo. Busca
+                    por nombre o ID — TerraScrap resalta cada coincidencia.
+                  </p>
+                  <div className="landing-features">
+                    <div className="feature">
+                      <span className="feature-num">01</span>
+                      <div className="feature-body">
+                        <h3>Sin niebla de guerra</h3>
+                        <p>Mundo revelado completo, navegable con pan + zoom.</p>
+                      </div>
+                    </div>
+                    <div className="feature">
+                      <span className="feature-num">02</span>
+                      <div className="feature-body">
+                        <h3>Búsqueda profunda</h3>
+                        <p>Bloques, paredes, objetos y contenidos de cofres.</p>
+                      </div>
+                    </div>
+                    <div className="feature">
+                      <span className="feature-num">03</span>
+                      <div className="feature-body">
+                        <h3>Local y privado</h3>
+                        <p>Sin base de datos. Tu mundo vive solo en tu sesión.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="landing-foot">
+                  <span>
+                    <b>v230–v279</b> · Terraria PC
+                  </span>
+                  <span>
+                    Máx <b>200 MB</b>
+                  </span>
+                </div>
+              </div>
+              <div className="landing-stage">
+                <UploadWorld onUploaded={handleUploaded} apiClient={client} />
+              </div>
             </div>
           ) : (
             <>
-              <header className="app-header">
+              <header className="topbar app-header">
                 <button
                   className="app-sidebar-toggle"
                   aria-label="Toggle sidebar"
@@ -255,11 +312,23 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                 >
                   ☰
                 </button>
-                <h1 className="app-title">TerraScrap</h1>
-                <span className="app-world-name">{state.metadata.name}</span>
+                <div className="brand">
+                  <span className="brand-glyph" aria-hidden="true" />
+                  <span className="brand-name">
+                    Terra<b>Scrap</b>
+                  </span>
+                </div>
+                <div className="topbar-divider" aria-hidden="true" />
+                <div className="world-tag">
+                  <span className="seed-dot" aria-hidden="true" />
+                  <span className="wt-name app-world-name">{state.metadata.name}</span>
+                  <span className="wt-meta">
+                    {state.metadata.width}×{state.metadata.height} · v{state.metadata.version}
+                  </span>
+                </div>
                 <Toolbar />
                 <button
-                  className="app-close-btn"
+                  className="btn-ghost danger app-close-btn"
                   onClick={() => {
                     void handleCloseWorld();
                   }}
@@ -268,7 +337,10 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                 </button>
               </header>
               <main className="app-main">
-                <aside className="app-sidebar" data-open={state.sidebarOpen ? 'true' : 'false'}>
+                <aside
+                  className="app-sidebar sidebar"
+                  data-open={state.sidebarOpen ? 'true' : 'false'}
+                >
                   <SearchPanel
                     worldId={state.worldId}
                     apiClient={client}
@@ -276,20 +348,30 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                     onMatchFocus={handleMatchFocus}
                   />
                   <WorldPropertiesPanel metadata={state.metadata} />
-                  <button
-                    className="app-panel-toggle"
-                    aria-expanded={state.panels.npcs}
-                    onClick={() => dispatch({ type: 'TOGGLE_PANEL', panel: 'npcs' })}
-                  >
-                    <span>NPCs</span>
-                    <span>{state.panels.npcs ? '▲' : '▼'}</span>
-                  </button>
-                  {state.panels.npcs && <NpcPanel onCenterOn={handleNpcCenter} />}
+                  <div className={`panel${state.panels.npcs ? '' : ' collapsed'}`}>
+                    <button
+                      className="panel-head app-panel-toggle"
+                      aria-expanded={state.panels.npcs}
+                      onClick={() => dispatch({ type: 'TOGGLE_PANEL', panel: 'npcs' })}
+                    >
+                      <span className="ph-title">
+                        <span className="eyebrow">NPCs</span>
+                      </span>
+                      <span className="chevron" aria-hidden="true">
+                        ▾
+                      </span>
+                    </button>
+                    {state.panels.npcs && (
+                      <div className="panel-body">
+                        <NpcPanel onCenterOn={handleNpcCenter} />
+                      </div>
+                    )}
+                  </div>
                   {state.tileDetail !== null && (
                     <TileDetailPanel onClose={() => dispatch({ type: 'CLEAR_TILE_SELECTION' })} />
                   )}
                 </aside>
-                <div className="app-canvas-container">
+                <div className="app-canvas-container map-region">
                   <WorldCanvas
                     worldId={state.worldId}
                     metadata={state.metadata}
@@ -308,6 +390,73 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                     style={state.maskMode ? 'mask' : 'pulse'}
                     selectedTile={state.selectedTile}
                   />
+                  {state.selectedTile !== null && (
+                    <div className="coord-readout" aria-hidden="true">
+                      <span className="lbl">X</span>
+                      <span className="val">{state.selectedTile.x}</span>
+                      <span className="sep">·</span>
+                      <span className="lbl">Y</span>
+                      <span className="val">{state.selectedTile.y}</span>
+                    </div>
+                  )}
+                  <div className="map-hud" aria-hidden="true">
+                    <div className="hud-stack">
+                      <button
+                        className="hud-btn"
+                        type="button"
+                        onClick={() => canvasHandle?.setZoom(Math.min(8, state.zoom + 0.5))}
+                        aria-label="HUD zoom in"
+                      >
+                        +
+                      </button>
+                      <button
+                        className="hud-btn"
+                        type="button"
+                        onClick={() => canvasHandle?.setZoom(Math.max(0.25, state.zoom - 0.5))}
+                        aria-label="HUD zoom out"
+                      >
+                        −
+                      </button>
+                      <button
+                        className="hud-btn"
+                        type="button"
+                        onClick={() => {
+                          const next = canvasHandle?.zoomToFit();
+                          if (typeof next === 'number') dispatch({ type: 'SET_ZOOM', zoom: next });
+                        }}
+                        aria-label="HUD center"
+                      >
+                        ◎
+                      </button>
+                    </div>
+                  </div>
+                  {state.matches.length > 0 && (
+                    <div className="map-legend" aria-hidden="true">
+                      <div className="lg-title">
+                        <span>COINCIDENCIAS</span>
+                        <span>{state.matches.length}</span>
+                      </div>
+                      {(['chest', 'block', 'wall', 'object'] as const).map((src) => {
+                        const n = state.matches.filter((m) => m.source === src).length;
+                        if (n === 0) return null;
+                        const label =
+                          src === 'chest'
+                            ? 'Cofres'
+                            : src === 'block'
+                              ? 'Bloques'
+                              : src === 'wall'
+                                ? 'Paredes'
+                                : 'Objetos';
+                        return (
+                          <div key={src} className="lg-row">
+                            <span className="swatch" style={{ background: `var(--src-${src})` }} />
+                            <span>{label}</span>
+                            <span className="n">{n}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </main>
             </>

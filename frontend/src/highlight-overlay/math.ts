@@ -20,10 +20,10 @@ export function tileToScreen(
 }
 
 export const DEFAULT_SOURCE_COLORS: Record<string, string> = {
-  block: '#FFEB3B',
-  wall: '#00BCD4',
-  chest: '#FF9800',
-  object: '#E040FB',
+  block: '#3FD27E',
+  wall: '#5B8DEF',
+  chest: '#E8B24C',
+  object: '#E86FC4',
   liquid: '#2196F3',
   tile_entity: '#4CAF50',
 };

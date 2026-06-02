@@ -63,22 +63,22 @@ export const Toolbar: FC = () => {
   };
 
   return (
-    <div role="toolbar" className="app-toolbar" aria-label="Controles del mundo">
-      <div className="app-toolbar-group">
+    <div role="toolbar" className="toolbar app-toolbar" aria-label="Controles del mundo">
+      <div className="tool-group app-toolbar-group">
         <button
           aria-label="Zoom in"
-          className="app-toolbar-btn"
+          className="tool-btn app-toolbar-btn icon-only"
           onClick={() => applyZoom(Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
           disabled={zoom >= MAX_ZOOM}
         >
           +
         </button>
-        <span className="app-toolbar-zoom-label" aria-live="polite">
+        <span className="zoom-label app-toolbar-zoom-label" aria-live="polite">
           {Math.round(zoom * 100)}%
         </span>
         <button
           aria-label="Zoom out"
-          className="app-toolbar-btn"
+          className="tool-btn app-toolbar-btn icon-only"
           onClick={() => applyZoom(Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
           disabled={zoom <= MIN_ZOOM}
         >
@@ -86,14 +86,14 @@ export const Toolbar: FC = () => {
         </button>
         <button
           aria-label="Reset view"
-          className="app-toolbar-btn"
+          className="tool-btn app-toolbar-btn"
           onClick={() => applyZoom(INITIAL_ZOOM)}
         >
           Reset
         </button>
         <button
           aria-label="Zoom to fit"
-          className="app-toolbar-btn"
+          className="tool-btn app-toolbar-btn"
           onClick={handleZoomToFit}
           disabled={!canvasHandle}
         >
@@ -101,13 +101,13 @@ export const Toolbar: FC = () => {
         </button>
       </div>
 
-      <div className="app-toolbar-group">
+      <div className="tool-group app-toolbar-group">
         {(Object.keys(layers) as Array<keyof typeof layers>).map((layer) => (
           <button
             key={layer}
             aria-label={`Toggle ${layer}`}
             aria-pressed={layers[layer]}
-            className={`app-toolbar-btn${layers[layer] ? ' active' : ''}`}
+            className={`tool-btn app-toolbar-btn${layers[layer] ? ' active' : ''}`}
             onClick={() => dispatch({ type: 'TOGGLE_LAYER', layer })}
           >
             {layerLabels[layer]}
@@ -115,16 +115,20 @@ export const Toolbar: FC = () => {
         ))}
       </div>
 
-      <div className="app-toolbar-group">
+      <div className="tool-group app-toolbar-group">
         <button
           aria-label="Toggle mask mode"
           aria-pressed={maskMode}
-          className={`app-toolbar-btn${maskMode ? ' active' : ''}`}
+          className={`tool-btn app-toolbar-btn${maskMode ? ' active' : ''}`}
           onClick={() => dispatch({ type: 'TOGGLE_MASK_MODE' })}
         >
           Máscara
         </button>
-        <button aria-label="Export PNG" className="app-toolbar-btn" onClick={handleExportPng}>
+        <button
+          aria-label="Export PNG"
+          className="tool-btn app-toolbar-btn"
+          onClick={handleExportPng}
+        >
           PNG
         </button>
       </div>

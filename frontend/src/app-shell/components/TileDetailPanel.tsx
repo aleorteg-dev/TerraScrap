@@ -14,9 +14,9 @@ function Row({
   value: string | number | null | undefined;
 }): React.ReactElement {
   return (
-    <div className="app-tile-detail-row">
-      <span className="app-tile-detail-label">{label}</span>
-      <span className="app-tile-detail-value">{value ?? '—'}</span>
+    <div className="td-row app-tile-detail-row">
+      <span className="k app-tile-detail-label">{label}</span>
+      <span className="v app-tile-detail-value">{value ?? '—'}</span>
     </div>
   );
 }
@@ -51,16 +51,25 @@ export const TileDetailPanel: FC<TileDetailPanelProps> = ({ onClose }) => {
   const rows = formatDetail(tileDetail);
 
   return (
-    <div className="app-tile-detail" data-testid="tile-detail-panel">
-      <div className="app-tile-detail-header">
-        <strong className="app-tile-detail-title">Tile seleccionado</strong>
-        <button className="app-tile-detail-close" onClick={onClose} aria-label="Cerrar panel tile">
+    <div className="tile-detail app-tile-detail" data-testid="tile-detail-panel">
+      <div className="td-head app-tile-detail-header">
+        <strong className="td-title app-tile-detail-title">Tile</strong>
+        <span className="coord">
+          ({tileDetail.x}, {tileDetail.y})
+        </span>
+        <button
+          className="td-close app-tile-detail-close"
+          onClick={onClose}
+          aria-label="Cerrar panel tile"
+        >
           ✕
         </button>
       </div>
-      {rows.map(({ label, value }) => (
-        <Row key={label} label={label} value={value} />
-      ))}
+      <div className="td-body">
+        {rows.map(({ label, value }) => (
+          <Row key={label} label={label} value={value} />
+        ))}
+      </div>
     </div>
   );
 };

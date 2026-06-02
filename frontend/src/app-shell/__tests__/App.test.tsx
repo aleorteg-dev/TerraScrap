@@ -332,9 +332,7 @@ describe('App', () => {
 
     render(<App apiClient={mockApiClient} />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId('world-canvas')).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByTestId('world-canvas')).toBeInTheDocument());
     expect(mockGetWorldMetadata).toHaveBeenCalledWith(WORLD_ID);
     expect(screen.queryByTestId('upload-world')).not.toBeInTheDocument();
   });

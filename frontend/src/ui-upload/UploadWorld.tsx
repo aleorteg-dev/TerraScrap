@@ -127,9 +127,13 @@ export const UploadWorld: FC<UploadProps> = ({
     e.stopPropagation();
   }
 
+  const classes = ['dropzone'];
+  if (dragging) classes.push('drag');
+  if (phase === 'uploading') classes.push('loading');
+
   return (
     <div
-      className={`upload-dropzone${dragging ? ' upload-dropzone--dragging' : ''}`}
+      className={classes.join(' ')}
       role="button"
       tabIndex={0}
       aria-label="Drop a .wld file here or click to browse"
@@ -140,9 +144,15 @@ export const UploadWorld: FC<UploadProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
-      <p className="upload-hint" aria-hidden="true">
-        Drop a <code>.wld</code> file here, or click to browse
-      </p>
+      <div className="dropzone-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="M12 4v12m0 0l-5-5m5 5l5-5M4 20h16" />
+        </svg>
+      </div>
+      <h2>
+        Suelta tu <span className="mono">.wld</span>
+      </h2>
+      <p>o haz clic para explorar</p>
 
       <label htmlFor={inputId} className="sr-only">
         Select a .wld file
@@ -159,6 +169,10 @@ export const UploadWorld: FC<UploadProps> = ({
         onClick={stopPropagation}
       />
 
+      <span className="dropzone-cta" aria-hidden="true">
+        EXPLORAR
+      </span>
+
       {phase === 'uploading' && (
         <div
           role="progressbar"
@@ -166,15 +180,15 @@ export const UploadWorld: FC<UploadProps> = ({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress !== null ? progress : undefined}
-          className="upload-progress"
+          className="upload-bar"
         >
-          {progress !== null && (
-            <span className="upload-progress__pct" aria-hidden="true">
-              {progress}%
-            </span>
-          )}
+          <span style={{ width: `${progress ?? 0}%` }} aria-hidden="true" />
         </div>
       )}
+
+      <span className="dropzone-note" aria-hidden="true">
+        .wld · máx {maxSizeMb} MB
+      </span>
 
       {validationErr !== null && (
         <p className="upload-error" role="alert">

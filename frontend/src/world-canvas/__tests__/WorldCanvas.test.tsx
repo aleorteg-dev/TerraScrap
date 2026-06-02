@@ -334,12 +334,7 @@ describe('WorldCanvas', () => {
       getTilesChunk: vi.fn().mockRejectedValue(new Error('boom')),
     } as unknown as ApiClient;
     render(
-      <WorldCanvas
-        worldId="w1"
-        metadata={mockMeta}
-        apiClient={apiClient}
-        onError={onError}
-      />
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} onError={onError} />
     );
     await waitFor(() => {
       expect(onError).toHaveBeenCalled();
