@@ -866,6 +866,272 @@
       ]
     },
     {
+      "item_id": 427,
+      "item_name": "Blue Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              22
+            ],
+            [
+              22,
+              22
+            ],
+            [
+              44,
+              22
+            ],
+            [
+              66,
+              22
+            ],
+            [
+              88,
+              22
+            ],
+            [
+              110,
+              22
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 428,
+      "item_name": "Red Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              44
+            ],
+            [
+              22,
+              44
+            ],
+            [
+              44,
+              44
+            ],
+            [
+              66,
+              44
+            ],
+            [
+              88,
+              44
+            ],
+            [
+              110,
+              44
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 429,
+      "item_name": "Green Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              66
+            ],
+            [
+              22,
+              66
+            ],
+            [
+              44,
+              66
+            ],
+            [
+              66,
+              66
+            ],
+            [
+              88,
+              66
+            ],
+            [
+              110,
+              66
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 430,
+      "item_name": "Purple Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              88
+            ],
+            [
+              22,
+              88
+            ],
+            [
+              44,
+              88
+            ],
+            [
+              66,
+              88
+            ],
+            [
+              88,
+              88
+            ],
+            [
+              110,
+              88
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 431,
+      "item_name": "White Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              110
+            ],
+            [
+              22,
+              110
+            ],
+            [
+              44,
+              110
+            ],
+            [
+              66,
+              110
+            ],
+            [
+              88,
+              110
+            ],
+            [
+              110,
+              110
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 432,
+      "item_name": "Yellow Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              132
+            ],
+            [
+              22,
+              132
+            ],
+            [
+              44,
+              132
+            ],
+            [
+              66,
+              132
+            ],
+            [
+              88,
+              132
+            ],
+            [
+              110,
+              132
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 433,
+      "item_name": "Demon Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              154
+            ],
+            [
+              22,
+              154
+            ],
+            [
+              44,
+              154
+            ],
+            [
+              66,
+              154
+            ],
+            [
+              88,
+              154
+            ],
+            [
+              110,
+              154
+            ]
+          ]
+        }
+      ]
+    },
+    {
       "item_id": 438,
       "item_name": "Star Statue",
       "matchers": [
@@ -966,6 +1232,44 @@
           "world_id": 132,
           "world_name": "Lever",
           "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 523,
+      "item_name": "Cursed Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              176
+            ],
+            [
+              22,
+              176
+            ],
+            [
+              44,
+              176
+            ],
+            [
+              66,
+              176
+            ],
+            [
+              88,
+              176
+            ],
+            [
+              110,
+              176
+            ]
+          ]
         }
       ]
     },
@@ -1438,6 +1742,60 @@
       ]
     },
     {
+      "item_id": 974,
+      "item_name": "Ice Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              198
+            ],
+            [
+              22,
+              198
+            ],
+            [
+              44,
+              198
+            ],
+            [
+              66,
+              198
+            ],
+            [
+              88,
+              198
+            ],
+            [
+              110,
+              198
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 989,
+      "item_name": "Enchanted Sword",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 187,
+          "world_name": "Decos (3x2) (Group 2)",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xy": [
+            918,
+            0
+          ]
+        }
+      ]
+    },
+    {
       "item_id": 995,
       "item_name": "Blend-O-Matic",
       "matchers": [
@@ -1638,6 +1996,44 @@
       ]
     },
     {
+      "item_id": 1245,
+      "item_name": "Orange Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              220
+            ],
+            [
+              22,
+              220
+            ],
+            [
+              44,
+              220
+            ],
+            [
+              66,
+              220
+            ],
+            [
+              88,
+              220
+            ],
+            [
+              110,
+              220
+            ]
+          ]
+        }
+      ]
+    },
+    {
       "item_id": 1246,
       "item_name": "Crimsand Block",
       "matchers": [
@@ -1673,6 +2069,44 @@
           "frame_xy": [
             612,
             0
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 1333,
+      "item_name": "Ichor Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              242
+            ],
+            [
+              22,
+              242
+            ],
+            [
+              44,
+              242
+            ],
+            [
+              66,
+              242
+            ],
+            [
+              88,
+              242
+            ],
+            [
+              110,
+              242
+            ]
           ]
         }
       ]
@@ -1758,9 +2192,15 @@
           "world_id": 21,
           "world_name": "Containers",
           "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
-          "frame_xy": [
-            648,
-            0
+          "frame_xys": [
+            [
+              648,
+              0
+            ],
+            [
+              828,
+              0
+            ]
           ]
         }
       ]
@@ -1774,9 +2214,15 @@
           "world_id": 21,
           "world_name": "Containers",
           "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
-          "frame_xy": [
-            684,
-            0
+          "frame_xys": [
+            [
+              684,
+              0
+            ],
+            [
+              864,
+              0
+            ]
           ]
         }
       ]
@@ -1790,9 +2236,15 @@
           "world_id": 21,
           "world_name": "Containers",
           "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
-          "frame_xy": [
-            720,
-            0
+          "frame_xys": [
+            [
+              720,
+              0
+            ],
+            [
+              900,
+              0
+            ]
           ]
         }
       ]
@@ -1806,9 +2258,37 @@
           "world_id": 21,
           "world_name": "Containers",
           "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
-          "frame_xy": [
-            756,
-            0
+          "frame_xys": [
+            [
+              756,
+              0
+            ],
+            [
+              936,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 1532,
+      "item_name": "Ice Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 21,
+          "world_name": "Containers",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              792,
+              0
+            ],
+            [
+              972,
+              0
+            ]
           ]
         }
       ]
@@ -1942,6 +2422,44 @@
           "world_id": 311,
           "world_name": "Dynasty Wood",
           "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 2274,
+      "item_name": "Ultrabright Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              264
+            ],
+            [
+              22,
+              264
+            ],
+            [
+              44,
+              264
+            ],
+            [
+              66,
+              264
+            ],
+            [
+              88,
+              264
+            ],
+            [
+              110,
+              264
+            ]
+          ]
         }
       ]
     },
@@ -2258,6 +2776,82 @@
       ]
     },
     {
+      "item_id": 3004,
+      "item_name": "Bone Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              286
+            ],
+            [
+              22,
+              286
+            ],
+            [
+              44,
+              286
+            ],
+            [
+              66,
+              286
+            ],
+            [
+              88,
+              286
+            ],
+            [
+              110,
+              286
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 3045,
+      "item_name": "Rainbow Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              308
+            ],
+            [
+              22,
+              308
+            ],
+            [
+              44,
+              308
+            ],
+            [
+              66,
+              308
+            ],
+            [
+              88,
+              308
+            ],
+            [
+              110,
+              308
+            ]
+          ]
+        }
+      ]
+    },
+    {
       "item_id": 3064,
       "item_name": "Enchanted Sundial",
       "matchers": [
@@ -2362,6 +2956,44 @@
           "world_id": 371,
           "world_name": "Pink Slime Block",
           "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 3114,
+      "item_name": "Pink Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              330
+            ],
+            [
+              22,
+              330
+            ],
+            [
+              44,
+              330
+            ],
+            [
+              66,
+              330
+            ],
+            [
+              88,
+              330
+            ],
+            [
+              110,
+              330
+            ]
+          ]
         }
       ]
     },
@@ -3470,6 +4102,234 @@
       ]
     },
     {
+      "item_id": 4383,
+      "item_name": "Desert Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              352
+            ],
+            [
+              22,
+              352
+            ],
+            [
+              44,
+              352
+            ],
+            [
+              66,
+              352
+            ],
+            [
+              88,
+              352
+            ],
+            [
+              110,
+              352
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 4384,
+      "item_name": "Coral Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              374
+            ],
+            [
+              22,
+              374
+            ],
+            [
+              44,
+              374
+            ],
+            [
+              66,
+              374
+            ],
+            [
+              88,
+              374
+            ],
+            [
+              110,
+              374
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 4385,
+      "item_name": "Corrupt Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              396
+            ],
+            [
+              22,
+              396
+            ],
+            [
+              44,
+              396
+            ],
+            [
+              66,
+              396
+            ],
+            [
+              88,
+              396
+            ],
+            [
+              110,
+              396
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 4386,
+      "item_name": "Crimson Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              418
+            ],
+            [
+              22,
+              418
+            ],
+            [
+              44,
+              418
+            ],
+            [
+              66,
+              418
+            ],
+            [
+              88,
+              418
+            ],
+            [
+              110,
+              418
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 4387,
+      "item_name": "Hallowed Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              440
+            ],
+            [
+              22,
+              440
+            ],
+            [
+              44,
+              440
+            ],
+            [
+              66,
+              440
+            ],
+            [
+              88,
+              440
+            ],
+            [
+              110,
+              440
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "item_id": 4388,
+      "item_name": "Jungle Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              462
+            ],
+            [
+              22,
+              462
+            ],
+            [
+              44,
+              462
+            ],
+            [
+              66,
+              462
+            ],
+            [
+              88,
+              462
+            ],
+            [
+              110,
+              462
+            ]
+          ]
+        }
+      ]
+    },
+    {
       "item_id": 4389,
       "item_name": "Argon Moss",
       "matchers": [
@@ -3722,6 +4582,28 @@
       ]
     },
     {
+      "item_id": 4712,
+      "item_name": "Desert Chest",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 467,
+          "world_name": "Containers2",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              432,
+              0
+            ],
+            [
+              468,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
       "item_id": 4717,
       "item_name": "Boreal Beam",
       "matchers": [
@@ -3926,6 +4808,44 @@
       ]
     },
     {
+      "item_id": 5293,
+      "item_name": "Mushroom Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              484
+            ],
+            [
+              22,
+              484
+            ],
+            [
+              44,
+              484
+            ],
+            [
+              66,
+              484
+            ],
+            [
+              88,
+              484
+            ],
+            [
+              110,
+              484
+            ]
+          ]
+        }
+      ]
+    },
+    {
       "item_id": 5296,
       "item_name": "Chlorophyte Extractinator",
       "matchers": [
@@ -3970,6 +4890,44 @@
           "world_id": 660,
           "world_name": "Faeling in a Bottle",
           "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs"
+        }
+      ]
+    },
+    {
+      "item_id": 5353,
+      "item_name": "Aether Torch",
+      "matchers": [
+        {
+          "category": "object",
+          "world_id": 4,
+          "world_name": "Torch",
+          "source_url": "https://terraria.wiki.gg/wiki/Tile_IDs",
+          "frame_xys": [
+            [
+              0,
+              506
+            ],
+            [
+              22,
+              506
+            ],
+            [
+              44,
+              506
+            ],
+            [
+              66,
+              506
+            ],
+            [
+              88,
+              506
+            ],
+            [
+              110,
+              506
+            ]
+          ]
         }
       ]
     },

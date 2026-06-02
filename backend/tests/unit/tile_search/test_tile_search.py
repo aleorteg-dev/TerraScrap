@@ -146,7 +146,18 @@ MINIMUM_ITEM_COVERAGE: dict[str, set[int]] = {
         524,
         966,
         1221,
+        427,
+        523,
+        989,
+        1528,
+        1529,
+        1530,
+        1531,
+        1532,
         2175,
+        4386,
+        4712,
+        5353,
         5532,
         5533,
     },
@@ -1501,6 +1512,195 @@ def test_engine_searches_wall_with_safe_and_internal_name(tmp_path: Path) -> Non
         (1, 1, "wall"),
         (2, 2, "wall"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Regression: biome chests (locked + unlocked) and tile-467 Desert Chest
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "item_id, locked_frame_x",
+    [
+        (1528, 828),  # Locked Jungle Chest (sub_id 23)
+        (1529, 864),  # Locked Corruption Chest (sub_id 24)
+        (1530, 900),  # Locked Crimson Chest (sub_id 25)
+        (1531, 936),  # Locked Hallowed Chest (sub_id 26)
+    ],
+)
+def test_default_world_map_biome_chest_finds_locked_variant(
+    item_id: int, locked_frame_x: int
+) -> None:
+    world = _world(
+        width=6,
+        height=4,
+        tile_overrides=_object_instance(
+            x=1, y=1, tile_id=21, frame_x=locked_frame_x, frame_y=0, width=2, height=2
+        ),
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=item_id)
+
+    assert result == SearchResult(
+        item_id=item_id,
+        total=1,
+        matches=(SearchMatch(x=1, y=1, source="object"),),
+    )
+
+
+@pytest.mark.parametrize("frame_x", [792, 972])
+def test_default_world_map_ice_chest_finds_both_variants(frame_x: int) -> None:
+    world = _world(
+        width=6,
+        height=4,
+        tile_overrides=_object_instance(
+            x=2, y=1, tile_id=21, frame_x=frame_x, frame_y=0, width=2, height=2
+        ),
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=1532)
+
+    assert result.total == 1
+    assert result.matches == (SearchMatch(x=2, y=1, source="object"),)
+
+
+@pytest.mark.parametrize("frame_x", [432, 468])
+def test_default_world_map_desert_chest_finds_both_variants(frame_x: int) -> None:
+    world = _world(
+        width=6,
+        height=4,
+        tile_overrides=_object_instance(
+            x=1, y=1, tile_id=467, frame_x=frame_x, frame_y=0, width=2, height=2
+        ),
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=4712)
+
+    assert result == SearchResult(
+        item_id=4712,
+        total=1,
+        matches=(SearchMatch(x=1, y=1, source="object"),),
+    )
+
+
+def test_default_world_map_crimson_chest_does_not_match_jungle_locked_frame() -> None:
+    world = _world(
+        width=6,
+        height=4,
+        tile_overrides=_object_instance(
+            x=1, y=1, tile_id=21, frame_x=828, frame_y=0, width=2, height=2
+        ),
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=1530)
+
+    assert result.total == 0
+
+
+# ---------------------------------------------------------------------------
+# Regression: Enchanted Sword (tile 187) and torch variants (tile 4)
+# ---------------------------------------------------------------------------
+
+
+def test_default_world_map_enchanted_sword_finds_shrine_on_tile_187() -> None:
+    """Enchanted Sword (989) lives on tile 187 at UV (918, 0), 3x2 object."""
+    world = _world(
+        width=8,
+        height=4,
+        tile_overrides=_object_instance(
+            x=2, y=1, tile_id=187, frame_x=918, frame_y=0, width=3, height=2
+        ),
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=989)
+
+    assert result == SearchResult(
+        item_id=989,
+        total=1,
+        matches=(SearchMatch(x=2, y=1, source="object"),),
+    )
+
+
+def test_default_world_map_enchanted_sword_ignores_other_subid_on_tile_187() -> None:
+    """A different sub_id on tile 187 (e.g. Jungle Stone) must not match 989."""
+    world = _world(
+        width=8,
+        height=4,
+        tile_overrides=_object_instance(
+            x=2, y=1, tile_id=187, frame_x=0, frame_y=0, width=3, height=2
+        ),
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=989)
+
+    assert result.total == 0
+
+
+@pytest.mark.parametrize(
+    "item_id, frame_y",
+    [
+        (427, 22),   # Blue Torch (sub_id 1)
+        (4386, 418), # Crimson Torch (sub_id 19)
+        (5353, 506), # Aether Torch (sub_id 23)
+    ],
+)
+@pytest.mark.parametrize("frame_x", [0, 22, 44, 66, 88, 110])
+def test_default_world_map_torch_variant_finds_each_orientation(
+    item_id: int, frame_y: int, frame_x: int
+) -> None:
+    world = _world(
+        width=5,
+        height=3,
+        tile_overrides={(2, 1): _framed_tile(4, frame_x, frame_y)},
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=item_id)
+
+    assert result == SearchResult(
+        item_id=item_id,
+        total=1,
+        matches=(SearchMatch(x=2, y=1, source="object"),),
+    )
+
+
+def test_default_world_map_blue_torch_does_not_match_crimson_torch_frame() -> None:
+    """Variants on tile 4 must not cross-match: Blue (fy=22) ≠ Crimson (fy=418)."""
+    world = _world(
+        width=5,
+        height=3,
+        tile_overrides={(1, 1): _framed_tile(4, 0, 418)},
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=427)
+
+    assert result.total == 0
+
+
+def test_default_world_map_generic_torch_still_finds_colored_variants() -> None:
+    """Generic Torch (item 8) keeps catch-all behavior on tile 4 (any frame)."""
+    world = _world(
+        width=6,
+        height=3,
+        tile_overrides={
+            (1, 1): _framed_tile(4, 0, 0),    # plain Torch
+            (3, 1): _framed_tile(4, 0, 22),   # Blue Torch
+            (5, 1): _framed_tile(4, 0, 506),  # Aether Torch
+        },
+    )
+    engine = create_tile_search_engine()
+
+    result = engine.search(world, item_id=8)
+
+    assert result.total == 3
+    assert {(m.x, m.y) for m in result.matches} == {(1, 1), (3, 1), (5, 1)}
 
 
 def test_tile_search_module_passes_mypy_strict() -> None:

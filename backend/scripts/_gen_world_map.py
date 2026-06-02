@@ -140,6 +140,7 @@ TILE_NAME = {
     181: "Red Moss",
     182: "Blue Moss",
     183: "Purple Moss",
+    187: "Decos (3x2) (Group 2)",
     191: "Living Wood",
     192: "Leaf Block",
     193: "Slime Block",
@@ -876,12 +877,96 @@ for iid, fx in [
     (952, 540),
     (1142, 576),
     (1298, 612),
-    (1528, 648),
-    (1529, 684),
-    (1530, 720),
-    (1531, 756),
 ]:
     entries.append(obj(iid, 21, frame_xy=(fx, 0)))
+
+# Biome chests on tile 21: unlocked + locked variants must both be discovered
+# (Dungeon spawns the locked sub_id; surface placements use the unlocked one).
+# Sub-ids per terraria.wiki.gg/wiki/Biome_Chests: 18-22 unlocked, 23-27 locked.
+# frame_x = sub_id * 36 (chest tiles are 2x2 with 36 px wide frame slots).
+for iid, sub_unlocked, sub_locked in [
+    (1528, 18, 23),  # Jungle Chest
+    (1529, 19, 24),  # Corruption Chest
+    (1530, 20, 25),  # Crimson Chest
+    (1531, 21, 26),  # Hallowed Chest
+    (1532, 22, 27),  # Ice Chest
+]:
+    entries.append(
+        objs(
+            iid,
+            [
+                {
+                    "world_id": 21,
+                    "frame_xys": [
+                        (sub_unlocked * 36, 0),
+                        (sub_locked * 36, 0),
+                    ],
+                }
+            ],
+        )
+    )
+
+# Desert Chest on tile 467: unlocked sub_id 12, locked sub_id 13.
+# Source: terraria.wiki.gg/wiki/Biome_Chests + Tile_IDs/Part6.
+entries.append(
+    objs(
+        4712,
+        [
+            {
+                "world_id": 467,
+                "frame_xys": [(12 * 36, 0), (13 * 36, 0)],
+            }
+        ],
+    )
+)
+
+# Enchanted Sword (989) — placed-in-stone shrine background object lives on tile
+# 187 ("Decos 3x2 Group 2") at UV (918, 0). Source: TEdit settings.xml frame
+# table for tile 187, Variety="Enchanted Sword".
+entries.append(obj(989, 187, frame_xy=(918, 0)))
+
+# Torch variants on tile 4 (1x1, 22x22 frames). frame_y = sub_id * 22 selects
+# the torch style; frame_x in {0, 22, 44, 66, 88, 110} covers the six orientation
+# slots (Bottom/Left/Right anchors × On/Off animation frame). Source: TEdit
+# settings.xml frames for tile 4.
+TORCH_FRAME_X = [0, 22, 44, 66, 88, 110]
+for iid, sub_id in [
+    (427, 1),   # Blue Torch
+    (428, 2),   # Red Torch
+    (429, 3),   # Green Torch
+    (430, 4),   # Purple Torch
+    (431, 5),   # White Torch
+    (432, 6),   # Yellow Torch
+    (433, 7),   # Demon Torch
+    (523, 8),   # Cursed Torch
+    (974, 9),   # Ice Torch
+    (1245, 10), # Orange Torch
+    (1333, 11), # Ichor Torch
+    (2274, 12), # Ultrabright Torch
+    (3004, 13), # Bone Torch
+    (3045, 14), # Rainbow Torch
+    (3114, 15), # Pink Torch
+    (4383, 16), # Desert Torch
+    (4384, 17), # Coral Torch
+    (4385, 18), # Corrupt Torch
+    (4386, 19), # Crimson Torch
+    (4387, 20), # Hallowed Torch
+    (4388, 21), # Jungle Torch
+    (5293, 22), # Mushroom Torch
+    (5353, 23), # Aether Torch
+]:
+    frame_y = sub_id * 22
+    entries.append(
+        objs(
+            iid,
+            [
+                {
+                    "world_id": 4,
+                    "frame_xys": [(fx, frame_y) for fx in TORCH_FRAME_X],
+                }
+            ],
+        )
+    )
 
 # Sort by item_id ascending
 entries.sort(key=lambda e: int(e["item_id"]))
