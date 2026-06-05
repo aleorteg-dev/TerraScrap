@@ -63,15 +63,6 @@
   align-items: center;
   justify-content: space-between;
 }
-.landing-version {
-  font-family: var(--font-mono);
-  font-size: 17px;
-  color: var(--ink-mid);
-  background: var(--bg-panel);
-  padding: 3px 11px 1px;
-  box-shadow: var(--bevel-raise);
-  white-space: nowrap;
-}
 
 .landing-hero {
   max-width: 580px;

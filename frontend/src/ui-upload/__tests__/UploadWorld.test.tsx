@@ -20,6 +20,8 @@ function makeFile(name: string, sizeBytes: number): File {
   return file;
 }
 
+const fileInputLabel = /selecciona un mundo de terraria/i;
+
 function makeApiClient(uploadOverride?: ReturnType<typeof vi.fn>): {
   client: ApiClient;
   uploadWorld: ReturnType<typeof vi.fn>;
@@ -46,21 +48,22 @@ describe('UploadWorld', () => {
     expect(document.querySelector('input[type="file"]')).toBeInTheDocument();
   });
 
-  it('rejects non-.wld file with error message', async () => {
+  it('rejects non-.wld file with a friendly error message', async () => {
     const { client, uploadWorld } = makeApiClient();
     render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
-    const input = screen.getByLabelText(/select a \.wld file/i);
+    const input = screen.getByLabelText(fileInputLabel);
     fireEvent.change(input, { target: { files: [makeFile('map.txt', 1024)] } });
-    expect(await screen.findByRole('alert')).toHaveTextContent(/\.wld/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/mundo de terraria/i);
     expect(uploadWorld).not.toHaveBeenCalled();
   });
 
-  it('rejects file above maxSizeMb', async () => {
+  it('rejects file above maxSizeMb with a friendly message', async () => {
     const { client, uploadWorld } = makeApiClient();
     render(<UploadWorld onUploaded={vi.fn()} apiClient={client} maxSizeMb={1} />);
-    const input = screen.getByLabelText(/select a \.wld file/i);
+    const input = screen.getByLabelText(fileInputLabel);
     fireEvent.change(input, { target: { files: [makeFile('world.wld', 2 * 1024 * 1024)] } });
-    expect(await screen.findByRole('alert')).toHaveTextContent(/too large|1 MB/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/demasiado grande/i);
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/1 MB|max/i);
     expect(uploadWorld).not.toHaveBeenCalled();
   });
 
@@ -68,7 +71,7 @@ describe('UploadWorld', () => {
     const { client } = makeApiClient();
     const onUploaded = vi.fn();
     render(<UploadWorld onUploaded={onUploaded} apiClient={client} />);
-    const input = screen.getByLabelText(/select a \.wld file/i);
+    const input = screen.getByLabelText(fileInputLabel);
     fireEvent.change(input, { target: { files: [makeFile('world.wld', 1024)] } });
     await waitFor(() =>
       expect(onUploaded).toHaveBeenCalledWith({ worldId: 'w1', metadata: mockMeta })
@@ -80,7 +83,7 @@ describe('UploadWorld', () => {
     const { client } = makeApiClient(vi.fn().mockRejectedValue(error));
     const onError = vi.fn();
     render(<UploadWorld onUploaded={vi.fn()} onError={onError} apiClient={client} />);
-    const input = screen.getByLabelText(/select a \.wld file/i);
+    const input = screen.getByLabelText(fileInputLabel);
     fireEvent.change(input, { target: { files: [makeFile('world.wld', 1024)] } });
     await waitFor(() => expect(onError).toHaveBeenCalledWith(error));
   });
@@ -89,7 +92,7 @@ describe('UploadWorld', () => {
     const neverResolve = new Promise<{ worldId: string; metadata: WorldMetadata }>(() => {});
     const { client } = makeApiClient(vi.fn().mockReturnValue(neverResolve));
     render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
-    const input = screen.getByLabelText(/select a \.wld file/i);
+    const input = screen.getByLabelText(fileInputLabel);
     fireEvent.change(input, { target: { files: [makeFile('world.wld', 1024)] } });
     await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
   });
@@ -110,7 +113,7 @@ describe('UploadWorld', () => {
 
   it('input has accessible label', () => {
     render(<UploadWorld onUploaded={vi.fn()} />);
-    expect(screen.getByLabelText(/select a \.wld file/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(fileInputLabel)).toBeInTheDocument();
   });
 
   it('two instances render distinct input IDs', () => {
@@ -134,7 +137,7 @@ describe('UploadWorld', () => {
     });
     const { client } = makeApiClient(uploadWorld);
     render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
-    const input = screen.getByLabelText(/select a \.wld file/i);
+    const input = screen.getByLabelText(fileInputLabel);
     fireEvent.change(input, { target: { files: [makeFile('world.wld', 1024)] } });
 
     await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
@@ -153,7 +156,7 @@ describe('UploadWorld', () => {
   it('accepts .wld file with uppercase extension (WORLD.WLD)', async () => {
     const { client, uploadWorld } = makeApiClient();
     render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
-    const input = screen.getByLabelText(/select a \.wld file/i);
+    const input = screen.getByLabelText(fileInputLabel);
     fireEvent.change(input, { target: { files: [makeFile('WORLD.WLD', 1024)] } });
     await waitFor(() => expect(uploadWorld).toHaveBeenCalled());
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -162,23 +165,24 @@ describe('UploadWorld', () => {
   it('rejects file with non-.wld extension (world.txt)', async () => {
     const { client, uploadWorld } = makeApiClient();
     render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
-    const input = screen.getByLabelText(/select a \.wld file/i);
+    const input = screen.getByLabelText(fileInputLabel);
     fireEvent.change(input, { target: { files: [makeFile('world.txt', 1024)] } });
-    expect(await screen.findByRole('alert')).toHaveTextContent(/\.wld/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/mundo de terraria/i);
     expect(uploadWorld).not.toHaveBeenCalled();
   });
 
-  it('error state shows error code and retry button resets to idle', async () => {
+  it('error state shows a friendly message and retry button resets to idle', async () => {
     const error = new ApiError('network_error', 0, 'Network failed');
     const { client } = makeApiClient(vi.fn().mockRejectedValue(error));
     render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
-    const input = screen.getByLabelText(/select a \.wld file/i);
+    const input = screen.getByLabelText(fileInputLabel);
     fireEvent.change(input, { target: { files: [makeFile('world.wld', 1024)] } });
 
     await waitFor(() => screen.getByRole('alert'));
-    expect(screen.getByRole('alert')).toHaveTextContent(/network_error/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo conectar/i);
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/network_error|network failed/i);
 
-    const retry = screen.getByRole('button', { name: /try again/i });
+    const retry = screen.getByRole('button', { name: /intentar de nuevo/i });
     fireEvent.click(retry);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });

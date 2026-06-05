@@ -100,18 +100,6 @@
   white-space: nowrap;
 }
 
-.dropzone-note {
-  position: absolute;
-  bottom: 22px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 15px;
-  color: var(--ink-faint);
-  white-space: nowrap;
-}
-
 .dropzone.loading::before {
   border-style: solid;
   border-color: var(--gold-deep);
@@ -136,7 +124,8 @@
   margin: 12px 0 0;
   color: var(--danger-bright);
   font-size: 14px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
+  line-height: 1.35;
 }
 
 .upload-retry {

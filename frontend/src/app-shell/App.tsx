@@ -250,7 +250,6 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                       Terra<b>Scrap</b>
                     </span>
                   </div>
-                  <span className="landing-version">v0.2</span>
                 </div>
                 <div className="landing-hero">
                   <div className="landing-kicker">
@@ -262,15 +261,15 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                     Terraria.
                   </h1>
                   <p className="landing-lede">
-                    Sube tu <span className="mono">.wld</span> y revela el mapa al completo. Busca
-                    por nombre o ID — TerraScrap resalta cada coincidencia.
+                    Sube tu mundo y revela el mapa al completo. Busca por nombre y TerraScrap
+                    resalta cada coincidencia.
                   </p>
                   <div className="landing-features">
                     <div className="feature">
                       <span className="feature-num">01</span>
                       <div className="feature-body">
                         <h3>Sin niebla de guerra</h3>
-                        <p>Mundo revelado completo, navegable con pan + zoom.</p>
+                        <p>Mundo revelado completo para moverte y acercarte con facilidad.</p>
                       </div>
                     </div>
                     <div className="feature">
@@ -284,18 +283,14 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                       <span className="feature-num">03</span>
                       <div className="feature-body">
                         <h3>Local y privado</h3>
-                        <p>Sin base de datos. Tu mundo vive solo en tu sesión.</p>
+                        <p>Tu mundo se conserva solo mientras usas la app.</p>
                       </div>
                     </div>
                   </div>
                 </div>
                 <div className="landing-foot">
-                  <span>
-                    <b>v230–v279</b> · Terraria PC
-                  </span>
-                  <span>
-                    Máx <b>200 MB</b>
-                  </span>
+                  <span>Preparado para mundos de Terraria en PC</span>
+                  <span>Tu mapa se conserva solo durante esta sesión</span>
                 </div>
               </div>
               <div className="landing-stage">
@@ -323,7 +318,7 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                   <span className="seed-dot" aria-hidden="true" />
                   <span className="wt-name app-world-name">{state.metadata.name}</span>
                   <span className="wt-meta">
-                    {state.metadata.width}×{state.metadata.height} · v{state.metadata.version}
+                    {state.metadata.width}×{state.metadata.height}
                   </span>
                 </div>
                 <Toolbar />

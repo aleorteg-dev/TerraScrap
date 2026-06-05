@@ -28,6 +28,22 @@ export interface UploadProps {
 type Phase = 'idle' | 'uploading' | 'success' | 'error';
 type ValidationKind = 'invalid_extension' | 'file_too_large';
 
+function friendlyUploadError(err: ApiError): string {
+  switch (err.code) {
+    case 'upload_too_large':
+      return 'Ese mundo es demasiado grande para subirlo aquí.';
+    case 'invalid_wld':
+      return 'No pudimos leer ese mundo. Prueba con otro archivo de Terraria.';
+    case 'unsupported_version':
+    case 'api_version_mismatch':
+      return 'Ese mundo no se puede abrir todavía en TerraScrap.';
+    case 'network_error':
+      return 'No se pudo conectar. Revisa la conexión e inténtalo de nuevo.';
+    default:
+      return 'No pudimos subir el mundo. Inténtalo de nuevo.';
+  }
+}
+
 export const UploadWorld: FC<UploadProps> = ({
   maxSizeMb = 200,
   onUploaded,
@@ -136,7 +152,7 @@ export const UploadWorld: FC<UploadProps> = ({
       className={classes.join(' ')}
       role="button"
       tabIndex={0}
-      aria-label="Drop a .wld file here or click to browse"
+      aria-label="Suelta aquí tu mundo de Terraria o haz clic para buscarlo"
       aria-busy={phase === 'uploading'}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
@@ -149,20 +165,18 @@ export const UploadWorld: FC<UploadProps> = ({
           <path d="M12 4v12m0 0l-5-5m5 5l5-5M4 20h16" />
         </svg>
       </div>
-      <h2>
-        Suelta tu <span className="mono">.wld</span>
-      </h2>
-      <p>o haz clic para explorar</p>
+      <h2>Suelta tu mundo</h2>
+      <p>o haz clic para buscarlo</p>
 
       <label htmlFor={inputId} className="sr-only">
-        Select a .wld file
+        Selecciona un mundo de Terraria
       </label>
       <input
         id={inputId}
         ref={inputRef}
         type="file"
         accept=".wld"
-        aria-label="Select a .wld file"
+        aria-label="Selecciona un mundo de Terraria"
         tabIndex={-1}
         className="sr-only"
         onChange={handleChange}
@@ -170,13 +184,13 @@ export const UploadWorld: FC<UploadProps> = ({
       />
 
       <span className="dropzone-cta" aria-hidden="true">
-        EXPLORAR
+        BUSCAR ARCHIVO
       </span>
 
       {phase === 'uploading' && (
         <div
           role="progressbar"
-          aria-label="Uploading world…"
+          aria-label="Subiendo mundo"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress !== null ? progress : undefined}
@@ -186,25 +200,21 @@ export const UploadWorld: FC<UploadProps> = ({
         </div>
       )}
 
-      <span className="dropzone-note" aria-hidden="true">
-        .wld · máx {maxSizeMb} MB
-      </span>
-
       {validationErr !== null && (
         <p className="upload-error" role="alert">
           {validationErr === 'invalid_extension'
-            ? 'Only .wld files are supported.'
-            : `File is too large. Maximum size is ${maxSizeMb} MB.`}
+            ? 'Elige un archivo de mundo de Terraria.'
+            : 'Ese mundo es demasiado grande para subirlo aquí.'}
         </p>
       )}
 
       {uploadErr !== null && phase === 'error' && (
         <>
           <p className="upload-error" role="alert">
-            [{uploadErr.code}] {uploadErr.message}
+            {friendlyUploadError(uploadErr)}
           </p>
           <button type="button" className="upload-retry" onClick={handleRetry}>
-            Try again
+            Intentar de nuevo
           </button>
         </>
       )}

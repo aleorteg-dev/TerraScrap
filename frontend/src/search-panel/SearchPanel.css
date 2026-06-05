@@ -135,12 +135,6 @@
   font-weight: 500;
   color: var(--ink);
 }
-.ac-id {
-  font-family: var(--font-mono);
-  font-size: 15px;
-  color: var(--ink-faint);
-  margin-left: auto;
-}
 
 .search-opts {
   display: flex;

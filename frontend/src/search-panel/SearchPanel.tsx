@@ -317,7 +317,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           value={query}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          placeholder="Nombre o ID del ítem…"
+          placeholder="Nombre del objeto..."
           autoComplete="off"
         />
         {query.length > 0 && (
@@ -344,7 +344,6 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               >
                 <span className="ac-sprite" aria-hidden="true" />
                 <span className="ac-name">{item.name}</span>
-                <span className="ac-id">#{item.id}</span>
               </li>
             ))}
           </ul>

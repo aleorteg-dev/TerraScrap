@@ -8,13 +8,12 @@ interface WorldPropertiesPanelProps {
 export const WorldPropertiesPanel: FC<WorldPropertiesPanelProps> = ({ metadata }) => {
   const [collapsed, setCollapsed] = useState(false);
   const rows = [
-    ['Tamaño', `${metadata.width} × ${metadata.height}`],
-    ['Versión', `v${metadata.version}`],
-    ['Seed', metadata.seed],
+    ['Mapa', `${metadata.width} × ${metadata.height}`],
+    ['Semilla', metadata.seed],
     ['Modo difícil', metadata.hardmode ? 'Sí' : 'No'],
-    ['Spawn', `${metadata.spawn_x}, ${metadata.spawn_y}`],
+    ['Punto inicial', `${metadata.spawn_x}, ${metadata.spawn_y}`],
     ['Superficie', String(metadata.world_surface_y)],
-    ['Roca', String(metadata.rock_layer_y)],
+    ['Capa de roca', String(metadata.rock_layer_y)],
     ['Infierno', String(metadata.hell_layer_y)],
   ] as const;
 
