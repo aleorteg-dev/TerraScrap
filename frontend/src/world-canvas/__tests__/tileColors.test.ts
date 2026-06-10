@@ -1,9 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { getTileColor, getWallColor, getLiquidColor } from '../tileColors';
+import {
+  getTileColor,
+  getWallColor,
+  getLiquidColor,
+  getBackgroundColor,
+  SKY_BAND_COLOR,
+  DIRT_BAND_COLOR,
+  ROCK_BAND_COLOR,
+  HELL_BAND_COLOR,
+} from '../tileColors';
 
 const DEFAULT_TILE = '#555555';
 const DEFAULT_WALL = '#3a3a3a';
-const AIR = '#1a1a2e';
+const AIR = SKY_BAND_COLOR;
 
 describe('tileColors palette (extended)', () => {
   it('air tile (tileId < 0) returns the air color', () => {
@@ -67,5 +76,39 @@ describe('tileColors palette (extended)', () => {
     for (const id of [7, 8, 9, 347]) {
       expect(getWallColor(id)).not.toBe(DEFAULT_WALL);
     }
+  });
+});
+
+describe('getBackgroundColor (TerraMap layer banding)', () => {
+  // Layer breakpoints loosely mirror a small medium world.
+  const SURFACE = 240;
+  const ROCK = 600;
+  const HELL = 1100;
+
+  it('returns the sky band color for rows above the world surface', () => {
+    expect(getBackgroundColor(0, SURFACE, ROCK, HELL)).toBe(SKY_BAND_COLOR);
+    expect(getBackgroundColor(SURFACE - 1, SURFACE, ROCK, HELL)).toBe(SKY_BAND_COLOR);
+  });
+
+  it('returns the dirt band color between the surface and rock layers', () => {
+    expect(getBackgroundColor(SURFACE, SURFACE, ROCK, HELL)).toBe(DIRT_BAND_COLOR);
+    expect(getBackgroundColor(ROCK - 1, SURFACE, ROCK, HELL)).toBe(DIRT_BAND_COLOR);
+  });
+
+  it('returns the rock band color between the rock and hell layers', () => {
+    expect(getBackgroundColor(ROCK, SURFACE, ROCK, HELL)).toBe(ROCK_BAND_COLOR);
+    expect(getBackgroundColor(HELL - 1, SURFACE, ROCK, HELL)).toBe(ROCK_BAND_COLOR);
+  });
+
+  it('returns the hell band color (black) for rows at or below the hell layer', () => {
+    expect(getBackgroundColor(HELL, SURFACE, ROCK, HELL)).toBe(HELL_BAND_COLOR);
+    expect(getBackgroundColor(HELL + 500, SURFACE, ROCK, HELL)).toBe(HELL_BAND_COLOR);
+  });
+
+  it('exposes constants that match TerraMap main.js getTileColor literals', () => {
+    expect(SKY_BAND_COLOR).toBe('#84aaf8');
+    expect(DIRT_BAND_COLOR).toBe('#583d2e');
+    expect(ROCK_BAND_COLOR).toBe('#4a433c');
+    expect(HELL_BAND_COLOR).toBe('#000000');
   });
 });

@@ -1,4 +1,4 @@
-import { getTileColor, getWallColor, getLiquidColor } from './tileColors';
+import { getTileColor, getWallColor, getLiquidColor, getBackgroundColor } from './tileColors';
 import { computeChunkDimensions } from './chunkDimensions';
 import type { DecodedChunkV2 } from './rleDecoder';
 
@@ -44,7 +44,10 @@ export function renderChunkBitmap(
   tiles: Int16Array,
   chunkSize: number,
   worldW: number,
-  worldH: number
+  worldH: number,
+  worldSurfaceY: number,
+  rockLayerY: number,
+  hellLayerY: number
 ): RenderedChunk {
   const dimensions = computeChunkDimensions(cx, cy, chunkSize, worldW, worldH);
   const canvas = document.createElement('canvas');
@@ -52,6 +55,15 @@ export function renderChunkBitmap(
   canvas.height = dimensions.h;
   const ctx = canvas.getContext('2d');
   if (ctx !== null) {
+    // Row-by-row backdrop matching TerraMap's main.js banding
+    // (sky → dirt → rock → hell). Painted inside world bounds only;
+    // chunks outside the world are never requested, so the dark void
+    // stays visible there.
+    for (let ty = 0; ty < dimensions.h; ty++) {
+      const worldY = cy * chunkSize + ty;
+      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY);
+      ctx.fillRect(0, ty, dimensions.w, 1);
+    }
     for (let ty = 0; ty < dimensions.h; ty++) {
       for (let tx = 0; tx < dimensions.w; tx++) {
         const tileId = tiles[ty * dimensions.w + tx] ?? -1;
@@ -64,8 +76,9 @@ export function renderChunkBitmap(
   return { canvas, worldId, cx, cy };
 }
 
-// Renders a v2 decoded chunk to a bitmap canvas using three passes:
-// pass 1 — walls, pass 2 — tiles, pass 3 — liquids.
+// Renders a v2 decoded chunk to a bitmap canvas:
+// pass 0 — backdrop band per row (sky/dirt/rock/hell),
+// pass 1 — walls, pass 2 — tiles, pass 3 — liquids, pass 4 — wires.
 export function renderChunkBitmapV2(
   worldId: string,
   cx: number,
@@ -74,6 +87,9 @@ export function renderChunkBitmapV2(
   chunkSize: number,
   worldW: number,
   worldH: number,
+  worldSurfaceY: number,
+  rockLayerY: number,
+  hellLayerY: number,
   opts: { showWalls?: boolean; showLiquids?: boolean; showWires?: boolean } = {}
 ): RenderedChunk {
   const dimensions = computeChunkDimensions(cx, cy, chunkSize, worldW, worldH);
@@ -82,6 +98,11 @@ export function renderChunkBitmapV2(
   canvas.height = dimensions.h;
   const ctx = canvas.getContext('2d');
   if (ctx !== null) {
+    for (let ty = 0; ty < dimensions.h; ty++) {
+      const worldY = cy * chunkSize + ty;
+      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY);
+      ctx.fillRect(0, ty, dimensions.w, 1);
+    }
     if (opts.showWalls ?? true) {
       for (let ty = 0; ty < dimensions.h; ty++) {
         for (let tx = 0; tx < dimensions.w; tx++) {
@@ -94,7 +115,6 @@ export function renderChunkBitmapV2(
         }
       }
     }
-    // Pass 2: tiles
     for (let ty = 0; ty < dimensions.h; ty++) {
       for (let tx = 0; tx < dimensions.w; tx++) {
         const idx = ty * dimensions.w + tx;

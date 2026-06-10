@@ -185,6 +185,9 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
               CHUNK_SIZE,
               meta.width,
               meta.height,
+              meta.world_surface_y,
+              meta.rock_layer_y,
+              meta.hell_layer_y,
               {
                 showWalls: showWallsRef.current,
                 showLiquids: showLiquidsRef.current,
@@ -200,7 +203,10 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
               tiles,
               CHUNK_SIZE,
               meta.width,
-              meta.height
+              meta.height,
+              meta.world_surface_y,
+              meta.rock_layer_y,
+              meta.hell_layer_y
             );
           }
           bitmapCacheRef.current.set(rendered);

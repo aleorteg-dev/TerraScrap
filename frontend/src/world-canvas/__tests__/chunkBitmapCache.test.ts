@@ -5,8 +5,16 @@ import {
   renderChunkBitmapV2,
 } from '../chunkBitmapCache';
 import type { DecodedChunkV2 } from '../rleDecoder';
-import { getTileColor } from '../tileColors';
-import { getWallColor, getLiquidColor } from '../tileColors';
+import {
+  getTileColor,
+  getWallColor,
+  getLiquidColor,
+  getBackgroundColor,
+  SKY_BAND_COLOR,
+  DIRT_BAND_COLOR,
+  ROCK_BAND_COLOR,
+  HELL_BAND_COLOR,
+} from '../tileColors';
 
 const REALISTIC_WORLD_WIDTH = 8400;
 const REALISTIC_WORLD_HEIGHT = 2400;
@@ -16,6 +24,12 @@ const BOTTOM_EDGE_CY = Math.ceil(REALISTIC_WORLD_HEIGHT / REALISTIC_CHUNK_SIZE) 
 const RIGHT_EDGE_WIDTH = REALISTIC_WORLD_WIDTH - RIGHT_EDGE_CX * REALISTIC_CHUNK_SIZE;
 const BOTTOM_EDGE_HEIGHT = REALISTIC_WORLD_HEIGHT - BOTTOM_EDGE_CY * REALISTIC_CHUNK_SIZE;
 
+// Layer breakpoints used across most tests. All rows in our small fixtures
+// at cy=0 sit in the sky band (y < SURFACE_Y) unless a test overrides them.
+const SURFACE_Y = 240;
+const ROCK_Y = 600;
+const HELL_Y = 1100;
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -23,7 +37,7 @@ beforeEach(() => {
 describe('renderChunkBitmap', () => {
   it('T-C1 should return HTMLCanvasElement sized chunkSize by chunkSize for full chunks', () => {
     const tiles = new Int16Array(4 * 4).fill(-1);
-    const result = renderChunkBitmap('w1', 0, 0, tiles, 4, 8, 8);
+    const result = renderChunkBitmap('w1', 0, 0, tiles, 4, 8, 8, SURFACE_Y, ROCK_Y, HELL_Y);
     expect(result.canvas).toBeInstanceOf(HTMLCanvasElement);
     expect(result.canvas.width).toBe(4);
     expect(result.canvas.height).toBe(4);
@@ -32,30 +46,34 @@ describe('renderChunkBitmap', () => {
     expect(result.cy).toBe(0);
   });
 
-  it('T-C2 should call fillRect for non-air tiles', () => {
+  it('T-C2 should call fillRect for the per-row backdrop and each non-air tile', () => {
     // 2 by 2 chunk: tiles at (0,0) and (0,1) are non-air; the others are air.
     const tiles = new Int16Array(4);
     tiles[0] = 1; // tx=0, ty=0, Stone
     tiles[1] = -1; // tx=1, ty=0, air
     tiles[2] = 2; // tx=0, ty=1, Grass
     tiles[3] = -1; // tx=1, ty=1, air
-    renderChunkBitmap('w1', 0, 0, tiles, 2, 4, 4);
+    renderChunkBitmap('w1', 0, 0, tiles, 2, 4, 4, SURFACE_Y, ROCK_Y, HELL_Y);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
+    // 2 backdrop rows + 2 non-air tiles.
+    expect(ctx.fillRect).toHaveBeenCalledTimes(4);
   });
 
-  it('T-C3 should not call fillRect for air tiles (tileId < 0)', () => {
+  it('T-C3 should still paint a backdrop row for every line even when all tiles are air', () => {
     const tiles = new Int16Array(2 * 2).fill(-1);
-    renderChunkBitmap('w1', 0, 0, tiles, 2, 4, 4);
+    renderChunkBitmap('w1', 0, 0, tiles, 2, 4, 4, SURFACE_Y, ROCK_Y, HELL_Y);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).not.toHaveBeenCalled();
+    // 2 backdrop rows, no tile fills.
+    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
+    expect(ctx.fillRect).toHaveBeenNthCalledWith(1, 0, 0, 2, 1);
+    expect(ctx.fillRect).toHaveBeenNthCalledWith(2, 0, 1, 2, 1);
   });
 
   it('T-C4 should use correct pixel coordinates (tx, ty, 1, 1) for each tile', () => {
     const tiles = new Int16Array(2 * 2).fill(1);
-    renderChunkBitmap('w1', 3, 7, tiles, 2, 8, 16);
+    renderChunkBitmap('w1', 3, 7, tiles, 2, 8, 16, SURFACE_Y, ROCK_Y, HELL_Y);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
     expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, 1, 1);
@@ -73,7 +91,10 @@ describe('renderChunkBitmap', () => {
       tiles,
       REALISTIC_CHUNK_SIZE,
       REALISTIC_WORLD_WIDTH,
-      REALISTIC_WORLD_HEIGHT
+      REALISTIC_WORLD_HEIGHT,
+      SURFACE_Y,
+      ROCK_Y,
+      HELL_Y
     );
     expect(result.canvas.width).toBe(RIGHT_EDGE_WIDTH);
     expect(result.canvas.height).toBe(REALISTIC_CHUNK_SIZE);
@@ -88,7 +109,10 @@ describe('renderChunkBitmap', () => {
       tiles,
       REALISTIC_CHUNK_SIZE,
       REALISTIC_WORLD_WIDTH,
-      REALISTIC_WORLD_HEIGHT
+      REALISTIC_WORLD_HEIGHT,
+      SURFACE_Y,
+      ROCK_Y,
+      HELL_Y
     );
     expect(result.canvas.width).toBe(REALISTIC_CHUNK_SIZE);
     expect(result.canvas.height).toBe(BOTTOM_EDGE_HEIGHT);
@@ -103,7 +127,10 @@ describe('renderChunkBitmap', () => {
       tiles,
       REALISTIC_CHUNK_SIZE,
       REALISTIC_WORLD_WIDTH,
-      REALISTIC_WORLD_HEIGHT
+      REALISTIC_WORLD_HEIGHT,
+      SURFACE_Y,
+      ROCK_Y,
+      HELL_Y
     );
     expect(result.canvas.width).toBe(RIGHT_EDGE_WIDTH);
     expect(result.canvas.height).toBe(BOTTOM_EDGE_HEIGHT);
@@ -111,7 +138,18 @@ describe('renderChunkBitmap', () => {
 
   it('T-C12 should keep full chunk dimensions when world dimensions are multiples of chunkSize', () => {
     const tiles = new Int16Array(REALISTIC_CHUNK_SIZE * REALISTIC_CHUNK_SIZE).fill(-1);
-    const result = renderChunkBitmap('w1', 31, 8, tiles, REALISTIC_CHUNK_SIZE, 8192, 2304);
+    const result = renderChunkBitmap(
+      'w1',
+      31,
+      8,
+      tiles,
+      REALISTIC_CHUNK_SIZE,
+      8192,
+      2304,
+      SURFACE_Y,
+      ROCK_Y,
+      HELL_Y
+    );
     expect(result.canvas.width).toBe(REALISTIC_CHUNK_SIZE);
     expect(result.canvas.height).toBe(REALISTIC_CHUNK_SIZE);
   });
@@ -127,12 +165,91 @@ describe('renderChunkBitmap', () => {
       tiles,
       REALISTIC_CHUNK_SIZE,
       REALISTIC_WORLD_WIDTH,
-      clippedHeight
+      clippedHeight,
+      SURFACE_Y,
+      ROCK_Y,
+      HELL_Y
     );
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).toHaveBeenCalledTimes(1);
+    // 2 backdrop rows + 1 non-air tile.
+    expect(ctx.fillRect).toHaveBeenCalledTimes(3);
     expect(ctx.fillRect).toHaveBeenCalledWith(0, 1, 1, 1);
+  });
+
+  it('T-Bg-Sky paints the sky band color for rows above the world surface', () => {
+    const tiles = new Int16Array(1).fill(-1);
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    renderChunkBitmap('w1', 0, 0, tiles, 1, 1, 1, 10, 20, 30);
+
+    expect(callOrder).toEqual([SKY_BAND_COLOR]);
+  });
+
+  it('T-Bg-Dirt paints the dirt band color between surface and rock layers', () => {
+    const tiles = new Int16Array(1).fill(-1);
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    // cy=5, chunkSize=1 → worldY=5. surface=5 → 5 >= surface → dirt band.
+    renderChunkBitmap('w1', 0, 5, tiles, 1, 1, 6, 5, 10, 20);
+
+    expect(callOrder).toEqual([DIRT_BAND_COLOR]);
+  });
+
+  it('T-Bg-Rock paints the rock band color between rock and hell layers', () => {
+    const tiles = new Int16Array(1).fill(-1);
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    // worldY=10, rockY=10 → rock band.
+    renderChunkBitmap('w1', 0, 10, tiles, 1, 1, 11, 5, 10, 20);
+
+    expect(callOrder).toEqual([ROCK_BAND_COLOR]);
+  });
+
+  it('T-Bg-Hell paints black for rows at or below the hell layer', () => {
+    const tiles = new Int16Array(1).fill(-1);
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    // worldY=20, hellY=20 → hell band.
+    renderChunkBitmap('w1', 0, 20, tiles, 1, 1, 21, 5, 10, 20);
+
+    expect(callOrder).toEqual([HELL_BAND_COLOR]);
   });
 });
 
@@ -210,31 +327,32 @@ describe('renderChunkBitmapV2', () => {
     vi.clearAllMocks();
   });
 
-  it('T-VL-1: draws wall color (fillRect) for tiles with wall_id > 0 and no tile', () => {
+  it('T-VL-1: draws wall color (fillRect) on top of the per-row backdrop', () => {
     const data = makeV2Data({ wallId: 1 });
-    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).toHaveBeenCalledTimes(1);
+    // 1 backdrop + 1 wall.
+    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
   });
 
-  it('T-VL-2: draws tile color (fillRect) for tiles with tile_id >= 0 and no wall', () => {
+  it('T-VL-2: draws tile color (fillRect) on top of the per-row backdrop', () => {
     const data = makeV2Data({ tileId: 1 });
-    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).toHaveBeenCalledTimes(1);
+    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
   });
 
-  it('T-VL-3: draws liquid color (fillRect) for tiles with liquid_type > 0 and amount > 0', () => {
+  it('T-VL-3: draws liquid color (fillRect) on top of the per-row backdrop', () => {
     const data = makeV2Data({ liquidType: 1, liquidAmount: 200 });
-    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).toHaveBeenCalledTimes(1);
+    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
   });
 
-  it('T-VL-4: layer order — wall drawn before tile, tile before liquid', () => {
+  it('T-VL-4: layer order — backdrop first, then wall, then tile, then liquid', () => {
     const callOrder: string[] = [];
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const localCtx = {
@@ -244,31 +362,63 @@ describe('renderChunkBitmapV2', () => {
       }),
       clearRect: vi.fn(),
     };
-    // Use once so subsequent tests fall back to the default mockCtx
     mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
 
     const data = makeV2Data({ tileId: 1, wallId: 1, liquidType: 1, liquidAmount: 255 });
-    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
 
-    expect(callOrder).toHaveLength(3);
-    expect(callOrder[0]).toBe(getWallColor(1));
-    expect(callOrder[1]).toBe(getTileColor(1));
-    expect(callOrder[2]).toBe(getLiquidColor(1));
+    expect(callOrder).toHaveLength(4);
+    expect(callOrder[0]).toBe(getBackgroundColor(0, SURFACE_Y, ROCK_Y, HELL_Y));
+    expect(callOrder[1]).toBe(getWallColor(1));
+    expect(callOrder[2]).toBe(getTileColor(1));
+    expect(callOrder[3]).toBe(getLiquidColor(1));
   });
 
-  it('T-VL-5: tile with wall+tile renders 2 fillRect calls total', () => {
+  it('T-VL-5: tile with wall+tile renders backdrop plus 2 layer fills', () => {
     const data = makeV2Data({ tileId: 2, wallId: 3 });
-    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
+    // 1 backdrop + wall + tile.
+    expect(ctx.fillRect).toHaveBeenCalledTimes(3);
   });
 
-  it('T-VL-6: air tile with liquid_amount=0 renders 0 fillRect calls', () => {
-    const data = makeV2Data({ liquidType: 1, liquidAmount: 0 });
-    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1);
+  it('T-VL-6: a cell with no wall/tile/liquid still receives the backdrop band fill', () => {
+    const callOrder: string[] = [];
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).not.toHaveBeenCalled();
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    const data = makeV2Data({ liquidType: 1, liquidAmount: 0 });
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
+
+    expect(localCtx.fillRect).toHaveBeenCalledTimes(1);
+    expect(localCtx.fillRect).toHaveBeenCalledWith(0, 0, 1, 1);
+    expect(callOrder).toEqual([SKY_BAND_COLOR]);
+  });
+
+  it('T-Bg-V2-Underground: cells below the surface get the dirt/rock/hell band, not the sky', () => {
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    const data = makeV2Data({});
+    // cy=5, chunkSize=1 → worldY=5. surface=5 → dirt band.
+    renderChunkBitmapV2('w1', 0, 5, data, 1, 1, 6, 5, 10, 20);
+
+    expect(callOrder).toEqual([DIRT_BAND_COLOR]);
   });
 });

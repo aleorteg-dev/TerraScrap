@@ -522,10 +522,33 @@ const LIQUID_COLORS: Readonly<Record<number, string>> = {
   4: '#a17fff', // shimmer
 };
 
-const AIR_COLOR = '#1a1a2e';
+// Backdrop band colors ported verbatim from TerraMap (main.js:1019, getTileColor).
+// When a cell carries no tile / liquid / wall, the rendered color depends purely
+// on its world Y relative to the three world-layer breakpoints.
+export const SKY_BAND_COLOR = '#84aaf8'; // rgb(132, 170, 248)
+export const DIRT_BAND_COLOR = '#583d2e'; // rgb( 88,  61,  46)
+export const ROCK_BAND_COLOR = '#4a433c'; // rgb( 74,  67,  60)
+export const HELL_BAND_COLOR = '#000000';
+
+// Kept exported for legacy callers of getTileColor(-1); the actual render path
+// resolves the air color through getBackgroundColor() against the world layers.
+export const AIR_COLOR = SKY_BAND_COLOR;
+
 const DEFAULT_TILE_COLOR = '#555555';
 const DEFAULT_WALL_COLOR = '#3a3a3a';
 const DEFAULT_LIQUID_COLOR = '#093dbf';
+
+export function getBackgroundColor(
+  worldY: number,
+  worldSurfaceY: number,
+  rockLayerY: number,
+  hellLayerY: number
+): string {
+  if (worldY < worldSurfaceY) return SKY_BAND_COLOR;
+  if (worldY < rockLayerY) return DIRT_BAND_COLOR;
+  if (worldY < hellLayerY) return ROCK_BAND_COLOR;
+  return HELL_BAND_COLOR;
+}
 
 export function getTileColor(tileId: number): string {
   if (tileId < 0) return AIR_COLOR;
