@@ -8,6 +8,31 @@ import {
 import { computeChunkDimensions } from './chunkDimensions';
 import type { DecodedChunkV2 } from './rleDecoder';
 
+// ── Color cache (hex string → [r, g, b]) ────────────────────────────────────
+
+const _rgbCache = new Map<string, readonly [number, number, number]>();
+
+export function hexToRgb(hex: string): readonly [number, number, number] {
+  let cached = _rgbCache.get(hex);
+  if (cached === undefined) {
+    cached = [
+      parseInt(hex.slice(1, 3), 16),
+      parseInt(hex.slice(3, 5), 16),
+      parseInt(hex.slice(5, 7), 16),
+    ] as const;
+    _rgbCache.set(hex, cached);
+  }
+  return cached;
+}
+
+function writePixel(buf: Uint8ClampedArray, offset: number, hex: string): void {
+  const [r, g, b] = hexToRgb(hex);
+  buf[offset] = r;
+  buf[offset + 1] = g;
+  buf[offset + 2] = b;
+  buf[offset + 3] = 255;
+}
+
 export interface RenderedChunk {
   canvas: HTMLCanvasElement;
   worldId: string;
@@ -88,9 +113,8 @@ export function renderChunkBitmap(
   return { canvas, worldId, cx, cy };
 }
 
-// Renders a v2 decoded chunk to a bitmap canvas:
-// pass 0 — backdrop band per row (sky/dirt/rock/hell),
-// pass 1 — walls, pass 2 — tiles, pass 3 — liquids, pass 4 — wires.
+// Renders a v2 decoded chunk to a bitmap canvas using a single ImageData pass.
+// Layer order per pixel: backdrop → wall → tile → liquid → wire.
 export function renderChunkBitmapV2(
   worldId: string,
   cx: number,
@@ -111,64 +135,62 @@ export function renderChunkBitmapV2(
   canvas.height = dimensions.h;
   const ctx = canvas.getContext('2d');
   if (ctx !== null) {
-    paintBackdrop(
-      ctx,
-      cy,
-      chunkSize,
-      dimensions.w,
-      dimensions.h,
-      worldH,
-      worldSurfaceY,
-      rockLayerY,
-      hellLayerY,
-      surfaceYByColumn
-    );
-    if (opts.showWalls ?? true) {
-      for (let ty = 0; ty < dimensions.h; ty++) {
-        for (let tx = 0; tx < dimensions.w; tx++) {
-          const idx = ty * dimensions.w + tx;
-          const wallId = data.wallId[idx] ?? 0;
-          if (wallId > 0) {
-            ctx.fillStyle = getWallColor(wallId);
-            ctx.fillRect(tx, ty, 1, 1);
-          }
-        }
-      }
-    }
+    const imageData = ctx.createImageData(dimensions.w, dimensions.h);
+    const buf = imageData.data;
+    const bp = resolveBackgroundBreakpoints(worldH, worldSurfaceY, rockLayerY, hellLayerY);
+    const hasColumnSurface = surfaceYByColumn !== undefined && surfaceYByColumn.length > 0;
+    const showWalls = opts.showWalls ?? true;
+    const showLiquids = opts.showLiquids ?? true;
+    const showWires = opts.showWires ?? false;
+
     for (let ty = 0; ty < dimensions.h; ty++) {
+      const worldY = cy * chunkSize + ty;
       for (let tx = 0; tx < dimensions.w; tx++) {
         const idx = ty * dimensions.w + tx;
-        const tileId = data.tileId[idx] ?? -1;
-        if (tileId >= 0) {
-          ctx.fillStyle = getTileColor(tileId);
-          ctx.fillRect(tx, ty, 1, 1);
+        const bufOffset = idx * 4;
+
+        // Pass 0: backdrop
+        let bgColor: string;
+        if (!hasColumnSurface || worldY >= bp.rock) {
+          bgColor = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY, worldH);
+        } else {
+          bgColor = getBackgroundColor(
+            worldY,
+            worldSurfaceY,
+            rockLayerY,
+            hellLayerY,
+            worldH,
+            (surfaceYByColumn as readonly number[])[tx] ?? Number.NaN
+          );
         }
-      }
-    }
-    if (opts.showLiquids ?? true) {
-      for (let ty = 0; ty < dimensions.h; ty++) {
-        for (let tx = 0; tx < dimensions.w; tx++) {
-          const idx = ty * dimensions.w + tx;
+        writePixel(buf, bufOffset, bgColor);
+
+        // Pass 1: wall
+        if (showWalls) {
+          const wallId = data.wallId[idx] ?? 0;
+          if (wallId > 0) writePixel(buf, bufOffset, getWallColor(wallId));
+        }
+
+        // Pass 2: tile
+        const tileId = data.tileId[idx] ?? -1;
+        if (tileId >= 0) writePixel(buf, bufOffset, getTileColor(tileId));
+
+        // Pass 3: liquid
+        if (showLiquids) {
           const liquidType = data.liquidType[idx] ?? 0;
           const liquidAmount = data.liquidAmount[idx] ?? 0;
-          if (liquidType > 0 && liquidAmount > 0) {
-            ctx.fillStyle = getLiquidColor(liquidType);
-            ctx.fillRect(tx, ty, 1, 1);
-          }
+          if (liquidType > 0 && liquidAmount > 0)
+            writePixel(buf, bufOffset, getLiquidColor(liquidType));
+        }
+
+        // Pass 4: wire
+        if (showWires && ((data.flags[idx] ?? 0) & 0b0011_1100) !== 0) {
+          writePixel(buf, bufOffset, '#e53935');
         }
       }
     }
-    if (opts.showWires ?? false) {
-      ctx.fillStyle = '#e53935';
-      for (let ty = 0; ty < dimensions.h; ty++) {
-        for (let tx = 0; tx < dimensions.w; tx++) {
-          const idx = ty * dimensions.w + tx;
-          if (((data.flags[idx] ?? 0) & 0b0011_1100) !== 0) {
-            ctx.fillRect(tx, ty, 1, 1);
-          }
-        }
-      }
-    }
+
+    ctx.putImageData(imageData, 0, 0);
   }
   return { canvas, worldId, cx, cy };
 }

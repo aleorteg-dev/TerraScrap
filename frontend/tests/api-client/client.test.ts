@@ -78,7 +78,7 @@ describe('uploadWorld', () => {
     });
   });
 
-  it('T-14a uploadWorld onProgress callback receives monotonic 0..100 values', async () => {
+  it('T-14a uploadWorld onProgress never emits 100 from XHR upload alone', async () => {
     type Listener = (ev: ProgressEvent) => void;
     const upload = {
       onprogress: null as Listener | null,
@@ -98,12 +98,12 @@ describe('uploadWorld', () => {
       upload,
       onload: null,
       onerror: null,
-      status: 200,
-      responseText: JSON.stringify({ world_id: 'wid', metadata: WORLD_META }),
+      status: 202,
+      // XHR now returns a job_id, not world_id
+      responseText: JSON.stringify({ job_id: 'job-1' }),
       responseType: 'text',
       open: vi.fn(),
       send: vi.fn().mockImplementation(function (this: typeof xhr) {
-        // Simulate three progress events then load.
         const fire = (loaded: number): void => {
           upload.onprogress?.({
             lengthComputable: true,
@@ -118,8 +118,17 @@ describe('uploadWorld', () => {
       }),
       getResponseHeader: (name: string) => (name.toLowerCase() === 'x-api-version' ? '0.2' : null),
     };
+
+    // fetchImpl is used for polling: return done job immediately
+    const fetchMock = makeFetch(200, {
+      job_id: 'job-1',
+      status: 'done',
+      pct: 100,
+      world_id: 'wid',
+      metadata: WORLD_META,
+    });
     const client = createApiClient({
-      fetchImpl: asFetch(vi.fn()),
+      fetchImpl: asFetch(fetchMock),
       xhrFactory: () => xhr as unknown as XMLHttpRequest,
     });
 
@@ -131,7 +140,13 @@ describe('uploadWorld', () => {
     const result = await client.uploadWorld(new File(['x'], 'w.wld'), { onProgress });
 
     expect(result.worldId).toBe('wid');
-    expect(calls.length).toBeGreaterThanOrEqual(2);
+    // No value in calls should be 100 from the XHR upload phase alone.
+    // XHR upload caps at 49%; 100 is only the final value.
+    const uploadOnlyCalls = calls.filter((v) => v < 50);
+    for (const v of uploadOnlyCalls) {
+      expect(v).toBeLessThan(50); // XHR upload stays below 50
+    }
+    // All values must be monotonic and within 0-100
     for (let i = 1; i < calls.length; i++) {
       const prev = calls[i - 1] ?? 0;
       const cur = calls[i] ?? 0;
@@ -141,7 +156,79 @@ describe('uploadWorld', () => {
       expect(v).toBeGreaterThanOrEqual(0);
       expect(v).toBeLessThanOrEqual(100);
     }
+    // Final value must be exactly 100
     expect(calls[calls.length - 1]).toBe(100);
+  });
+
+  it('T-14b uploadWorld onProgress: job poll resolves final worldId and metadata', async () => {
+    type Listener = (ev: ProgressEvent) => void;
+    const upload = { onprogress: null as Listener | null, onerror: null as (() => void) | null };
+    const xhr = {
+      upload,
+      onload: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      status: 202,
+      responseText: JSON.stringify({ job_id: 'job-abc' }),
+      responseType: 'text',
+      open: vi.fn(),
+      send: vi.fn().mockImplementation(function (this: typeof xhr) {
+        this.onload?.();
+      }),
+      getResponseHeader: (name: string) => (name.toLowerCase() === 'x-api-version' ? '0.2' : null),
+    };
+
+    const fetchMock = makeFetch(200, {
+      job_id: 'job-abc',
+      status: 'done',
+      pct: 100,
+      world_id: 'final-world-id',
+      metadata: WORLD_META,
+    });
+    const client = createApiClient({
+      fetchImpl: asFetch(fetchMock),
+      xhrFactory: () => xhr as unknown as XMLHttpRequest,
+    });
+
+    const result = await client.uploadWorld(new File(['x'], 'w.wld'), {
+      onProgress: () => {},
+    });
+
+    expect(result.worldId).toBe('final-world-id');
+    expect(result.metadata.name).toBe('Test World');
+  });
+
+  it('T-14c uploadWorld onProgress: job error propagates as ApiError', async () => {
+    type Listener = (ev: ProgressEvent) => void;
+    const upload = { onprogress: null as Listener | null, onerror: null as (() => void) | null };
+    const xhr = {
+      upload,
+      onload: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      status: 202,
+      responseText: JSON.stringify({ job_id: 'job-err' }),
+      responseType: 'text',
+      open: vi.fn(),
+      send: vi.fn().mockImplementation(function (this: typeof xhr) {
+        this.onload?.();
+      }),
+      getResponseHeader: (name: string) => (name.toLowerCase() === 'x-api-version' ? '0.2' : null),
+    };
+
+    const fetchMock = makeFetch(200, {
+      job_id: 'job-err',
+      status: 'error',
+      pct: 30,
+      error_code: 'invalid_wld',
+      error_message: 'Not a valid .wld file',
+    });
+    const client = createApiClient({
+      fetchImpl: asFetch(fetchMock),
+      xhrFactory: () => xhr as unknown as XMLHttpRequest,
+    });
+
+    await expect(
+      client.uploadWorld(new File(['x'], 'w.wld'), { onProgress: () => {} })
+    ).rejects.toMatchObject({ code: 'invalid_wld' });
   });
 });
 

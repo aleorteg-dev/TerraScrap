@@ -3,6 +3,7 @@ import {
   createChunkBitmapCache,
   renderChunkBitmap,
   renderChunkBitmapV2,
+  hexToRgb,
 } from '../chunkBitmapCache';
 import type { DecodedChunkV2 } from '../rleDecoder';
 import {
@@ -16,6 +17,36 @@ import {
   ROCK_BAND_COLOR,
   HELL_BAND_COLOR,
 } from '../tileColors';
+
+// Helper: make a local mock context with createImageData/putImageData support.
+function makeLocalCtxV2(): {
+  createImageData: ReturnType<typeof vi.fn>;
+  putImageData: ReturnType<typeof vi.fn>;
+  clearRect: ReturnType<typeof vi.fn>;
+  fillStyle?: string;
+} & Partial<CanvasRenderingContext2D> {
+  return {
+    createImageData: vi
+      .fn()
+      .mockImplementation(
+        (w: number, h: number): ImageData =>
+          ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }) as ImageData
+      ),
+    putImageData: vi.fn(),
+    clearRect: vi.fn(),
+  };
+}
+
+// Read pixel RGBA at index 0 from imageData captured by putImageData.
+function firstPixelRgba(
+  ctx: ReturnType<typeof makeLocalCtxV2>
+): readonly [number, number, number, number] {
+  const calls = ctx.putImageData.mock.calls as ReadonlyArray<readonly [ImageData, ...unknown[]]>;
+  const imageData = calls[0]?.[0];
+  if (!imageData) throw new Error('putImageData was not called');
+  const d = imageData.data;
+  return [d[0] ?? 0, d[1] ?? 0, d[2] ?? 0, d[3] ?? 0] as const;
+}
 
 const REALISTIC_WORLD_WIDTH = 8400;
 const REALISTIC_WORLD_HEIGHT = 2400;
@@ -393,140 +424,133 @@ describe('renderChunkBitmapV2', () => {
     vi.clearAllMocks();
   });
 
-  it('T-VL-1: draws wall color (fillRect) on top of the per-row backdrop', () => {
+  it('T-VL-1: wall color overwrites backdrop in ImageData (putImageData called once)', () => {
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = makeLocalCtxV2();
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
     const data = makeV2Data({ wallId: 1 });
     renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
-    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    // 1 backdrop + 1 wall.
-    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
+    expect(localCtx.putImageData).toHaveBeenCalledTimes(1);
+    const [r, g, b, a] = firstPixelRgba(localCtx);
+    const [wr, wg, wb] = hexToRgb(getWallColor(1));
+    expect(r).toBe(wr);
+    expect(g).toBe(wg);
+    expect(b).toBe(wb);
+    expect(a).toBe(255);
   });
 
-  it('T-VL-2: draws tile color (fillRect) on top of the per-row backdrop', () => {
+  it('T-VL-2: tile color overwrites backdrop in ImageData', () => {
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = makeLocalCtxV2();
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
     const data = makeV2Data({ tileId: 1 });
     renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
-    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
+    expect(localCtx.putImageData).toHaveBeenCalledTimes(1);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [tr, tg, tb] = hexToRgb(getTileColor(1));
+    expect(r).toBe(tr);
+    expect(g).toBe(tg);
+    expect(b).toBe(tb);
   });
 
-  it('T-VL-3: draws liquid color (fillRect) on top of the per-row backdrop', () => {
+  it('T-VL-3: liquid color overwrites backdrop in ImageData', () => {
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = makeLocalCtxV2();
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
     const data = makeV2Data({ liquidType: 1, liquidAmount: 200 });
     renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
-    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
+    expect(localCtx.putImageData).toHaveBeenCalledTimes(1);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [lr, lg, lb] = hexToRgb(getLiquidColor(1));
+    expect(r).toBe(lr);
+    expect(g).toBe(lg);
+    expect(b).toBe(lb);
   });
 
-  it('T-VL-4: layer order — backdrop first, then wall, then tile, then liquid', () => {
-    const callOrder: string[] = [];
+  it('T-VL-4: layer order — liquid wins over tile wins over wall wins over backdrop', () => {
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const localCtx = {
-      fillStyle: '' as string | CanvasGradient | CanvasPattern,
-      fillRect: vi.fn().mockImplementation(() => {
-        callOrder.push(String(localCtx.fillStyle));
-      }),
-      clearRect: vi.fn(),
-    };
+    const localCtx = makeLocalCtxV2();
     mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
-
     const data = makeV2Data({ tileId: 1, wallId: 1, liquidType: 1, liquidAmount: 255 });
     renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
-
-    expect(callOrder).toHaveLength(4);
-    expect(callOrder[0]).toBe(getBackgroundColor(0, SURFACE_Y, ROCK_Y, HELL_Y));
-    expect(callOrder[1]).toBe(getWallColor(1));
-    expect(callOrder[2]).toBe(getTileColor(1));
-    expect(callOrder[3]).toBe(getLiquidColor(1));
+    expect(localCtx.putImageData).toHaveBeenCalledTimes(1);
+    // Final pixel must be liquid color (topmost layer)
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [lr, lg, lb] = hexToRgb(getLiquidColor(1));
+    expect(r).toBe(lr);
+    expect(g).toBe(lg);
+    expect(b).toBe(lb);
   });
 
-  it('T-VL-5: tile with wall+tile renders backdrop plus 2 layer fills', () => {
+  it('T-VL-5: wall+tile — pixel gets tile color (tile wins over wall)', () => {
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = makeLocalCtxV2();
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
     const data = makeV2Data({ tileId: 2, wallId: 3 });
     renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
-    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const ctx = mockCtxGet.mock.results[0]?.value as { fillRect: ReturnType<typeof vi.fn> };
-    // 1 backdrop + wall + tile.
-    expect(ctx.fillRect).toHaveBeenCalledTimes(3);
+    expect(localCtx.putImageData).toHaveBeenCalledTimes(1);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [tr, tg, tb] = hexToRgb(getTileColor(2));
+    expect(r).toBe(tr);
+    expect(g).toBe(tg);
+    expect(b).toBe(tb);
   });
 
-  it('T-VL-6: a cell with no wall/tile/liquid still receives the backdrop band fill', () => {
-    const callOrder: string[] = [];
+  it('T-VL-6: air cell gets backdrop color — putImageData called once', () => {
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const localCtx = {
-      fillStyle: '' as string | CanvasGradient | CanvasPattern,
-      fillRect: vi.fn().mockImplementation(() => {
-        callOrder.push(String(localCtx.fillStyle));
-      }),
-      clearRect: vi.fn(),
-    };
+    const localCtx = makeLocalCtxV2();
     mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
-
     const data = makeV2Data({ liquidType: 1, liquidAmount: 0 });
     renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
-
-    expect(localCtx.fillRect).toHaveBeenCalledTimes(1);
-    expect(localCtx.fillRect).toHaveBeenCalledWith(0, 0, 1, 1);
-    expect(callOrder).toEqual([SKY_TOP_COLOR]);
+    expect(localCtx.putImageData).toHaveBeenCalledTimes(1);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [br, bg2, bb] = hexToRgb(getBackgroundColor(0, SURFACE_Y, ROCK_Y, HELL_Y));
+    expect(r).toBe(br);
+    expect(g).toBe(bg2);
+    expect(b).toBe(bb);
   });
 
-  it('T-Bg-V2-Underground: cells below the surface get the dirt/rock/hell band, not the sky', () => {
-    const callOrder: string[] = [];
+  it('T-Bg-V2-Underground: cells below surface get dirt/rock/hell band color', () => {
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const localCtx = {
-      fillStyle: '' as string | CanvasGradient | CanvasPattern,
-      fillRect: vi.fn().mockImplementation(() => {
-        callOrder.push(String(localCtx.fillStyle));
-      }),
-      clearRect: vi.fn(),
-    };
+    const localCtx = makeLocalCtxV2();
     mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
-
-    const data = makeV2Data({});
     // cy=5, chunkSize=1 → worldY=5. surface=5 → dirt band.
-    renderChunkBitmapV2('w1', 0, 5, data, 1, 1, 6, 5, 10, 20);
-
-    expect(callOrder).toEqual([DIRT_BAND_COLOR]);
+    renderChunkBitmapV2('w1', 0, 5, makeV2Data({}), 1, 1, 6, 5, 10, 20);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [dr, dg, db] = hexToRgb(DIRT_BAND_COLOR);
+    expect(r).toBe(dr);
+    expect(g).toBe(dg);
+    expect(b).toBe(db);
   });
 
-  it('T-Bg-V2-ColumnSky: open air above the column surface stays sky below global surface band', () => {
-    const callOrder: string[] = [];
+  it('T-Bg-V2-ColumnSky: open air above the column surface stays sky', () => {
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const localCtx = {
-      fillStyle: '' as string | CanvasGradient | CanvasPattern,
-      fillRect: vi.fn().mockImplementation(() => {
-        callOrder.push(String(localCtx.fillStyle));
-      }),
-      clearRect: vi.fn(),
-    };
+    const localCtx = makeLocalCtxV2();
     mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
-
-    const data = makeV2Data({});
-    renderChunkBitmapV2('w1', 0, 320, data, 1, 1, 1200, 240, 600, 1100, {}, [420]);
-
-    expect(callOrder).toEqual([getBackgroundColor(320, 240, 600, 1100, 1200, 420)]);
-    expect(callOrder[0]).not.toBe(DIRT_BAND_COLOR);
+    renderChunkBitmapV2('w1', 0, 320, makeV2Data({}), 1, 1, 1200, 240, 600, 1100, {}, [420]);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const expectedColor = getBackgroundColor(320, 240, 600, 1100, 1200, 420);
+    const [er, eg, eb] = hexToRgb(expectedColor);
+    expect(r).toBe(er);
+    expect(g).toBe(eg);
+    expect(b).toBe(eb);
+    const [dr] = hexToRgb(DIRT_BAND_COLOR);
+    expect(r).not.toBe(dr);
   });
 
-  it('T-Bg-V2-ColumnGround: air below the column surface still uses underground background', () => {
-    const callOrder: string[] = [];
+  it('T-Bg-V2-ColumnGround: air below column surface uses underground background', () => {
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const localCtx = {
-      fillStyle: '' as string | CanvasGradient | CanvasPattern,
-      fillRect: vi.fn().mockImplementation(() => {
-        callOrder.push(String(localCtx.fillStyle));
-      }),
-      clearRect: vi.fn(),
-    };
+    const localCtx = makeLocalCtxV2();
     mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
-
-    const data = makeV2Data({});
-    renderChunkBitmapV2('w1', 0, 320, data, 1, 1, 1200, 240, 600, 1100, {}, [300]);
-
-    expect(callOrder).toEqual([DIRT_BAND_COLOR]);
+    renderChunkBitmapV2('w1', 0, 320, makeV2Data({}), 1, 1, 1200, 240, 600, 1100, {}, [300]);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [dr, dg, db] = hexToRgb(DIRT_BAND_COLOR);
+    expect(r).toBe(dr);
+    expect(g).toBe(dg);
+    expect(b).toBe(db);
   });
 
-  it('T-Bg-V2-Bands: renders sky/dirt/rock/hell colors at each band for a small world (4200x1200)', () => {
-    // Realistic small-world breakpoints, one paint per band depth.
+  it('T-Bg-V2-Bands: renders sky/dirt/rock/hell colors at each band depth', () => {
     const worldH = 1200;
     const surface = 245;
     const rock = 411;
@@ -540,50 +564,38 @@ describe('renderChunkBitmapV2', () => {
     for (const { cy, expected } of cases) {
       vi.clearAllMocks();
       const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-      const localCtx = {
-        fillStyle: '' as string | CanvasGradient | CanvasPattern,
-        fillRect: vi.fn().mockImplementation(() => {}),
-        clearRect: vi.fn(),
-      };
-      let captured = '';
-      localCtx.fillRect.mockImplementation(() => {
-        if (!captured) captured = String(localCtx.fillStyle);
-      });
+      const localCtx = makeLocalCtxV2();
       mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
       renderChunkBitmapV2('w1', 0, cy, makeV2Data({}), 1, 1, worldH, surface, rock, hell);
-      expect(captured).toBe(expected);
+      const [r, g, b] = firstPixelRgba(localCtx);
+      const [er, eg, eb] = hexToRgb(expected);
+      expect(r).toBe(er);
+      expect(g).toBe(eg);
+      expect(b).toBe(eb);
     }
   });
 
-  it('T-Bg-V2-ColumnClamped: a per-column surface_y deep in rock never paints rock as sky', () => {
-    const callOrder: string[] = [];
+  it('T-Bg-V2-ColumnClamped: surface_y deep in rock never paints rock as sky', () => {
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const localCtx = {
-      fillStyle: '' as string | CanvasGradient | CanvasPattern,
-      fillRect: vi.fn().mockImplementation(() => {
-        callOrder.push(String(localCtx.fillStyle));
-      }),
-      clearRect: vi.fn(),
-    };
+    const localCtx = makeLocalCtxV2();
     mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
-    // Small world. worldY=600 sits in the rock band; column surface=1199 is
-    // absurd (would paint sky to bedrock if unclamped).
     renderChunkBitmapV2('w1', 0, 600, makeV2Data({}), 1, 1, 1200, 245, 411, 965, {}, [1199]);
-    expect(callOrder).toEqual([ROCK_BAND_COLOR]);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [rr, rg, rb] = hexToRgb(ROCK_BAND_COLOR);
+    expect(r).toBe(rr);
+    expect(g).toBe(rg);
+    expect(b).toBe(rb);
   });
 
-  it('T-Bg-V2-ColumnClampedHell: per-column surface_y at world bottom keeps hell black', () => {
-    const callOrder: string[] = [];
+  it('T-Bg-V2-ColumnClampedHell: per-column surface_y at world bottom keeps hell color', () => {
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-    const localCtx = {
-      fillStyle: '' as string | CanvasGradient | CanvasPattern,
-      fillRect: vi.fn().mockImplementation(() => {
-        callOrder.push(String(localCtx.fillStyle));
-      }),
-      clearRect: vi.fn(),
-    };
+    const localCtx = makeLocalCtxV2();
     mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
     renderChunkBitmapV2('w1', 0, 1000, makeV2Data({}), 1, 1, 1200, 245, 411, 965, {}, [1199]);
-    expect(callOrder).toEqual([HELL_BAND_COLOR]);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [hr, hg, hb] = hexToRgb(HELL_BAND_COLOR);
+    expect(r).toBe(hr);
+    expect(g).toBe(hg);
+    expect(b).toBe(hb);
   });
 });
