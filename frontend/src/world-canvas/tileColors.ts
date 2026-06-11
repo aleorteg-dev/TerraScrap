@@ -637,9 +637,7 @@ export function resolveBackgroundBreakpoints(
   hellLayerY: number
 ): BackgroundBreakpoints {
   const h = Number.isFinite(worldHeight) && worldHeight > 0 ? worldHeight : 1200;
-  const surface = isUsableSurfaceBreakpoint(worldSurfaceY, h)
-    ? worldSurfaceY
-    : Math.floor(h * 0.2);
+  const surface = isUsableSurfaceBreakpoint(worldSurfaceY, h) ? worldSurfaceY : Math.floor(h * 0.2);
   const rock =
     isUsableLowerBreakpoint(rockLayerY, surface, h) && rockLayerY > surface
       ? rockLayerY
@@ -656,15 +654,8 @@ export function resolveBackgroundBreakpoints(
 // the global surface (canyons, spawn arenas) but is clamped to bp.rock so
 // caves and hell can never be repainted as sky — no matter how bogus or
 // maximal the per-column value is.
-function effectiveSurfaceY(
-  bp: BackgroundBreakpoints,
-  openSkySurfaceY: number | undefined
-): number {
-  if (
-    openSkySurfaceY === undefined ||
-    !Number.isFinite(openSkySurfaceY) ||
-    openSkySurfaceY <= 0
-  ) {
+function effectiveSurfaceY(bp: BackgroundBreakpoints, openSkySurfaceY: number | undefined): number {
+  if (openSkySurfaceY === undefined || !Number.isFinite(openSkySurfaceY) || openSkySurfaceY <= 0) {
     return bp.surface;
   }
   return Math.min(Math.max(bp.surface, openSkySurfaceY), bp.rock);
@@ -697,12 +688,7 @@ export function getBackgroundColor(
   worldHeight = Number.NaN,
   openSkySurfaceY = Number.NaN
 ): string {
-  const bp = resolveBackgroundBreakpoints(
-    worldHeight,
-    worldSurfaceY,
-    rockLayerY,
-    hellLayerY
-  );
+  const bp = resolveBackgroundBreakpoints(worldHeight, worldSurfaceY, rockLayerY, hellLayerY);
   const surface = effectiveSurfaceY(bp, openSkySurfaceY);
   if (worldY < surface) {
     // Sky gradient depends on the GLOBAL surface (bp.surface), never on the

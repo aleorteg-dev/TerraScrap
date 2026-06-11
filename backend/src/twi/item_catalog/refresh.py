@@ -3,7 +3,7 @@
 Usage:
     python -m twi.item_catalog.refresh [--output PATH] [--enrich]
 
-Default output: bundled versioned seed at item_catalog/data/items_seed.v2.json.
+Default output: bundled seed at item_catalog/data/items.seed.json.
 Idempotent: if scraping fails (wiki unavailable / schema changed), the existing
 seed file is left untouched and the process exits with non-zero status.
 """
@@ -23,9 +23,8 @@ from twi.item_catalog.scraper import (
     refresh_cache_from_wiki,
 )
 
-_SEED_VERSION: int = 2
 _DATA_DIR = Path(__file__).parent / "data"
-_DEFAULT_SEED = _DATA_DIR / f"items_seed.v{_SEED_VERSION}.json"
+_DEFAULT_SEED = _DATA_DIR / "items.seed.json"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 _log = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ def main() -> None:
         "--output",
         type=Path,
         default=_DEFAULT_SEED,
-        help=f"Output path (default: bundled v{_SEED_VERSION} seed)",
+        help="Output path (default: bundled seed)",
     )
     parser.add_argument(
         "--enrich",

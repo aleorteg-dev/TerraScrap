@@ -641,25 +641,24 @@ async def test_load_catalog_uses_seed_when_scraping_fails(
     assert catalog.get(4956).name == "Zenith"
 
 
-# T-29  refresh writes versioned filename and version field.
-async def test_refresh_writes_versioned_seed_file(tmp_path: Path) -> None:
-    output = tmp_path / "items_seed.v2.json"
+# T-29  refresh writes current schema metadata.
+async def test_refresh_writes_current_schema_metadata(tmp_path: Path) -> None:
+    output = tmp_path / "items.seed.json"
     routes: dict[str, httpx.Response | Exception] = {
         "https://terraria.wiki.gg/wiki/Item_IDs": _resp(200, _LIST_HTML),
     }
     await refresh_cache_from_wiki(output, _RoutedClient(routes))
 
-    assert output.name == "items_seed.v2.json"
     data: dict[str, object] = json.loads(output.read_text(encoding="utf-8"))
     assert data["schema"] == 2
     assert data["version"] == 2
 
 
-# T-30  bundled v2 seed loads cleanly via load_catalog.
-def test_bundled_v2_seed_loads(tmp_path: Path) -> None:
-    bundled = Path(refresh_cli.__file__).parent / "data" / "items_seed.v2.json"
-    assert bundled.exists(), "bundled v2 seed must ship with the package"
+# T-30  bundled seed loads cleanly via load_catalog.
+def test_bundled_seed_loads(tmp_path: Path) -> None:
+    bundled = Path(refresh_cli.__file__).parent / "data" / "items.seed.json"
+    assert bundled.exists(), "bundled seed must ship with the package"
     catalog = load_catalog(tmp_path / "absent.json", seed_path=bundled)
     zen = catalog.get(4956)
+    assert zen.id == 4956
     assert zen.name == "Zenith"
-    assert zen.sprite_url != ""

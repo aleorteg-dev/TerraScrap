@@ -213,7 +213,9 @@ describe('WorldCanvas', () => {
       fillRect: vi.fn(),
     };
     mockCtxGet.mockImplementation(function (this: HTMLCanvasElement) {
-      return (this.dataset.testid === 'world-canvas' ? mainCtx : chunkCtx) as CanvasRenderingContext2D;
+      return (
+        this.dataset.testid === 'world-canvas' ? mainCtx : chunkCtx
+      ) as CanvasRenderingContext2D;
     });
 
     render(<WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} />);

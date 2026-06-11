@@ -199,9 +199,7 @@ describe('getBackgroundColor (TerraMap layer banding)', () => {
   });
 
   it('does not treat tiny positive surface metadata as a valid surface', () => {
-    expect(getBackgroundColor(10, Number.MIN_VALUE, 0, 0, 1200)).toBe(
-      getSkyGradientColor(10, 240)
-    );
+    expect(getBackgroundColor(10, Number.MIN_VALUE, 0, 0, 1200)).toBe(getSkyGradientColor(10, 240));
     expect(getBackgroundColor(10, 1, 2, 3, 1200)).not.toBe(DIRT_BAND_COLOR);
   });
 
@@ -245,17 +243,13 @@ describe('background band classification across world sizes', () => {
         DIRT_BAND_COLOR
       );
       // rock boundary: y at boundary is rock.
-      expect(getBackgroundColor(w.rock, w.surface, w.rock, w.hell, w.height)).toBe(
-        ROCK_BAND_COLOR
-      );
+      expect(getBackgroundColor(w.rock, w.surface, w.rock, w.hell, w.height)).toBe(ROCK_BAND_COLOR);
       // rock band: row just before hell remains rock.
       expect(getBackgroundColor(w.hell - 1, w.surface, w.rock, w.hell, w.height)).toBe(
         ROCK_BAND_COLOR
       );
       // hell boundary: y at boundary is hell.
-      expect(getBackgroundColor(w.hell, w.surface, w.rock, w.hell, w.height)).toBe(
-        HELL_BAND_COLOR
-      );
+      expect(getBackgroundColor(w.hell, w.surface, w.rock, w.hell, w.height)).toBe(HELL_BAND_COLOR);
       // hell band: row near bedrock remains hell.
       expect(getBackgroundColor(w.height - 1, w.surface, w.rock, w.hell, w.height)).toBe(
         HELL_BAND_COLOR
@@ -275,9 +269,7 @@ describe('background band classification across world sizes', () => {
     // Bogus per-column surface deep into the rock layer must NOT repaint rock as sky.
     expect(getBackgroundColor(500, surface, rock, hell, height, 800)).toBe(ROCK_BAND_COLOR);
     // Even an absurd per-column surface at the world bottom must not turn hell into sky.
-    expect(getBackgroundColor(1000, surface, rock, hell, height, height - 1)).toBe(
-      HELL_BAND_COLOR
-    );
+    expect(getBackgroundColor(1000, surface, rock, hell, height, height - 1)).toBe(HELL_BAND_COLOR);
     // The rock boundary still wins: y at rock stays rock under any per-column value.
     expect(getBackgroundColor(rock, surface, rock, hell, height, 900)).toBe(ROCK_BAND_COLOR);
   });
