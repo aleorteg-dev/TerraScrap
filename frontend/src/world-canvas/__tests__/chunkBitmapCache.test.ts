@@ -26,10 +26,12 @@ function makeLocalCtxV2(): {
   fillStyle?: string;
 } & Partial<CanvasRenderingContext2D> {
   return {
-    createImageData: vi.fn().mockImplementation(
-      (w: number, h: number): ImageData =>
-        ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }) as ImageData
-    ),
+    createImageData: vi
+      .fn()
+      .mockImplementation(
+        (w: number, h: number): ImageData =>
+          ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }) as ImageData
+      ),
     putImageData: vi.fn(),
     clearRect: vi.fn(),
   };

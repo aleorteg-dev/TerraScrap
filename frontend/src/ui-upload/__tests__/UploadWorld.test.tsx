@@ -196,12 +196,16 @@ describe('UploadWorld', () => {
     await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
 
     // Simulate progress up to 99% — bar must stay visible, onUploaded not called
-    act(() => { capturedOnProgress!(99); });
+    act(() => {
+      capturedOnProgress!(99);
+    });
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '99');
     expect(onUploaded).not.toHaveBeenCalled();
 
     // Resolve with worldId — triggers onUploaded and removes bar
-    act(() => { resolveUpload({ worldId: 'w1', metadata: mockMeta }); });
+    act(() => {
+      resolveUpload({ worldId: 'w1', metadata: mockMeta });
+    });
     await waitFor(() => expect(onUploaded).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
   });

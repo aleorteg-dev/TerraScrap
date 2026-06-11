@@ -174,8 +174,7 @@ describe('uploadWorld', () => {
       send: vi.fn().mockImplementation(function (this: typeof xhr) {
         this.onload?.();
       }),
-      getResponseHeader: (name: string) =>
-        name.toLowerCase() === 'x-api-version' ? '0.2' : null,
+      getResponseHeader: (name: string) => (name.toLowerCase() === 'x-api-version' ? '0.2' : null),
     };
 
     const fetchMock = makeFetch(200, {
@@ -212,8 +211,7 @@ describe('uploadWorld', () => {
       send: vi.fn().mockImplementation(function (this: typeof xhr) {
         this.onload?.();
       }),
-      getResponseHeader: (name: string) =>
-        name.toLowerCase() === 'x-api-version' ? '0.2' : null,
+      getResponseHeader: (name: string) => (name.toLowerCase() === 'x-api-version' ? '0.2' : null),
     };
 
     const fetchMock = makeFetch(200, {

@@ -1980,8 +1980,6 @@ def test_import_progress_callback_called(
     catalog: _FakeCatalog,
     search_engine: _FakeSearch,
 ) -> None:
-    progress_calls: list[int] = []
-
     def _capturing_parser(data: bytes, cb: Callable[[int], None] | None) -> World:
         if cb is not None:
             for pct in [10, 30, 60, 100]:

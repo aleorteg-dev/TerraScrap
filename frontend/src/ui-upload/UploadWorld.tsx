@@ -190,9 +190,7 @@ export const UploadWorld: FC<UploadProps> = ({
       {phase === 'uploading' && (
         <div
           role="progressbar"
-          aria-label={
-            progress !== null && progress >= 50 ? 'Procesando mundo' : 'Subiendo mundo'
-          }
+          aria-label={progress !== null && progress >= 50 ? 'Procesando mundo' : 'Subiendo mundo'}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress !== null ? progress : undefined}
