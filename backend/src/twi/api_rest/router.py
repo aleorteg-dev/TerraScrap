@@ -135,6 +135,22 @@ def _chunk_bounds(
     return start_x, start_y, w, h
 
 
+def _chunk_surface_y(tiles: TileGrid, chunk_x: int, chunk_size: int) -> list[int]:
+    """Return first active tile Y for each world column covered by a chunk."""
+    start_x = chunk_x * chunk_size
+    w = min(chunk_size, max(0, tiles.width - start_x))
+    surface_y: list[int] = []
+    for x in range(start_x, start_x + w):
+        first_solid = tiles.height
+        column = tiles[x]
+        for y, tile in enumerate(column):
+            if tile.tile_id is not None:
+                first_solid = y
+                break
+        surface_y.append(first_solid)
+    return surface_y
+
+
 def _encode_chunk(
     tiles: TileGrid,
     chunk_x: int,
@@ -373,6 +389,7 @@ def create_router(
                 height=h,
                 encoding="base64-rle-v2",
                 payload=payload,
+                surface_y=_chunk_surface_y(world.tiles, chunk_x, chunk_size),
             )
         else:
             w, h, payload = _encode_chunk(world.tiles, chunk_x, chunk_y, chunk_size)
@@ -383,6 +400,7 @@ def create_router(
                 height=h,
                 encoding="base64-rle-v1",
                 payload=payload,
+                surface_y=_chunk_surface_y(world.tiles, chunk_x, chunk_size),
             )
         return _ok(enc)
 

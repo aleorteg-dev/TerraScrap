@@ -649,7 +649,8 @@ export function getBackgroundColor(
   worldSurfaceY: number,
   rockLayerY: number,
   hellLayerY: number,
-  worldHeight = Number.NaN
+  worldHeight = Number.NaN,
+  openSkySurfaceY = Number.NaN
 ): string {
   const { surface, rock, hell } = resolveBreakpoints(
     worldHeight,
@@ -657,6 +658,9 @@ export function getBackgroundColor(
     rockLayerY,
     hellLayerY
   );
+  if (Number.isFinite(openSkySurfaceY) && worldY < openSkySurfaceY) {
+    return getSkyGradientColor(worldY, Math.max(openSkySurfaceY, 1));
+  }
   if (worldY < surface) return getSkyGradientColor(worldY, surface);
   if (worldY < rock) return DIRT_BAND_COLOR;
   if (worldY < hell) return ROCK_BAND_COLOR;

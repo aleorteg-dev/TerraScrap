@@ -11,6 +11,7 @@ export type WorldMetadata = components["schemas"]["WorldMetadataDto"];
 export type SearchMatch = components["schemas"]["SearchMatchDto"];
 export type SearchResult = components["schemas"]["SearchResultDto"];
 export type ItemSummary = components["schemas"]["ItemSummaryDto"];
+export type TilesChunk = components["schemas"]["TilesChunkDto"]; // incluye surface_y?: number[] | null
 
 // ── Error hierarchy ────────────────────────────────────────────────
 class ApiError extends Error {
@@ -147,7 +148,7 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 
 ## 13. Estado
 - **Versión del contrato consumida**: api-contract.md v0.2
-- **Versión OpenAPI**: snapshot v0.2 en `docs/contracts/openapi.json` (iter-11)
+- **Versión OpenAPI**: snapshot v0.2 en `docs/contracts/openapi.json` (actualizado 2026-06-11 con `TilesChunkDto.surface_y`)
 - **Último cierre**: 2026-05-10 (iter-14)
 - **Iteración actual**: cerrada
 

@@ -200,6 +200,30 @@ describe('WorldCanvas', () => {
     });
   });
 
+  it('does not draw the orange spawn marker by default', async () => {
+    const apiClient = makeApiClient();
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const mainCtx = {
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      drawImage: vi.fn() as unknown as CanvasRenderingContext2D['drawImage'],
+    };
+    const chunkCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn(),
+    };
+    mockCtxGet.mockImplementation(function (this: HTMLCanvasElement) {
+      return (this.dataset.testid === 'world-canvas' ? mainCtx : chunkCtx) as CanvasRenderingContext2D;
+    });
+
+    render(<WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} />);
+
+    await waitFor(() => {
+      expect(mainCtx.drawImage).toHaveBeenCalled();
+      expect(mainCtx.fillRect).not.toHaveBeenCalled();
+    });
+  });
+
   it('T-13 WorldCanvas should draw clipped dimensions for edge chunks in a non-multiple world', async () => {
     const edgeMeta: WorldMetadata = {
       ...mockMeta,

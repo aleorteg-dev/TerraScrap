@@ -158,6 +158,14 @@ describe('getBackgroundColor (TerraMap layer banding)', () => {
     expect(getBackgroundColor(ROCK - 1, SURFACE, ROCK, HELL)).toBe(DIRT_BAND_COLOR);
   });
 
+  it('uses the open-sky surface of the column before the global layer fallback', () => {
+    const canyonAirY = 320;
+    expect(getBackgroundColor(canyonAirY, SURFACE, ROCK, HELL, 1200, 420)).toBe(
+      getSkyGradientColor(canyonAirY, 420)
+    );
+    expect(getBackgroundColor(canyonAirY, SURFACE, ROCK, HELL, 1200, 300)).toBe(DIRT_BAND_COLOR);
+  });
+
   it('returns the rock band color between the rock and hell layers', () => {
     expect(getBackgroundColor(ROCK, SURFACE, ROCK, HELL)).toBe(ROCK_BAND_COLOR);
     expect(getBackgroundColor(HELL - 1, SURFACE, ROCK, HELL)).toBe(ROCK_BAND_COLOR);

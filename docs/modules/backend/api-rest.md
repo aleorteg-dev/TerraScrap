@@ -24,7 +24,7 @@ class XApiVersionMiddleware(BaseHTTPMiddleware): ...
 ```
 
 DTOs (pydantic v2) definidos en `src/twi/api_rest/schemas.py`:
-- `WorldCreatedDto`, `WorldMetadataDto` (v0.2: `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`), `TilesChunkDto` (v0.2: `encoding: Literal["base64-rle-v1", "base64-rle-v2"]`), `SearchResultDto`, `SearchMatchDto`, `ItemSummaryDto`, `ItemDetailDto`, `ErrorDto`.
+- `WorldCreatedDto`, `WorldMetadataDto` (v0.2: `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`), `TilesChunkDto` (v0.2: `encoding: Literal["base64-rle-v1", "base64-rle-v2"]`, `surface_y?: list[int]`), `SearchResultDto`, `SearchMatchDto`, `ItemSummaryDto`, `ItemDetailDto`, `ErrorDto`.
 - v0.2 nuevos: `NpcDto`, `NpcListDto`, `TileEntityDto`, `TileDetailDto`. Aún no expuestos por endpoints (ver iter 09–10).
 
 Contrato transversal de errores HTTP:
@@ -37,6 +37,7 @@ Contrato transversal de errores HTTP:
 Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
 - Query param `encoding`: `"base64-rle-v1"` (default) | `"base64-rle-v2"`. Otro valor → 400 `code:"invalid_encoding"`.
 - `TilesChunkDto.encoding` es siempre el discriminador de la respuesta.
+- `TilesChunkDto.surface_y` contiene el primer `y` con tile activo por columna del chunk; el frontend lo usa para pintar cielo abierto en mundos con desniveles sin depender solo de `world_surface_y`.
 - `payload` v1: `base64` de runs `(tileId:int16LE, count:uint16LE)`. Orden fila-mayor (y externo, x interno). Aire = `-1`.
 - `payload` v2: `base64` de `HEADER (8B "TWv2" + frame_count u16LE + reserved u16LE)` + `RUNS (10B/run: tile_id i16, wall_id u16, liquid_type u8, liquid_amount u8, frame_x_hi u8, flags u8, count u16)` + `FRAME_BLOCK (6B/entrada: run_index u16, frame_x_lo u8, reserved u8=0, frame_y u16)`. flags bit 0 = `has_frame`; bits 1..5 (actuator/wires) reservados a 0 (deuda hasta decomposición de `Tile.flags`).
 - `chunk_x` y `chunk_y` son índices de chunk; `start = index * chunk_size`.
@@ -109,6 +110,8 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 - [x] `T-30 test_get_tile_empty_coordinate_returns_nulls` (iter-09)
 - [x] `T-31 test_get_tile_out_of_bounds_returns_400` (iter-09)
 - [x] `T-32 test_get_tile_unknown_world_returns_404` (iter-09)
+- [x] `test_chunk_surface_y_returns_first_active_tile_per_chunk_column` (fix cielo 2026-06-11)
+- [x] `test_tiles_endpoint_includes_surface_y_for_open_sky_by_column` (fix cielo 2026-06-11)
 
 ## 7. Notas de implementación
 - Usa un `APIRouter` con prefijo `/api`. El montaje ocurre en `app-bootstrap`.

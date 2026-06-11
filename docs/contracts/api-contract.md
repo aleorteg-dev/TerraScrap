@@ -69,10 +69,14 @@ Devuelve tiles empaquetados para el renderer.
     "width": 128,
     "height": 128,
     "encoding": "base64-rle-v1 | base64-rle-v2",
-    "payload": "…"
+    "payload": "…",
+    "surface_y": [84, 83, 83, 82]
   }
   ```
 - `TilesChunkDto.encoding` es el discriminador de versión; el cliente lo inspecciona antes de decodificar.
+- `surface_y`: primer `y` con tile activo por cada columna absoluta cubierta por el chunk; si la columna
+  no tiene tile activo, vale `world.height`. El renderer lo usa para distinguir cielo abierto de fondos
+  subterráneos sin depender de un corte horizontal global.
 - Encoding `base64-rle-v1` (v0.1, compatible): runs `(tileId:int16LE, count:uint16LE)`, 4 bytes/run.
   Aire = -1. Orden fila-mayor (y externo, x interno). Máx. run: 65535.
 - **[v0.2]** Encoding `base64-rle-v2`: ver §4.2 para spec completo.

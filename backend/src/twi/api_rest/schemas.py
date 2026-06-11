@@ -52,6 +52,7 @@ class TilesChunkDto(BaseModel):
     height: int
     encoding: TilesEncoding
     payload: str
+    surface_y: list[int] | None = None
 
 
 class NpcDto(BaseModel):

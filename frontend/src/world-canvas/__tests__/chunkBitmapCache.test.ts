@@ -215,6 +215,25 @@ describe('renderChunkBitmap', () => {
     expect(callOrder).toEqual([DIRT_BAND_COLOR]);
   });
 
+  it('T-Bg-ColumnSky paints open air above the first solid tile in its column as sky', () => {
+    const tiles = new Int16Array(1).fill(-1);
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    renderChunkBitmap('w1', 0, 320, tiles, 1, 1, 1200, 240, 600, 1100, [420]);
+
+    expect(callOrder).toEqual([getBackgroundColor(320, 240, 600, 1100, 1200, 420)]);
+    expect(callOrder[0]).not.toBe(DIRT_BAND_COLOR);
+  });
+
   it('T-Bg-Air ignores implausibly tiny surface metadata so sky air is not brown', () => {
     const tiles = new Int16Array(1).fill(-1);
     const callOrder: string[] = [];
@@ -438,6 +457,43 @@ describe('renderChunkBitmapV2', () => {
     const data = makeV2Data({});
     // cy=5, chunkSize=1 → worldY=5. surface=5 → dirt band.
     renderChunkBitmapV2('w1', 0, 5, data, 1, 1, 6, 5, 10, 20);
+
+    expect(callOrder).toEqual([DIRT_BAND_COLOR]);
+  });
+
+  it('T-Bg-V2-ColumnSky: open air above the column surface stays sky below global surface band', () => {
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    const data = makeV2Data({});
+    renderChunkBitmapV2('w1', 0, 320, data, 1, 1, 1200, 240, 600, 1100, {}, [420]);
+
+    expect(callOrder).toEqual([getBackgroundColor(320, 240, 600, 1100, 1200, 420)]);
+    expect(callOrder[0]).not.toBe(DIRT_BAND_COLOR);
+  });
+
+  it('T-Bg-V2-ColumnGround: air below the column surface still uses underground background', () => {
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    const data = makeV2Data({});
+    renderChunkBitmapV2('w1', 0, 320, data, 1, 1, 1200, 240, 600, 1100, {}, [300]);
 
     expect(callOrder).toEqual([DIRT_BAND_COLOR]);
   });

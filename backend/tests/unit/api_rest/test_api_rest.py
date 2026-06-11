@@ -26,7 +26,12 @@ from twi.api_rest import (
     XApiVersionMiddleware,
     register_error_handlers,
 )
-from twi.api_rest.router import _encode_chunk, _encode_chunk_v2, create_router
+from twi.api_rest.router import (
+    _chunk_surface_y,
+    _encode_chunk,
+    _encode_chunk_v2,
+    create_router,
+)
 from twi.app import Settings, create_app
 from twi.item_catalog import ItemCatalog, ItemDetail, ItemNotFoundError, ItemSummary
 from twi.tile_search import SearchMatch, SearchResult, TileSearchEngine
@@ -825,6 +830,49 @@ def test_get_tiles_payload_encodes_row_major_int16_rle() -> None:
 
     flat = _decode_base64_rle_v1(body["payload"])
     assert flat == [5, 7, -1, -1], f"got {flat}"
+
+
+def test_chunk_surface_y_returns_first_active_tile_per_chunk_column() -> None:
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid(
+        [
+            [air, air, dirt, dirt],
+            [air, dirt, dirt, dirt],
+            [air, air, air, dirt],
+            [air, air, air, air],
+        ]
+    )
+
+    assert _chunk_surface_y(grid, chunk_x=0, chunk_size=4) == [2, 1, 3, 4]
+    assert _chunk_surface_y(grid, chunk_x=1, chunk_size=2) == [3, 4]
+
+
+def test_tiles_endpoint_includes_surface_y_for_open_sky_by_column() -> None:
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid([[air, air, dirt], [air, dirt, dirt]])
+    meta = WorldMetadata(
+        name="surface-y",
+        width=2,
+        height=3,
+        version=269,
+        seed="0",
+        size="small",
+        hardmode=False,
+    )
+    world = World(metadata=meta, tiles=grid, chests=(), signs=())
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/tiles",
+        params={"chunk_x": 0, "chunk_y": 0, "chunk_size": 2, "encoding": "base64-rle-v2"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["surface_y"] == [2, 1]
 
 
 # ---------------------------------------------------------------------------

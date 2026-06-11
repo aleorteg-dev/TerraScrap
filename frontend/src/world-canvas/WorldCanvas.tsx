@@ -57,7 +57,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   onTileSelected,
   onError,
   showLayerLines = false,
-  showSpawnPoint = true,
+  showSpawnPoint = false,
   showWalls = true,
   showLiquids = true,
   showWires = false,
@@ -192,7 +192,8 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
                 showWalls: showWallsRef.current,
                 showLiquids: showLiquidsRef.current,
                 showWires: showWiresRef.current,
-              }
+              },
+              chunk.surface_y ?? undefined
             );
           } else {
             const tiles = decodeBase64RleV1(chunk.payload, chunk.width, chunk.height);
@@ -206,7 +207,8 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
               meta.height,
               meta.world_surface_y,
               meta.rock_layer_y,
-              meta.hell_layer_y
+              meta.hell_layer_y,
+              chunk.surface_y ?? undefined
             );
           }
           bitmapCacheRef.current.set(rendered);

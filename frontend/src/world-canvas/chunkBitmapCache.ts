@@ -47,7 +47,8 @@ export function renderChunkBitmap(
   worldH: number,
   worldSurfaceY: number,
   rockLayerY: number,
-  hellLayerY: number
+  hellLayerY: number,
+  surfaceYByColumn?: readonly number[]
 ): RenderedChunk {
   const dimensions = computeChunkDimensions(cx, cy, chunkSize, worldW, worldH);
   const canvas = document.createElement('canvas');
@@ -55,15 +56,20 @@ export function renderChunkBitmap(
   canvas.height = dimensions.h;
   const ctx = canvas.getContext('2d');
   if (ctx !== null) {
-    // Row-by-row backdrop matching TerraMap's main.js banding
-    // (sky → dirt → rock → hell). Painted inside world bounds only;
-    // chunks outside the world are never requested, so the dark void
-    // stays visible there.
-    for (let ty = 0; ty < dimensions.h; ty++) {
-      const worldY = cy * chunkSize + ty;
-      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY, worldH);
-      ctx.fillRect(0, ty, dimensions.w, 1);
-    }
+    // Backdrop matching TerraMap's banding, with per-column open sky when the
+    // backend provides terrain height for irregular surface chunks.
+    paintBackdrop(
+      ctx,
+      cy,
+      chunkSize,
+      dimensions.w,
+      dimensions.h,
+      worldH,
+      worldSurfaceY,
+      rockLayerY,
+      hellLayerY,
+      surfaceYByColumn
+    );
     for (let ty = 0; ty < dimensions.h; ty++) {
       for (let tx = 0; tx < dimensions.w; tx++) {
         const tileId = tiles[ty * dimensions.w + tx] ?? -1;
@@ -90,7 +96,8 @@ export function renderChunkBitmapV2(
   worldSurfaceY: number,
   rockLayerY: number,
   hellLayerY: number,
-  opts: { showWalls?: boolean; showLiquids?: boolean; showWires?: boolean } = {}
+  opts: { showWalls?: boolean; showLiquids?: boolean; showWires?: boolean } = {},
+  surfaceYByColumn?: readonly number[]
 ): RenderedChunk {
   const dimensions = computeChunkDimensions(cx, cy, chunkSize, worldW, worldH);
   const canvas = document.createElement('canvas');
@@ -98,11 +105,18 @@ export function renderChunkBitmapV2(
   canvas.height = dimensions.h;
   const ctx = canvas.getContext('2d');
   if (ctx !== null) {
-    for (let ty = 0; ty < dimensions.h; ty++) {
-      const worldY = cy * chunkSize + ty;
-      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY, worldH);
-      ctx.fillRect(0, ty, dimensions.w, 1);
-    }
+    paintBackdrop(
+      ctx,
+      cy,
+      chunkSize,
+      dimensions.w,
+      dimensions.h,
+      worldH,
+      worldSurfaceY,
+      rockLayerY,
+      hellLayerY,
+      surfaceYByColumn
+    );
     if (opts.showWalls ?? true) {
       for (let ty = 0; ty < dimensions.h; ty++) {
         for (let tx = 0; tx < dimensions.w; tx++) {
@@ -151,4 +165,38 @@ export function renderChunkBitmapV2(
     }
   }
   return { canvas, worldId, cx, cy };
+}
+
+function paintBackdrop(
+  ctx: CanvasRenderingContext2D,
+  cy: number,
+  chunkSize: number,
+  width: number,
+  height: number,
+  worldH: number,
+  worldSurfaceY: number,
+  rockLayerY: number,
+  hellLayerY: number,
+  surfaceYByColumn?: readonly number[]
+): void {
+  const hasColumnSurface = surfaceYByColumn !== undefined && surfaceYByColumn.length > 0;
+  for (let ty = 0; ty < height; ty++) {
+    const worldY = cy * chunkSize + ty;
+    if (!hasColumnSurface) {
+      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY, worldH);
+      ctx.fillRect(0, ty, width, 1);
+      continue;
+    }
+    for (let tx = 0; tx < width; tx++) {
+      ctx.fillStyle = getBackgroundColor(
+        worldY,
+        worldSurfaceY,
+        rockLayerY,
+        hellLayerY,
+        worldH,
+        surfaceYByColumn[tx]
+      );
+      ctx.fillRect(tx, ty, 1, 1);
+    }
+  }
 }

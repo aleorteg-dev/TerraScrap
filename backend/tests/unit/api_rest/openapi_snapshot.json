@@ -1162,6 +1162,20 @@
           "payload": {
             "type": "string",
             "title": "Payload"
+          },
+          "surface_y": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surface Y"
           }
         },
         "type": "object",
