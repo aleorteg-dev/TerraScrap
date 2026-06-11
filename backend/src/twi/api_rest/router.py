@@ -119,6 +119,14 @@ _LIQUID_TYPE_TO_INT: Final[Mapping[str, int]] = {
 _SUPPORTED_ENCODINGS: Final[frozenset[str]] = frozenset(
     {"base64-rle-v1", "base64-rle-v2"}
 )
+_UNPROCESSABLE_ENTITY_RESPONSE: Final[dict[str, object]] = {
+    "model": ErrorDto,
+    "description": "Unprocessable Entity",
+}
+_REQUEST_ENTITY_TOO_LARGE_RESPONSE: Final[dict[str, object]] = {
+    "model": ErrorDto,
+    "description": "Request Entity Too Large",
+}
 
 # Foreground / decorative tile IDs that must not count as the column "surface"
 # even when they have no frame data. Trees, plants, vines, saplings, vanity
@@ -410,8 +418,8 @@ def create_router(
         responses={
             200: {"model": WorldCreatedDto},
             400: {"model": ErrorDto},
-            413: {"model": ErrorDto},
-            422: {"model": ErrorDto},
+            413: _REQUEST_ENTITY_TOO_LARGE_RESPONSE,
+            422: _UNPROCESSABLE_ENTITY_RESPONSE,
         },
     )
     async def upload_world(file: UploadFile) -> Response:
@@ -476,7 +484,7 @@ def create_router(
         responses={
             200: {"model": TilesChunkDto},
             404: {"model": ErrorDto},
-            422: {"model": ErrorDto},
+            422: _UNPROCESSABLE_ENTITY_RESPONSE,
         },
     )
     async def get_tiles(
@@ -616,7 +624,7 @@ def create_router(
             200: {"model": SearchResultDto},
             400: {"model": ErrorDto},
             404: {"model": ErrorDto},
-            422: {"model": ErrorDto},
+            422: _UNPROCESSABLE_ENTITY_RESPONSE,
         },
     )
     async def search_world(
@@ -684,7 +692,7 @@ def create_router(
         response_model=None,
         responses={
             200: {"model": ItemListDto},
-            422: {"model": ErrorDto},
+            422: _UNPROCESSABLE_ENTITY_RESPONSE,
             503: {"model": ErrorDto},
         },
     )
@@ -720,7 +728,7 @@ def create_router(
         responses={
             200: {"model": ItemDetailDto},
             404: {"model": ErrorDto},
-            422: {"model": ErrorDto},
+            422: _UNPROCESSABLE_ENTITY_RESPONSE,
             503: {"model": ErrorDto},
         },
     )
