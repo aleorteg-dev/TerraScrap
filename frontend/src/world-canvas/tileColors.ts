@@ -575,6 +575,14 @@ const DEFAULT_TILE_COLOR = '#555555';
 const DEFAULT_WALL_COLOR = '#3a3a3a';
 const DEFAULT_LIQUID_COLOR = '#093dbf';
 
+export type BackgroundBand = 'sky' | 'dirt' | 'rock' | 'hell';
+
+export interface BackgroundBreakpoints {
+  readonly surface: number;
+  readonly rock: number;
+  readonly hell: number;
+}
+
 function isUsableSurfaceBreakpoint(value: number, worldHeight: number): boolean {
   if (!Number.isFinite(value) || value <= 0) return false;
   if (worldHeight < 100) return true;
@@ -611,18 +619,23 @@ function interpolateColor(
   return `#${hexByte(r)}${hexByte(g)}${hexByte(b)}`;
 }
 
-// Resolves the four banding breakpoints, substituting Terraria's canonical
-// proportions (sky 0.20, rock 0.50, hell 0.90 of world height) whenever the
-// metadata-derived breakpoint is missing, zero, NaN, or otherwise unusable.
-// Without this guard a world whose .wld lacks valid layer doubles ended up
-// rendering the entire vertical axis as DIRT_BAND_COLOR (brown), masking the
-// sky completely.
-function resolveBreakpoints(
+// Resolves the three layer breakpoints. Prefers the .wld metadata when each
+// value looks sane; otherwise falls back to Terraria/TerraMap-derived defaults:
+//   surface ≈ 0.20 · h
+//   rock    ≈ 0.34 · h
+//   hell    = h - 235   (Terraria reserves the bottom 235 rows for hell on
+//                        every world size; the formula is
+//                        `((maxTilesY - 230) - surface)/6 * 6 + surface - 5`,
+//                        which simplifies to `maxTilesY - 235`.)
+// Naive proportional fallbacks (e.g. hell = h·0.9) misclassify small worlds:
+// h=1200 yields hell=1080 instead of 965 and paints ~115 rows of true hell as
+// rock band.
+export function resolveBackgroundBreakpoints(
   worldHeight: number,
   worldSurfaceY: number,
   rockLayerY: number,
   hellLayerY: number
-): { surface: number; rock: number; hell: number } {
+): BackgroundBreakpoints {
   const h = Number.isFinite(worldHeight) && worldHeight > 0 ? worldHeight : 1200;
   const surface = isUsableSurfaceBreakpoint(worldSurfaceY, h)
     ? worldSurfaceY
@@ -630,12 +643,44 @@ function resolveBreakpoints(
   const rock =
     isUsableLowerBreakpoint(rockLayerY, surface, h) && rockLayerY > surface
       ? rockLayerY
-      : Math.floor(h * 0.5);
+      : Math.max(Math.floor(h * 0.34), surface + 1);
   const hell =
     isUsableLowerBreakpoint(hellLayerY, rock, h) && hellLayerY > rock
       ? hellLayerY
-      : Math.floor(h * 0.9);
+      : Math.max(Math.floor(h - 235), rock + 1);
   return { surface, rock, hell };
+}
+
+// Per-column open-sky surface_y refines the sky/dirt boundary inside the
+// surface band only. It can EXTEND sky downward when a column has air below
+// the global surface (canyons, spawn arenas) but is clamped to bp.rock so
+// caves and hell can never be repainted as sky — no matter how bogus or
+// maximal the per-column value is.
+function effectiveSurfaceY(
+  bp: BackgroundBreakpoints,
+  openSkySurfaceY: number | undefined
+): number {
+  if (
+    openSkySurfaceY === undefined ||
+    !Number.isFinite(openSkySurfaceY) ||
+    openSkySurfaceY <= 0
+  ) {
+    return bp.surface;
+  }
+  return Math.min(Math.max(bp.surface, openSkySurfaceY), bp.rock);
+}
+
+// Single rule: given a depth and resolved breakpoints, return the band.
+export function classifyBackgroundBand(
+  worldY: number,
+  bp: BackgroundBreakpoints,
+  openSkySurfaceY?: number
+): BackgroundBand {
+  const surface = effectiveSurfaceY(bp, openSkySurfaceY);
+  if (worldY < surface) return 'sky';
+  if (worldY < bp.rock) return 'dirt';
+  if (worldY < bp.hell) return 'rock';
+  return 'hell';
 }
 
 export function getSkyGradientColor(worldY: number, surfaceY: number): string {
@@ -652,18 +697,27 @@ export function getBackgroundColor(
   worldHeight = Number.NaN,
   openSkySurfaceY = Number.NaN
 ): string {
-  const { surface, rock, hell } = resolveBreakpoints(
+  const bp = resolveBackgroundBreakpoints(
     worldHeight,
     worldSurfaceY,
     rockLayerY,
     hellLayerY
   );
-  if (Number.isFinite(openSkySurfaceY) && worldY < openSkySurfaceY) {
-    return getSkyGradientColor(worldY, Math.max(openSkySurfaceY, 1));
+  const surface = effectiveSurfaceY(bp, openSkySurfaceY);
+  if (worldY < surface) {
+    // Sky gradient depends on the GLOBAL surface (bp.surface), never on the
+    // per-column openSkySurfaceY. Two adjacent columns whose terrain heights
+    // differ must produce the same sky color at a given worldY, so a column
+    // dip cannot draw a brighter vertical streak. When a cell is classified
+    // as sky but sits at or below the global surface (canyon air below the
+    // average terrain line) we clamp to the horizon row so the result is
+    // SKY_BAND_COLOR rather than an extrapolation past the gradient end.
+    const denom = Math.max(bp.surface, 1);
+    const clampedY = Math.min(worldY, Math.max(bp.surface - 1, 0));
+    return getSkyGradientColor(clampedY, denom);
   }
-  if (worldY < surface) return getSkyGradientColor(worldY, surface);
-  if (worldY < rock) return DIRT_BAND_COLOR;
-  if (worldY < hell) return ROCK_BAND_COLOR;
+  if (worldY < bp.rock) return DIRT_BAND_COLOR;
+  if (worldY < bp.hell) return ROCK_BAND_COLOR;
   return HELL_BAND_COLOR;
 }
 

@@ -145,6 +145,10 @@ def test_parse_v319_real_world_ok() -> None:
         seed="2105673604",
         hardmode=True,
         skyblock_world=True,
+        spawn_x=2104,
+        spawn_y=261,
+        world_surface_y=337.0,
+        rock_layer_y=517.0,
         chests=[ChestSpec(x=10, y=20, name="ModernChest", items=[(3930, 1, 0)])],
         wall_id_at={(1, 1): 300},
         flags4_at={(2, 2): 0x7F},
@@ -158,6 +162,10 @@ def test_parse_v319_real_world_ok() -> None:
     assert world.metadata.height == 1200
     assert world.metadata.seed == "2105673604"
     assert world.metadata.hardmode is True
+    assert world.metadata.spawn_x == 2104
+    assert world.metadata.spawn_y == 261
+    assert world.metadata.world_surface_y == pytest.approx(337.0)
+    assert world.metadata.rock_layer_y == pytest.approx(517.0)
     assert world.tiles.width == 4200
     assert world.tiles.height == 1200
     assert world.tiles[1][1].wall_id == 300

@@ -110,11 +110,13 @@ Referencia normativa local revisada completa: `C:\Users\aleja\Desktop\Alejandro\
 
 Tramos aceptados:
 - `v230-v279`: tramo historico ya soportado, con gates corregidos segun `WorldLoader.js` para special world flags (`>=222`, `>=227`, `>=238`, `>=239`, `>=241`, `>=249`, `>=266`, `>=267`).
-- `v280-v286`: sin campos nuevos de header documentados en `WorldLoader.js`; section 2 usa layout moderno de chests (`itemCount:int32` por chest). Esta frontera `>279` es inferida del corpus: v279 conserva `chestSize:int16` global y v319 sigue `readChests` de `WorldLoader.js`.
+- `v280-v283`: section 2 usa layout moderno de chests (`itemCount:int32` por chest). Esta frontera `>279` es inferida del corpus: v279 conserva `chestSize:int16` global y v319 sigue `readChests` de `WorldLoader.js`.
+- `v284-v286`: además añade `lastPlayed:int64` en section 0 (ver entrada `v284+` más arriba).
 - `v287-v288`: section 0 anade `forceHalloweenForever`, `forceXMasForever` (`>=287`) y `vampireSeed` (`>=288`) en la cola de header.
 - `v291-v295`: section 0 anade `_tempMeteorShowerCount:int32` y `_tempCoinRain:int32` (`>=291`).
 - `v296-v298`: section 0 anade `infectedSeed:uint8` (`>=296`) y `teamBasedSpawnsSeed:uint8` + lista variable de pares `int16,int16` (`>=297`).
 - `v299-v301`: section 0 anade `manifest:string` (`>=299`) y un `uint32` heredado para `>=299 && <313`.
+- `v284+`: section 0 incluye `lastPlayed:int64` justo después de `creationTime:int64` y antes de `moonType:uint8`. Sin este campo, `spawnX`, `spawnY`, `worldSurfaceY` y `rockLayerY` quedan desplazados 8 bytes y producen valores denormales (~9.63e-312).
 - `v302-v303`: section 0 anade `skyblockWorld:uint8` antes de los timestamps (`>=302`).
 - `v304-v312`: section 0 anade `dualDungeonsSeed:uint8` (`>=304`) y conserva el `uint32` heredado hasta `<313`.
 - `v313-v319`: conserva `manifest:string` y deja de leer el `uint32` heredado.
@@ -312,6 +314,10 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   `tile_frame_at` y `frame_important_ids` para escribir TFI bits y los pares (U, V)
   vía `struct.pack("<hh", ...)`. Defaults `None` mantienen retrocompatibilidad con
   todos los `Tile(...)` ya construidos en otros módulos (B2/B4/B5).
+
+### Decisiones tomadas (iter-08 / 2026-06-11)
+- **Bug — lastPlayed offset**: para `version >= 284` existe `lastPlayed:int64` entre `creationTime` y `moonType`. El parser no lo leía, desplazando 8 bytes todos los campos posteriores (`spawnX`, `spawnY`, `worldSurfaceY`, `rockLayerY`). Síntoma: `worldSurfaceY ≈ 9.63e-312` (valor denormal al interpretar bytes del campo int64 como double). Fix: `if version >= 284: r.read_int64()` en `_read_world_info`, justo tras leer `_creation_time`. Builder `_build_section0` actualizado igual: `if version >= 284: buf += struct.pack("<q", 0)`. Validado contra valores reales de `El_Ínsula_Ultranervioso.wld` (v319): `spawn=(2104,261)`, `worldSurfaceY=337.0`, `rockLayerY=517.0`.
+- Contrato público no cambia. T-53 añadido en `test_metadata_extended.py`; `test_parse_v319_real_world_ok` extendido con aserciones de spawn/surface/rock.
 
 ### Deuda / follow-ups
 - **Compatibilidad con mas mundos reales**: iter-026 valida corpus local `v279` y `v319`.

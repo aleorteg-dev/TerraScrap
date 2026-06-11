@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import math
 import struct
 from collections.abc import Callable, Mapping
 from typing import Final
@@ -26,8 +27,8 @@ from twi.world_repository import WorldNotFoundError, WorldRepository
 
 from .errors import API_VERSION_HEADERS, UPLOAD_TOO_LARGE_CODE, error_response
 from .schemas import (
-    ErrorDetails,
     BackgroundStylesDto,
+    ErrorDetails,
     ErrorDto,
     ItemDetailDto,
     ItemListDto,
@@ -119,6 +120,96 @@ _SUPPORTED_ENCODINGS: Final[frozenset[str]] = frozenset(
     {"base64-rle-v1", "base64-rle-v2"}
 )
 
+# Foreground / decorative tile IDs that must not count as the column "surface"
+# even when they have no frame data. Trees, plants, vines, saplings, vanity
+# trees, palms, bamboo, ropes, mushrooms and similar overgrowth sit above the
+# real terrain; they cannot bury the sky band beneath them. Solid blocks
+# (dirt, stone, sand, snow, ice, mud, ash, ...) are intentionally absent.
+_SURFACE_FOREGROUND_TILE_IDS: Final[frozenset[int]] = frozenset(
+    {
+        3,  # Plants
+        5,  # Tree
+        20,  # Sapling
+        24,  # Corruption plants
+        27,  # Sunflower
+        32,  # Corruption thorn
+        51,  # Cobweb
+        52,  # Vines
+        61,  # Jungle plants
+        62,  # Jungle vines
+        69,  # Thorny bush
+        71,
+        72,  # Mushroom plants
+        73,
+        74,  # Grass plants
+        80,  # Cactus (frame-tracked but explicit too)
+        82,
+        83,
+        84,  # Herbs
+        110,  # Hallow plants
+        113,
+        115,  # Hallow vines
+        184,  # Stalactite gem
+        185,
+        186,
+        187,  # Stalactites
+        188,  # Cactus alt
+        190,  # Glowing mushroom
+        192,  # Leaves
+        205,  # Crimson plants? Conservative
+        213,  # Jungle thorn
+        227,  # Dye plants
+        233,  # Jungle plants alt
+        236,  # Plantera bulb
+        323,
+        324,  # Palm tree / sapling
+        352,  # Rope coil tile
+        353,  # Rope
+        365,
+        366,  # Vine rope
+        382,  # Seaweed
+        485,  # Pine tree top
+        518,
+        519,  # Grass plants alt
+        528,
+        529,  # Sapling / mushroom alt
+        583,
+        584,
+        585,
+        586,
+        587,
+        588,
+        589,
+        590,  # Gem tree variants
+        591,
+        595,
+        596,
+        615,
+        616,  # Tree / furniture variants
+        634,
+        637,
+        638,  # Decorative / sandstone variants
+        734,  # Reef plant
+        735,  # Sunflower variant
+    }
+)
+
+
+def _is_surface_blocking_tile(tile: Tile) -> bool:
+    """True if this tile defines the terrain surface (blocks the sky).
+
+    Skips air, frame-important decorations (trees, plants, furniture, chests,
+    torches, platforms — anything whose sprite carries frame coords) and an
+    explicit denylist of frameless foreground vegetation/ropes.
+    """
+    if tile.tile_id is None:
+        return False
+    if tile.frame_x is not None or tile.frame_y is not None:
+        return False
+    if tile.tile_id in _SURFACE_FOREGROUND_TILE_IDS:
+        return False
+    return True
+
 
 def _chunk_bounds(
     cx: int,
@@ -135,19 +226,45 @@ def _chunk_bounds(
     return start_x, start_y, w, h
 
 
-def _chunk_surface_y(tiles: TileGrid, chunk_x: int, chunk_size: int) -> list[int]:
-    """Return first active tile Y for each world column covered by a chunk."""
+def _chunk_surface_y(
+    tiles: TileGrid,
+    chunk_x: int,
+    chunk_size: int,
+    world_surface_y: float = 0.0,
+) -> list[int]:
+    """Return terrain surface Y per world column in the chunk.
+
+    Ignores floating islands: solid runs whose bottom (run_end) lies strictly
+    above floor(world_surface_y) cannot be the main terrain surface.
+    Accepts mountains whose run starts above world_surface_y but extends through
+    it (run_end >= threshold). Canyon columns where terrain begins below
+    world_surface_y return that deeper y. When world_surface_y=0 (default) every
+    run qualifies, reproducing the old first-solid-tile behaviour.
+    """
     start_x = chunk_x * chunk_size
     w = min(chunk_size, max(0, tiles.width - start_x))
+    threshold = max(0, int(math.floor(world_surface_y)))
     surface_y: list[int] = []
     for x in range(start_x, start_x + w):
-        first_solid = tiles.height
         column = tiles[x]
+        result = tiles.height
+        in_run = False
+        run_start = 0
         for y, tile in enumerate(column):
-            if tile.tile_id is not None:
-                first_solid = y
-                break
-        surface_y.append(first_solid)
+            blocking = _is_surface_blocking_tile(tile)
+            if blocking and not in_run:
+                in_run = True
+                run_start = y
+            elif not blocking and in_run:
+                run_end = y - 1
+                if run_end >= threshold:
+                    result = run_start
+                    break
+                in_run = False
+        else:
+            if in_run and (tiles.height - 1) >= threshold:
+                result = run_start
+        surface_y.append(result)
     return surface_y
 
 
@@ -380,6 +497,11 @@ def create_router(
             world = repo.get(world_id)
         except WorldNotFoundError:
             return _err(404, "world_not_found", f"World '{world_id}' not found.")
+        wsurface = (
+            world.metadata.world_surface_y
+            if world.metadata.world_surface_y is not None
+            else 0.0
+        )
         if encoding == "base64-rle-v2":
             w, h, payload = _encode_chunk_v2(world.tiles, chunk_x, chunk_y, chunk_size)
             enc: TilesChunkDto = TilesChunkDto(
@@ -389,7 +511,7 @@ def create_router(
                 height=h,
                 encoding="base64-rle-v2",
                 payload=payload,
-                surface_y=_chunk_surface_y(world.tiles, chunk_x, chunk_size),
+                surface_y=_chunk_surface_y(world.tiles, chunk_x, chunk_size, wsurface),
             )
         else:
             w, h, payload = _encode_chunk(world.tiles, chunk_x, chunk_y, chunk_size)
@@ -400,7 +522,7 @@ def create_router(
                 height=h,
                 encoding="base64-rle-v1",
                 payload=payload,
-                surface_y=_chunk_surface_y(world.tiles, chunk_x, chunk_size),
+                surface_y=_chunk_surface_y(world.tiles, chunk_x, chunk_size, wsurface),
             )
         return _ok(enc)
 

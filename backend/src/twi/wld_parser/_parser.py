@@ -9,6 +9,7 @@ from typing import BinaryIO, Literal
 from twi.wld_parser._exceptions import UnsupportedWorldVersionError, WldParseError
 from twi.wld_parser._reader import Reader
 from twi.wld_parser._types import (
+    BackgroundStyles,
     Chest,
     ChestItem,
     Npc,
@@ -17,7 +18,6 @@ from twi.wld_parser._types import (
     TileEntity,
     TileGrid,
     World,
-    BackgroundStyles,
     WorldMetadata,
 )
 
@@ -136,6 +136,9 @@ def _read_world_info(r: Reader, version: int) -> tuple[WorldMetadata, int]:
 
     # v141+ creation time (always present for v230+)
     _creation_time = r.read_int64()
+    # v284+ adds lastPlayed:int64 between creationTime and moonType
+    if version >= 284:
+        r.read_int64()
 
     moon_style = r.read_byte()
 

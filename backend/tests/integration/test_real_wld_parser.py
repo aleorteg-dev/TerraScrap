@@ -89,6 +89,11 @@ def test_parse_v319_real_world_footer_validates_correctly() -> None:
     world = parse_wld_bytes(data)
     assert isinstance(world, World)
     assert world.metadata.version == 319
+    # lastPlayed fix: spawn/surface/rock must not be denormal floats
+    assert world.metadata.spawn_x == 2104
+    assert world.metadata.spawn_y == 261
+    assert world.metadata.world_surface_y == pytest.approx(337.0)
+    assert world.metadata.rock_layer_y == pytest.approx(517.0)
 
 
 def test_read_file_version_extracts_little_endian_int32(tmp_path: Path) -> None:

@@ -1645,9 +1645,9 @@ def test_default_world_map_enchanted_sword_ignores_other_subid_on_tile_187() -> 
 @pytest.mark.parametrize(
     "item_id, frame_y",
     [
-        (427, 22),   # Blue Torch (sub_id 1)
-        (4386, 418), # Crimson Torch (sub_id 19)
-        (5353, 506), # Aether Torch (sub_id 23)
+        (427, 22),  # Blue Torch (sub_id 1)
+        (4386, 418),  # Crimson Torch (sub_id 19)
+        (5353, 506),  # Aether Torch (sub_id 23)
     ],
 )
 @pytest.mark.parametrize("frame_x", [0, 22, 44, 66, 88, 110])
@@ -1690,8 +1690,8 @@ def test_default_world_map_generic_torch_still_finds_colored_variants() -> None:
         width=6,
         height=3,
         tile_overrides={
-            (1, 1): _framed_tile(4, 0, 0),    # plain Torch
-            (3, 1): _framed_tile(4, 0, 22),   # Blue Torch
+            (1, 1): _framed_tile(4, 0, 0),  # plain Torch
+            (3, 1): _framed_tile(4, 0, 22),  # Blue Torch
             (5, 1): _framed_tile(4, 0, 506),  # Aether Torch
         },
     )

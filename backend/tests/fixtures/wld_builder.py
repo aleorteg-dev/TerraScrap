@@ -286,6 +286,8 @@ def _build_section0(
     if version >= 302:
         buf += b"\x01" if skyblock_world else b"\x00"
     buf += struct.pack("<q", 0)  # creationTime (v141+)
+    if version >= 284:
+        buf += struct.pack("<q", 0)  # lastPlayed (v284+)
     buf += b"\x00"  # moonType
     # Background style arrays (WorldLoader.js layout):
     # treeTypeXCoordinates[3] + treeStyles[4] + caveBackXCoordinates[3]

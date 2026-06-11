@@ -1,4 +1,10 @@
-import { getTileColor, getWallColor, getLiquidColor, getBackgroundColor } from './tileColors';
+import {
+  getTileColor,
+  getWallColor,
+  getLiquidColor,
+  getBackgroundColor,
+  resolveBackgroundBreakpoints,
+} from './tileColors';
 import { computeChunkDimensions } from './chunkDimensions';
 import type { DecodedChunkV2 } from './rleDecoder';
 
@@ -179,10 +185,15 @@ function paintBackdrop(
   hellLayerY: number,
   surfaceYByColumn?: readonly number[]
 ): void {
+  const bp = resolveBackgroundBreakpoints(worldH, worldSurfaceY, rockLayerY, hellLayerY);
   const hasColumnSurface = surfaceYByColumn !== undefined && surfaceYByColumn.length > 0;
   for (let ty = 0; ty < height; ty++) {
     const worldY = cy * chunkSize + ty;
-    if (!hasColumnSurface) {
+    // Per-column surface_y only refines the sky↔dirt boundary. At or below
+    // bp.rock every column shares the same band (rock or hell), so a single
+    // row fill is correct — and guarantees caves/hell are never repainted as
+    // sky by a bogus per-column value.
+    if (!hasColumnSurface || worldY >= bp.rock) {
       ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY, worldH);
       ctx.fillRect(0, ty, width, 1);
       continue;
@@ -194,7 +205,7 @@ function paintBackdrop(
         rockLayerY,
         hellLayerY,
         worldH,
-        surfaceYByColumn[tx]
+        surfaceYByColumn[tx] ?? Number.NaN
       );
       ctx.fillRect(tx, ty, 1, 1);
     }

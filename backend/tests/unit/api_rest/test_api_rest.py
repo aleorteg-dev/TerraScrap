@@ -848,6 +848,56 @@ def test_chunk_surface_y_returns_first_active_tile_per_chunk_column() -> None:
     assert _chunk_surface_y(grid, chunk_x=1, chunk_size=2) == [3, 4]
 
 
+def test_chunk_surface_y_skips_tree_above_dirt() -> None:
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    tree = Tile(
+        tile_id=5,
+        wall_id=None,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+        frame_x=0,
+        frame_y=0,
+    )
+    dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid([[air, tree, dirt, dirt]])
+
+    assert _chunk_surface_y(grid, chunk_x=0, chunk_size=1) == [2]
+
+
+def test_chunk_surface_y_skips_frame_important_object_above_dirt() -> None:
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    table = Tile(
+        tile_id=14,
+        wall_id=None,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0,
+        frame_x=0,
+        frame_y=0,
+    )
+    dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid([[air, table, dirt, air]])
+
+    assert _chunk_surface_y(grid, chunk_x=0, chunk_size=1) == [2]
+
+
+def test_chunk_surface_y_all_air_column_returns_height() -> None:
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid([[air, air, air]])
+
+    assert _chunk_surface_y(grid, chunk_x=0, chunk_size=1) == [3]
+
+
+def test_chunk_surface_y_skips_frameless_vine_above_dirt() -> None:
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    vine = Tile(tile_id=52, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid([[air, vine, dirt, air]])
+
+    assert _chunk_surface_y(grid, chunk_x=0, chunk_size=1) == [2]
+
+
 def test_tiles_endpoint_includes_surface_y_for_open_sky_by_column() -> None:
     air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
     dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
@@ -868,11 +918,87 @@ def test_tiles_endpoint_includes_surface_y_for_open_sky_by_column() -> None:
 
     resp = client.get(
         f"/api/worlds/{world_id}/tiles",
-        params={"chunk_x": 0, "chunk_y": 0, "chunk_size": 2, "encoding": "base64-rle-v2"},
+        params={
+            "chunk_x": 0,
+            "chunk_y": 0,
+            "chunk_size": 2,
+            "encoding": "base64-rle-v2",
+        },
     )
 
     assert resp.status_code == 200
     assert resp.json()["surface_y"] == [2, 1]
+
+
+# ---------------------------------------------------------------------------
+# Floating island / surface heuristic tests
+# ---------------------------------------------------------------------------
+
+
+def test_chunk_surface_y_ignores_floating_island_above_world_surface() -> None:
+    """Solid island whose run ends strictly above world_surface_y must be skipped."""
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    # Column layout (height=13):
+    #   y=0..1  air
+    #   y=2..4  floating island (dirt)  ← run_end=4, below threshold=10 → ignore
+    #   y=5..9  air
+    #   y=10..12 main terrain (dirt)   ← run_end=12 >= 10 → accept → surface_y=10
+    column = [air, air, dirt, dirt, dirt, air, air, air, air, air, dirt, dirt, dirt]
+    grid = TileGrid([column])
+    assert _chunk_surface_y(grid, chunk_x=0, chunk_size=1, world_surface_y=10.0) == [10]
+
+
+def test_chunk_surface_y_mountain_starting_above_surface_crosses_threshold() -> None:
+    """Mountain run starting above world_surface_y but crossing it counts."""
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    # Column: air*3, solid*10 (y=3..12). world_surface_y=8.
+    # run_end=12 >= 8 → qualifies → surface_y=3 (top of mountain).
+    column = [air, air, air] + [dirt] * 10
+    grid = TileGrid([column])
+    assert _chunk_surface_y(grid, chunk_x=0, chunk_size=1, world_surface_y=8.0) == [3]
+
+
+def test_chunk_surface_y_canyon_terrain_starts_below_world_surface() -> None:
+    """Canyon/open sky: terrain below world_surface_y returns that deeper y."""
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    # Column: air*8, solid*5 (y=8..12). world_surface_y=5.
+    # No run with run_end >= 5 before y=8; terrain run starts at 8 → result=8.
+    column = [air] * 8 + [dirt] * 5
+    grid = TileGrid([column])
+    assert _chunk_surface_y(grid, chunk_x=0, chunk_size=1, world_surface_y=5.0) == [8]
+
+
+def test_tiles_endpoint_surface_y_uses_world_metadata_surface_y() -> None:
+    """GET /tiles surface_y uses metadata world_surface_y to skip floating islands."""
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    dirt = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    # Column (h=11): island y=2..3, air gap, terrain y=8..10, world_surface_y=7.
+    column = [air, air, dirt, dirt, air, air, air, air, dirt, dirt, dirt]
+    grid = TileGrid([column])
+    meta = WorldMetadata(
+        name="floating-island",
+        width=1,
+        height=11,
+        version=269,
+        seed="0",
+        size="small",
+        hardmode=False,
+        world_surface_y=7.0,
+    )
+    world = World(metadata=meta, tiles=grid, chests=(), signs=())
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/tiles",
+        params={"chunk_x": 0, "chunk_y": 0, "chunk_size": 11},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["surface_y"] == [8]
 
 
 # ---------------------------------------------------------------------------

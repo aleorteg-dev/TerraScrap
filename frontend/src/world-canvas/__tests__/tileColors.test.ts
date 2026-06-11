@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  classifyBackgroundBand,
   getTileColor,
   getWallColor,
   getLiquidColor,
   getBackgroundColor,
   getSkyGradientColor,
+  resolveBackgroundBreakpoints,
   SKY_TOP_COLOR,
   SKY_BAND_COLOR,
   DIRT_BAND_COLOR,
@@ -158,12 +160,21 @@ describe('getBackgroundColor (TerraMap layer banding)', () => {
     expect(getBackgroundColor(ROCK - 1, SURFACE, ROCK, HELL)).toBe(DIRT_BAND_COLOR);
   });
 
-  it('uses the open-sky surface of the column before the global layer fallback', () => {
+  it('classifies open-sky columns by surface_y while keeping a stable global gradient', () => {
     const canyonAirY = 320;
+    // openSky=420 puts canyonAirY in the sky band — color comes from the
+    // global surface gradient (clamped at the horizon), NOT from a per-column
+    // gradient that would draw a brighter vertical streak.
     expect(getBackgroundColor(canyonAirY, SURFACE, ROCK, HELL, 1200, 420)).toBe(
-      getSkyGradientColor(canyonAirY, 420)
+      getSkyGradientColor(Math.min(canyonAirY, SURFACE - 1), SURFACE)
     );
+    // openSky=300 leaves canyonAirY below the column terrain → dirt band.
     expect(getBackgroundColor(canyonAirY, SURFACE, ROCK, HELL, 1200, 300)).toBe(DIRT_BAND_COLOR);
+    // Two columns with different surface_y but same worldY in the sky band
+    // must produce the same color — no vertical seams.
+    expect(getBackgroundColor(canyonAirY, SURFACE, ROCK, HELL, 1200, 420)).toBe(
+      getBackgroundColor(canyonAirY, SURFACE, ROCK, HELL, 1200, 580)
+    );
   });
 
   it('returns the rock band color between the rock and hell layers', () => {
@@ -205,5 +216,114 @@ describe('getBackgroundColor (TerraMap layer banding)', () => {
     expect(DIRT_BAND_COLOR).toBe('#583d2e');
     expect(ROCK_BAND_COLOR).toBe('#4a433c');
     expect(HELL_BAND_COLOR).toBe('#000000');
+  });
+});
+
+describe('background band classification across world sizes', () => {
+  // Terraria's canonical layer values for the three world presets, taken from
+  // a freshly generated world for each size. The hell layer is derived from
+  // TerraMap's formula: `maxTilesY - 235` (the bottom 235 rows are hell).
+  const WORLDS = {
+    small: { width: 4200, height: 1200, surface: 245, rock: 411, hell: 965 },
+    medium: { width: 6400, height: 1800, surface: 410, rock: 600, hell: 1565 },
+    large: { width: 8400, height: 2400, surface: 540, rock: 815, hell: 2165 },
+  } as const;
+
+  for (const [size, w] of Object.entries(WORLDS)) {
+    it(`small/medium/large: classifies the four bands for a ${size} world (${w.width}x${w.height})`, () => {
+      // Sky band: every y above the surface, including 0 and the row just before surface.
+      expect(getBackgroundColor(0, w.surface, w.rock, w.hell, w.height)).toBe(SKY_TOP_COLOR);
+      expect(getBackgroundColor(w.surface - 1, w.surface, w.rock, w.hell, w.height)).not.toBe(
+        DIRT_BAND_COLOR
+      );
+      // surface boundary: y just before stays sky, y at boundary is dirt.
+      expect(getBackgroundColor(w.surface, w.surface, w.rock, w.hell, w.height)).toBe(
+        DIRT_BAND_COLOR
+      );
+      // dirt band: row just before the rock layer remains dirt.
+      expect(getBackgroundColor(w.rock - 1, w.surface, w.rock, w.hell, w.height)).toBe(
+        DIRT_BAND_COLOR
+      );
+      // rock boundary: y at boundary is rock.
+      expect(getBackgroundColor(w.rock, w.surface, w.rock, w.hell, w.height)).toBe(
+        ROCK_BAND_COLOR
+      );
+      // rock band: row just before hell remains rock.
+      expect(getBackgroundColor(w.hell - 1, w.surface, w.rock, w.hell, w.height)).toBe(
+        ROCK_BAND_COLOR
+      );
+      // hell boundary: y at boundary is hell.
+      expect(getBackgroundColor(w.hell, w.surface, w.rock, w.hell, w.height)).toBe(
+        HELL_BAND_COLOR
+      );
+      // hell band: row near bedrock remains hell.
+      expect(getBackgroundColor(w.height - 1, w.surface, w.rock, w.hell, w.height)).toBe(
+        HELL_BAND_COLOR
+      );
+    });
+  }
+
+  it('surface_y per column extends sky inside the surface band but never past rock', () => {
+    const { surface, rock, hell, height } = WORLDS.small;
+    // Canyon: sky extends down — color matches the GLOBAL-surface gradient,
+    // clamped to the horizon, never a per-column gradient.
+    const canyon = getBackgroundColor(380, surface, rock, hell, height, 400);
+    expect(canyon).toBe(getSkyGradientColor(Math.min(380, surface - 1), surface));
+    // Two canyons of different per-column depth at the same worldY share the
+    // same color — no vertical seams.
+    expect(canyon).toBe(getBackgroundColor(380, surface, rock, hell, height, 405));
+    // Bogus per-column surface deep into the rock layer must NOT repaint rock as sky.
+    expect(getBackgroundColor(500, surface, rock, hell, height, 800)).toBe(ROCK_BAND_COLOR);
+    // Even an absurd per-column surface at the world bottom must not turn hell into sky.
+    expect(getBackgroundColor(1000, surface, rock, hell, height, height - 1)).toBe(
+      HELL_BAND_COLOR
+    );
+    // The rock boundary still wins: y at rock stays rock under any per-column value.
+    expect(getBackgroundColor(rock, surface, rock, hell, height, 900)).toBe(ROCK_BAND_COLOR);
+  });
+
+  it('falls back to TerraMap-correct hell layer (h - 235) when metadata is missing', () => {
+    // Small: hell at 965, not 1080. The row before stays rock.
+    expect(getBackgroundColor(964, 0, 0, 0, 1200)).toBe(ROCK_BAND_COLOR);
+    expect(getBackgroundColor(965, 0, 0, 0, 1200)).toBe(HELL_BAND_COLOR);
+    // Medium: hell at 1565, not 1620.
+    expect(getBackgroundColor(1564, 0, 0, 0, 1800)).toBe(ROCK_BAND_COLOR);
+    expect(getBackgroundColor(1565, 0, 0, 0, 1800)).toBe(HELL_BAND_COLOR);
+    // Large: hell at 2165, not 2160.
+    expect(getBackgroundColor(2164, 0, 0, 0, 2400)).toBe(ROCK_BAND_COLOR);
+    expect(getBackgroundColor(2165, 0, 0, 0, 2400)).toBe(HELL_BAND_COLOR);
+  });
+
+  it('resolveBackgroundBreakpoints produces Terraria-shaped fallback proportions', () => {
+    expect(resolveBackgroundBreakpoints(1200, 0, 0, 0)).toEqual({
+      surface: 240,
+      rock: 408,
+      hell: 965,
+    });
+    expect(resolveBackgroundBreakpoints(1800, 0, 0, 0)).toEqual({
+      surface: 360,
+      rock: 612,
+      hell: 1565,
+    });
+    expect(resolveBackgroundBreakpoints(2400, 0, 0, 0)).toEqual({
+      surface: 480,
+      rock: 816,
+      hell: 2165,
+    });
+  });
+
+  it('classifyBackgroundBand exposes the single rule used by getBackgroundColor', () => {
+    const bp = resolveBackgroundBreakpoints(1200, 245, 411, 965);
+    expect(classifyBackgroundBand(0, bp)).toBe('sky');
+    expect(classifyBackgroundBand(244, bp)).toBe('sky');
+    expect(classifyBackgroundBand(245, bp)).toBe('dirt');
+    expect(classifyBackgroundBand(410, bp)).toBe('dirt');
+    expect(classifyBackgroundBand(411, bp)).toBe('rock');
+    expect(classifyBackgroundBand(964, bp)).toBe('rock');
+    expect(classifyBackgroundBand(965, bp)).toBe('hell');
+    // Per-column surface_y clamp: open sky never crosses into rock/hell.
+    expect(classifyBackgroundBand(500, bp, 800)).toBe('rock');
+    expect(classifyBackgroundBand(1000, bp, 1199)).toBe('hell');
+    expect(classifyBackgroundBand(380, bp, 400)).toBe('sky');
   });
 });

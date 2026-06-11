@@ -234,6 +234,33 @@ describe('renderChunkBitmap', () => {
     expect(callOrder[0]).not.toBe(DIRT_BAND_COLOR);
   });
 
+  it('T-Bg-ColumnSkyStable two columns with different surface_y same worldY share sky color', () => {
+    const tiles = new Int16Array(4).fill(-1);
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    // worldH=1200, surface=240, rock=600, hell=1100. chunkSize=2, cy=160 →
+    // first row worldY=320; chunk width=2 with two columns whose surface_y
+    // differ (canyon 420 vs deeper 580). Both classify as sky at worldY=320
+    // and must produce the SAME color (no vertical seam).
+    renderChunkBitmap('w1', 0, 160, tiles, 2, 2, 1200, 240, 600, 1100, [420, 580]);
+
+    // 2 rows × 2 columns = 4 backdrop fills (per-column loop fires because
+    // hasColumnSurface && worldY < bp.rock).
+    expect(callOrder).toHaveLength(4);
+    expect(callOrder[0]).toBe(callOrder[1]);
+    expect(callOrder[2]).toBe(callOrder[3]);
+    expect(callOrder[0]).not.toBe(DIRT_BAND_COLOR);
+  });
+
   it('T-Bg-Air ignores implausibly tiny surface metadata so sky air is not brown', () => {
     const tiles = new Int16Array(1).fill(-1);
     const callOrder: string[] = [];
@@ -496,5 +523,67 @@ describe('renderChunkBitmapV2', () => {
     renderChunkBitmapV2('w1', 0, 320, data, 1, 1, 1200, 240, 600, 1100, {}, [300]);
 
     expect(callOrder).toEqual([DIRT_BAND_COLOR]);
+  });
+
+  it('T-Bg-V2-Bands: renders sky/dirt/rock/hell colors at each band for a small world (4200x1200)', () => {
+    // Realistic small-world breakpoints, one paint per band depth.
+    const worldH = 1200;
+    const surface = 245;
+    const rock = 411;
+    const hell = 965;
+    const cases: ReadonlyArray<{ cy: number; expected: string }> = [
+      { cy: 100, expected: getBackgroundColor(100, surface, rock, hell, worldH) },
+      { cy: 300, expected: DIRT_BAND_COLOR },
+      { cy: 500, expected: ROCK_BAND_COLOR },
+      { cy: 1000, expected: HELL_BAND_COLOR },
+    ];
+    for (const { cy, expected } of cases) {
+      vi.clearAllMocks();
+      const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+      const localCtx = {
+        fillStyle: '' as string | CanvasGradient | CanvasPattern,
+        fillRect: vi.fn().mockImplementation(() => {}),
+        clearRect: vi.fn(),
+      };
+      let captured = '';
+      localCtx.fillRect.mockImplementation(() => {
+        if (!captured) captured = String(localCtx.fillStyle);
+      });
+      mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+      renderChunkBitmapV2('w1', 0, cy, makeV2Data({}), 1, 1, worldH, surface, rock, hell);
+      expect(captured).toBe(expected);
+    }
+  });
+
+  it('T-Bg-V2-ColumnClamped: a per-column surface_y deep in rock never paints rock as sky', () => {
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+    // Small world. worldY=600 sits in the rock band; column surface=1199 is
+    // absurd (would paint sky to bedrock if unclamped).
+    renderChunkBitmapV2('w1', 0, 600, makeV2Data({}), 1, 1, 1200, 245, 411, 965, {}, [1199]);
+    expect(callOrder).toEqual([ROCK_BAND_COLOR]);
+  });
+
+  it('T-Bg-V2-ColumnClampedHell: per-column surface_y at world bottom keeps hell black', () => {
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+    renderChunkBitmapV2('w1', 0, 1000, makeV2Data({}), 1, 1, 1200, 245, 411, 965, {}, [1199]);
+    expect(callOrder).toEqual([HELL_BAND_COLOR]);
   });
 });

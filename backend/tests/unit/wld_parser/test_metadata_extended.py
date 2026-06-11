@@ -83,6 +83,32 @@ def test_parse_metadata_new_field_types_are_correct() -> None:
 # ── T-31 ──────────────────────────────────────────────────────────────────────
 
 
+# ── T-53 ──────────────────────────────────────────────────────────────────────
+
+
+def test_parse_metadata_v319_spawn_surface_rock_exact_values() -> None:
+    """v319 (>= 284) parser reads lastPlayed and aligns spawn/surface/rock correctly."""
+    data = build_world(
+        version=319,
+        width=4200,
+        height=1200,
+        spawn_x=2104,
+        spawn_y=261,
+        world_surface_y=337.0,
+        rock_layer_y=517.0,
+    )
+    world = parse_wld_bytes(data)
+    assert world.metadata.spawn_x == 2104
+    assert world.metadata.spawn_y == 261
+    assert world.metadata.world_surface_y == pytest.approx(337.0)
+    assert world.metadata.rock_layer_y == pytest.approx(517.0)
+    # hell_layer_y still derived correctly: h - 235.0
+    assert world.metadata.hell_layer_y == pytest.approx(1200 - 235.0)
+
+
+# ── T-31 ──────────────────────────────────────────────────────────────────────
+
+
 def test_parse_world_info_truncated_before_spawn_raises_invalid_world_info() -> None:
     """Section-0 truncated inside tree-style block raises code='invalid_world_info'."""
     data = build_world(version=269, width=4, height=4)
