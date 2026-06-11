@@ -10,6 +10,7 @@ import {
   getWallColor,
   getLiquidColor,
   getBackgroundColor,
+  SKY_TOP_COLOR,
   SKY_BAND_COLOR,
   DIRT_BAND_COLOR,
   ROCK_BAND_COLOR,
@@ -177,8 +178,8 @@ describe('renderChunkBitmap', () => {
     expect(ctx.fillRect).toHaveBeenCalledWith(0, 1, 1, 1);
   });
 
-  it('T-Bg-Sky paints the sky band color for rows above the world surface', () => {
-    const tiles = new Int16Array(1).fill(-1);
+  it('T-Bg-Sky paints the sky gradient for rows above the world surface', () => {
+    const tiles = new Int16Array(2).fill(-1);
     const callOrder: string[] = [];
     const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
     const localCtx = {
@@ -190,9 +191,9 @@ describe('renderChunkBitmap', () => {
     };
     mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
 
-    renderChunkBitmap('w1', 0, 0, tiles, 1, 1, 1, 10, 20, 30);
+    renderChunkBitmap('w1', 0, 0, tiles, 2, 1, 2, 2, 20, 30);
 
-    expect(callOrder).toEqual([SKY_BAND_COLOR]);
+    expect(callOrder).toEqual([SKY_TOP_COLOR, SKY_BAND_COLOR]);
   });
 
   it('T-Bg-Dirt paints the dirt band color between surface and rock layers', () => {
@@ -212,6 +213,25 @@ describe('renderChunkBitmap', () => {
     renderChunkBitmap('w1', 0, 5, tiles, 1, 1, 6, 5, 10, 20);
 
     expect(callOrder).toEqual([DIRT_BAND_COLOR]);
+  });
+
+  it('T-Bg-Air ignores implausibly tiny surface metadata so sky air is not brown', () => {
+    const tiles = new Int16Array(1).fill(-1);
+    const callOrder: string[] = [];
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect: vi.fn().mockImplementation(() => {
+        callOrder.push(String(localCtx.fillStyle));
+      }),
+      clearRect: vi.fn(),
+    };
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+
+    renderChunkBitmap('w1', 0, 10, tiles, 1, 1, 1200, Number.MIN_VALUE, 0, 0);
+
+    expect(callOrder).toEqual([getBackgroundColor(10, Number.MIN_VALUE, 0, 0, 1200)]);
+    expect(callOrder[0]).not.toBe(DIRT_BAND_COLOR);
   });
 
   it('T-Bg-Rock paints the rock band color between rock and hell layers', () => {
@@ -400,7 +420,7 @@ describe('renderChunkBitmapV2', () => {
 
     expect(localCtx.fillRect).toHaveBeenCalledTimes(1);
     expect(localCtx.fillRect).toHaveBeenCalledWith(0, 0, 1, 1);
-    expect(callOrder).toEqual([SKY_BAND_COLOR]);
+    expect(callOrder).toEqual([SKY_TOP_COLOR]);
   });
 
   it('T-Bg-V2-Underground: cells below the surface get the dirt/rock/hell band, not the sky', () => {

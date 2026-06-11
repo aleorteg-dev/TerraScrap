@@ -558,7 +558,11 @@ const LIQUID_COLORS: Readonly<Record<number, string>> = {
 // Backdrop band colors ported verbatim from TerraMap (main.js:1019, getTileColor).
 // When a cell carries no tile / liquid / wall, the rendered color depends purely
 // on its world Y relative to the three world-layer breakpoints.
-export const SKY_BAND_COLOR = '#84aaf8'; // rgb(132, 170, 248)
+const SKY_TOP_RGB = [8, 47, 99] as const;
+const SKY_HORIZON_RGB = [132, 170, 248] as const;
+
+export const SKY_TOP_COLOR = '#082f63'; // deep navy sky
+export const SKY_BAND_COLOR = '#84aaf8'; // rgb(132, 170, 248), horizon / surface sky
 export const DIRT_BAND_COLOR = '#583d2e'; // rgb( 88,  61,  46)
 export const ROCK_BAND_COLOR = '#4a433c'; // rgb( 74,  67,  60)
 export const HELL_BAND_COLOR = '#000000';
@@ -571,8 +575,40 @@ const DEFAULT_TILE_COLOR = '#555555';
 const DEFAULT_WALL_COLOR = '#3a3a3a';
 const DEFAULT_LIQUID_COLOR = '#093dbf';
 
-function isUsableBreakpoint(value: number): boolean {
-  return Number.isFinite(value) && value > 0;
+function isUsableSurfaceBreakpoint(value: number, worldHeight: number): boolean {
+  if (!Number.isFinite(value) || value <= 0) return false;
+  if (worldHeight < 100) return true;
+  const minSurfaceY = Math.max(16, worldHeight * 0.05);
+  const maxSurfaceY = worldHeight * 0.75;
+  return value >= minSurfaceY && value < maxSurfaceY;
+}
+
+function isUsableLowerBreakpoint(value: number, previous: number, worldHeight: number): boolean {
+  if (!Number.isFinite(value) || value <= previous) return false;
+  if (worldHeight < 100) return true;
+  return value < worldHeight * 1.25;
+}
+
+function clamp01(value: number): number {
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  return value;
+}
+
+function hexByte(value: number): string {
+  return Math.round(value).toString(16).padStart(2, '0');
+}
+
+function interpolateColor(
+  from: readonly [number, number, number],
+  to: readonly [number, number, number],
+  t: number
+): string {
+  const ratio = clamp01(t);
+  const r = from[0] + (to[0] - from[0]) * ratio;
+  const g = from[1] + (to[1] - from[1]) * ratio;
+  const b = from[2] + (to[2] - from[2]) * ratio;
+  return `#${hexByte(r)}${hexByte(g)}${hexByte(b)}`;
 }
 
 // Resolves the four banding breakpoints, substituting Terraria's canonical
@@ -588,12 +624,24 @@ function resolveBreakpoints(
   hellLayerY: number
 ): { surface: number; rock: number; hell: number } {
   const h = Number.isFinite(worldHeight) && worldHeight > 0 ? worldHeight : 1200;
-  const surface = isUsableBreakpoint(worldSurfaceY) ? worldSurfaceY : Math.floor(h * 0.2);
+  const surface = isUsableSurfaceBreakpoint(worldSurfaceY, h)
+    ? worldSurfaceY
+    : Math.floor(h * 0.2);
   const rock =
-    isUsableBreakpoint(rockLayerY) && rockLayerY > surface ? rockLayerY : Math.floor(h * 0.5);
+    isUsableLowerBreakpoint(rockLayerY, surface, h) && rockLayerY > surface
+      ? rockLayerY
+      : Math.floor(h * 0.5);
   const hell =
-    isUsableBreakpoint(hellLayerY) && hellLayerY > rock ? hellLayerY : Math.floor(h * 0.9);
+    isUsableLowerBreakpoint(hellLayerY, rock, h) && hellLayerY > rock
+      ? hellLayerY
+      : Math.floor(h * 0.9);
   return { surface, rock, hell };
+}
+
+export function getSkyGradientColor(worldY: number, surfaceY: number): string {
+  const denominator = Math.max(surfaceY - 1, 1);
+  const t = Number.isFinite(worldY) ? worldY / denominator : 0;
+  return interpolateColor(SKY_TOP_RGB, SKY_HORIZON_RGB, t);
 }
 
 export function getBackgroundColor(
@@ -609,7 +657,7 @@ export function getBackgroundColor(
     rockLayerY,
     hellLayerY
   );
-  if (worldY < surface) return SKY_BAND_COLOR;
+  if (worldY < surface) return getSkyGradientColor(worldY, surface);
   if (worldY < rock) return DIRT_BAND_COLOR;
   if (worldY < hell) return ROCK_BAND_COLOR;
   return HELL_BAND_COLOR;

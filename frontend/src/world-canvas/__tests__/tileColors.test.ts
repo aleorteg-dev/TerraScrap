@@ -4,6 +4,8 @@ import {
   getWallColor,
   getLiquidColor,
   getBackgroundColor,
+  getSkyGradientColor,
+  SKY_TOP_COLOR,
   SKY_BAND_COLOR,
   DIRT_BAND_COLOR,
   ROCK_BAND_COLOR,
@@ -139,9 +141,16 @@ describe('getBackgroundColor (TerraMap layer banding)', () => {
   const ROCK = 600;
   const HELL = 1100;
 
-  it('returns the sky band color for rows above the world surface', () => {
-    expect(getBackgroundColor(0, SURFACE, ROCK, HELL)).toBe(SKY_BAND_COLOR);
+  it('returns the sky gradient for rows above the world surface', () => {
+    expect(getBackgroundColor(0, SURFACE, ROCK, HELL)).toBe(SKY_TOP_COLOR);
     expect(getBackgroundColor(SURFACE - 1, SURFACE, ROCK, HELL)).toBe(SKY_BAND_COLOR);
+  });
+
+  it('interpolates the sky between top and horizon colors', () => {
+    const middleSky = getSkyGradientColor(120, SURFACE);
+    expect(middleSky).not.toBe(SKY_TOP_COLOR);
+    expect(middleSky).not.toBe(SKY_BAND_COLOR);
+    expect(middleSky).not.toBe(DIRT_BAND_COLOR);
   });
 
   it('returns the dirt band color between the surface and rock layers', () => {
@@ -164,7 +173,26 @@ describe('getBackgroundColor (TerraMap layer banding)', () => {
     expect(getBackgroundColor(cavernY, SURFACE, ROCK, HELL)).toBe(ROCK_BAND_COLOR);
   });
 
+  it('falls back to a usable sky breakpoint when metadata layers are zero', () => {
+    expect(getBackgroundColor(0, 0, 0, 0, 1200)).toBe(SKY_TOP_COLOR);
+    expect(getBackgroundColor(239, 0, 0, 0, 1200)).toBe(SKY_BAND_COLOR);
+    expect(getBackgroundColor(240, 0, 0, 0, 1200)).toBe(DIRT_BAND_COLOR);
+  });
+
+  it('does not treat tiny positive surface metadata as a valid surface', () => {
+    expect(getBackgroundColor(10, Number.MIN_VALUE, 0, 0, 1200)).toBe(
+      getSkyGradientColor(10, 240)
+    );
+    expect(getBackgroundColor(10, 1, 2, 3, 1200)).not.toBe(DIRT_BAND_COLOR);
+  });
+
+  it('does not let implausible layer metadata turn the sky brown', () => {
+    expect(getBackgroundColor(10, 9000, 9001, 9002, 1200)).toBe(getSkyGradientColor(10, 240));
+    expect(getBackgroundColor(700, 9000, 9001, 9002, 1200)).toBe(ROCK_BAND_COLOR);
+  });
+
   it('exposes constants that match TerraMap main.js getTileColor literals', () => {
+    expect(SKY_TOP_COLOR).toBe('#082f63');
     expect(SKY_BAND_COLOR).toBe('#84aaf8');
     expect(DIRT_BAND_COLOR).toBe('#583d2e');
     expect(ROCK_BAND_COLOR).toBe('#4a433c');
