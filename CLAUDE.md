@@ -98,7 +98,7 @@ docker compose -f docker/docker-compose.yml up --build
 | Backend | Python 3.12, FastAPI, Uvicorn |
 | Tests backend | pytest, pytest-asyncio, hypothesis (property-based) |
 | Lint/tipo backend | ruff, mypy --strict |
-| Frontend | React 18, TypeScript, Vite |
+| Frontend | React 19, TypeScript, Vite |
 | Tests frontend | Vitest, React Testing Library |
 | Lint frontend | ESLint, Prettier |
 | Contenedores | Docker, docker-compose, nginx |
@@ -147,7 +147,9 @@ docker compose -f docker/docker-compose.yml up --build
 - Si regeneras la caché, versiona el fichero.
 
 ### Encoding de tiles (B5 / F3)
-- Los tiles viajan como `base64-rle-v1`. El spec exacto vive en `wld-parser.md` y `world-canvas.md`.
+- Contrato vigente v0.2: los tiles viajan como `base64-rle-v1` (default) o `base64-rle-v2`
+  (negociado vía query param `?encoding=` en `GET /tiles`). Spec exacto en
+  `docs/contracts/api-contract.md` §5.2 y en `world-canvas.md`.
 - No inventes otro encoding; cambios aquí afectan al contrato API.
 
 ### Sesiones en memoria

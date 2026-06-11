@@ -41,7 +41,7 @@
             }
           },
           "413": {
-            "description": "Content Too Large",
+            "description": "Request Entity Too Large",
             "content": {
               "application/json": {
                 "schema": {
@@ -51,7 +51,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Unprocessable Entity",
             "content": {
               "application/json": {
                 "schema": {
@@ -207,6 +207,16 @@
               "default": 128,
               "title": "Chunk Size"
             }
+          },
+          {
+            "name": "encoding",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "base64-rle-v1",
+              "title": "Encoding"
+            }
           }
         ],
         "responses": {
@@ -216,6 +226,142 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TilesChunkDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/worlds/{world_id}/tile": {
+      "get": {
+        "summary": "Get Tile",
+        "operationId": "get_tile_api_worlds__world_id__tile_get",
+        "parameters": [
+          {
+            "name": "world_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "World Id"
+            }
+          },
+          {
+            "name": "x",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "X"
+            }
+          },
+          {
+            "name": "y",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Y"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TileDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worlds/{world_id}/npcs": {
+      "get": {
+        "summary": "Get Npcs",
+        "operationId": "get_npcs_api_worlds__world_id__npcs_get",
+        "parameters": [
+          {
+            "name": "world_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "World Id"
+            }
+          },
+          {
+            "name": "town_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Town Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NpcListDto"
                 }
               }
             }
@@ -282,6 +428,38 @@
               "default": true,
               "title": "Include Containers"
             }
+          },
+          {
+            "name": "frame_x",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frame X"
+            }
+          },
+          {
+            "name": "frame_y",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frame Y"
+            }
           }
         ],
         "responses": {
@@ -316,14 +494,14 @@
             "description": "Not Found"
           },
           "422": {
-            "description": "Validation Error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorDto"
                 }
               }
-            }
+            },
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -368,14 +546,24 @@
             }
           },
           "422": {
-            "description": "Validation Error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorDto"
                 }
               }
-            }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -417,14 +605,24 @@
             "description": "Not Found"
           },
           "422": {
-            "description": "Validation Error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorDto"
                 }
               }
-            }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -432,6 +630,112 @@
   },
   "components": {
     "schemas": {
+      "BackgroundStylesDto": {
+        "properties": {
+          "moon_style": {
+            "type": "integer",
+            "title": "Moon Style"
+          },
+          "tree_x": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Tree X"
+          },
+          "tree_style": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Tree Style"
+          },
+          "cave_back_x": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Cave Back X"
+          },
+          "cave_back_style": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Cave Back Style"
+          },
+          "ice_back_style": {
+            "type": "integer",
+            "title": "Ice Back Style"
+          },
+          "jungle_back_style": {
+            "type": "integer",
+            "title": "Jungle Back Style"
+          },
+          "hell_back_style": {
+            "type": "integer",
+            "title": "Hell Back Style"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moon_style",
+          "tree_x",
+          "tree_style",
+          "cave_back_x",
+          "cave_back_style",
+          "ice_back_style",
+          "jungle_back_style",
+          "hell_back_style"
+        ],
+        "title": "BackgroundStylesDto"
+      },
       "Body_upload_world_api_worlds_post": {
         "properties": {
           "file": {
@@ -461,6 +765,13 @@
               {
                 "additionalProperties": true,
                 "type": "object"
+              },
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
               },
               {
                 "type": "null"
@@ -578,6 +889,59 @@
         ],
         "title": "ItemSummaryDto"
       },
+      "NpcDto": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "town",
+              "banner"
+            ],
+            "title": "Type"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "x",
+          "y"
+        ],
+        "title": "NpcDto"
+      },
+      "NpcListDto": {
+        "properties": {
+          "npcs": {
+            "items": {
+              "$ref": "#/components/schemas/NpcDto"
+            },
+            "type": "array",
+            "title": "Npcs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "npcs"
+        ],
+        "title": "NpcListDto"
+      },
       "SearchMatchDto": {
         "properties": {
           "x": {
@@ -655,6 +1019,120 @@
         ],
         "title": "SearchResultDto"
       },
+      "TileDetailDto": {
+        "properties": {
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          },
+          "tile_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tile Id"
+          },
+          "wall_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wall Id"
+          },
+          "liquid_type": {
+            "type": "string",
+            "enum": [
+              "none",
+              "water",
+              "lava",
+              "honey",
+              "shimmer"
+            ],
+            "title": "Liquid Type"
+          },
+          "liquid_amount": {
+            "type": "integer",
+            "title": "Liquid Amount"
+          },
+          "frame_x": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frame X"
+          },
+          "frame_y": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frame Y"
+          },
+          "chest_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chest Id"
+          },
+          "sign_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sign Id"
+          },
+          "tile_entity_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tile Entity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "tile_id",
+          "wall_id",
+          "liquid_type",
+          "liquid_amount"
+        ],
+        "title": "TileDetailDto"
+      },
       "TilesChunkDto": {
         "properties": {
           "chunk_x": {
@@ -675,12 +1153,29 @@
           },
           "encoding": {
             "type": "string",
-            "const": "base64-rle-v1",
+            "enum": [
+              "base64-rle-v1",
+              "base64-rle-v2"
+            ],
             "title": "Encoding"
           },
           "payload": {
             "type": "string",
             "title": "Payload"
+          },
+          "surface_y": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surface Y"
           }
         },
         "type": "object",
@@ -785,6 +1280,36 @@
           "hardmode": {
             "type": "boolean",
             "title": "Hardmode"
+          },
+          "spawn_x": {
+            "type": "integer",
+            "title": "Spawn X"
+          },
+          "spawn_y": {
+            "type": "integer",
+            "title": "Spawn Y"
+          },
+          "world_surface_y": {
+            "type": "number",
+            "title": "World Surface Y"
+          },
+          "rock_layer_y": {
+            "type": "number",
+            "title": "Rock Layer Y"
+          },
+          "hell_layer_y": {
+            "type": "number",
+            "title": "Hell Layer Y"
+          },
+          "background_styles": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackgroundStylesDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -795,7 +1320,12 @@
           "version",
           "seed",
           "size",
-          "hardmode"
+          "hardmode",
+          "spawn_x",
+          "spawn_y",
+          "world_surface_y",
+          "rock_layer_y",
+          "hell_layer_y"
         ],
         "title": "WorldMetadataDto"
       }

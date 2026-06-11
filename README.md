@@ -23,7 +23,7 @@
 | Capa | Tecnología |
 |------|------------|
 | **Backend** | Python 3.12 · FastAPI · Uvicorn |
-| **Frontend** | React 18 · TypeScript · Vite |
+| **Frontend** | React 19 · TypeScript · Vite |
 | **Render** | Canvas 2D API nativa |
 | **Tests backend** | pytest · pytest-asyncio · hypothesis |
 | **Tests frontend** | Vitest · React Testing Library |

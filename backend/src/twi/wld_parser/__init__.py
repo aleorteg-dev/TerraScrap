@@ -5,10 +5,13 @@ import io
 from twi.wld_parser._exceptions import UnsupportedWorldVersionError, WldParseError
 from twi.wld_parser._parser import parse_wld
 from twi.wld_parser._types import (
+    BackgroundStyles,
     Chest,
     ChestItem,
+    Npc,
     Sign,
     Tile,
+    TileEntity,
     TileGrid,
     World,
     WorldMetadata,
@@ -20,10 +23,13 @@ def parse_wld_bytes(data: bytes) -> World:
 
 
 __all__ = [
+    "BackgroundStyles",
     "Chest",
     "ChestItem",
+    "Npc",
     "Sign",
     "Tile",
+    "TileEntity",
     "TileGrid",
     "UnsupportedWorldVersionError",
     "WldParseError",

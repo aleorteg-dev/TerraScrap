@@ -1,9 +1,28 @@
-export { ApiError, createApiClient } from './client';
+export {
+  ApiError,
+  UploadTooLargeError,
+  WorldNotFoundError,
+  ItemNotFoundError,
+  ValidationError,
+  InternalApiError,
+  CatalogUnavailableError,
+  InvalidEncodingError,
+  CoordinatesOutOfBoundsError,
+  ApiVersionMismatchError,
+  parseError,
+} from './errors';
+export { createApiClient, EXPECTED_API_VERSION } from './client';
 export type {
   ApiClient,
   ApiClientOptions,
+  SearchInWorldOptions,
+  UploadOptions,
   WorldMetadata,
   TilesChunk,
+  TilesEncoding,
+  TileDetail,
+  Npc,
+  NpcList,
   SearchResult,
   SearchMatch,
   ItemSummary,

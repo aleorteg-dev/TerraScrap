@@ -30,8 +30,18 @@ Flujo principal (máquina de estados implícita):
 - **SP-04** `SearchPanel.onMatchFocus(m)` llama `canvasHandle.centerOn(m.x, m.y)`.
 - **SP-05** Un botón "Cerrar mundo" vuelve a `NoWorld` tras llamar `apiClient.deleteWorld`.
 - **SP-06** Errores de la API muestran un toast no bloqueante.
-- **SP-07** Layout responsivo: canvas arriba (flex 1), panel lateral derecho (320 px), upload centrado cuando no hay mundo.
+- **SP-07** Layout raiz fluido: `#root` ocupa el 100 % del viewport y el mundo cargado usa una rejilla estable de dos columnas.
 - **SP-08** Persiste `worldId` en `sessionStorage` para recuperar la sesión al recargar.
+
+### Layout raiz
+- `#root` debe ocupar `width: 100%` del viewport, sin `max-width`, sin `margin: 0 auto`, sin padding inducido por la plantilla Vite y sin `text-align: center`.
+- El `body` no debe inducir scroll horizontal: `margin: 0`, `min-width: 1024px` como breakpoint minimo soportado y `overflow-x: hidden`.
+- El arbol React debajo de `App` ocupa todo el viewport disponible con `.app { width: 100%; min-height: 100dvh; }`.
+- En estado `WorldLoaded`, `.app-main` es una rejilla de dos columnas: `320px 1fr`. La primera columna contiene `search-panel`; la segunda contiene el host del `world-canvas`.
+- El ancho contratado del `search-panel` es fijo: `320px`. Esta iteracion soporta viewports desde `1024px`; por debajo queda fuera de alcance y se registrara como follow-up mobile.
+- El host del canvas debe usar `min-width: 0`, `width: 100%`, `height: 100%` y permitir que `WorldCanvas` pinte al `100%` del espacio asignado. El canvas debe escalar cuando cambia el tamano del navegador.
+- No debe haber scroll horizontal en viewports `>= 1024px`.
+- Alcance de implementacion: solo CSS global, CSS/app-shell y, si hace falta, el componente raiz `App.tsx`. No se toca logica de canvas, internals de `search-panel`, rutas de datos ni contratos de API.
 
 ## 6. Plan de tests (TDD)
 - [x] `T-01 renders UploadWorld in initial state`
@@ -41,6 +51,44 @@ Flujo principal (máquina de estados implícita):
 - [x] `T-05 closes world and resets state`
 - [x] `T-06 recovers worldId from sessionStorage on mount`
 - [x] `T-07 shows toast on API error`
+- [x] `test_root_has_no_max_width`
+- [x] `test_root_fills_viewport_width`
+- [x] `test_root_no_centered_margin`
+- [x] `test_root_no_text_align_center`
+- [x] `test_layout_grid_two_columns`
+- [x] `test_canvas_host_grows_with_viewport`
+- [x] `test_search_panel_has_stable_width`
+- [x] `test_app_renders_without_console_errors`
+- [x] `smoke: toolbar visible with canvas and search-panel in WorldLoaded`
+- [x] `toolbar zoom in calls setZoom with incremented value`
+- [x] `toolbar export PNG calls exportToPng and createObjectURL`
+- [x] `tile selection triggers getTileDetail and shows tile detail panel`
+- [x] `NPC list click centers canvas on NPC coords`
+- [x] `mobile: sidebar has data-open=false at viewport <768px`
+
+## 6b. Desarrollo local
+
+### Comportamiento esperado
+
+En `npm run dev` (Vite en `localhost:5173`), las peticiones a `/api/*` deben llegar a FastAPI en `localhost:8000`, no al dev-server de Vite.
+
+Mecanismo: Vite `server.proxy` redirige `/api` → `http://localhost:8000` con `changeOrigin: true`.
+El cliente (`createApiClient`) usa `/api` como `baseUrl` por defecto; en build de producción, nginx sirve tanto el frontend como el proxy a FastAPI, por lo que no se necesita URL absoluta.
+
+**Precondición para `npm run dev`**: el backend debe estar levantado en `:8000` (`uvicorn src.twi.app:app --reload`).
+
+### Verificación manual (anotada 2026-05-11)
+
+```
+1. cd backend && uvicorn src.twi.app:app --reload --port 8000
+2. cd frontend && npm run dev
+3. Abrir http://localhost:5173
+4. Subir un .wld válido → POST /api/worlds llega a FastAPI (log uvicorn visible).
+```
+
+Esta verificación queda pendiente de confirmación con `.wld` real (ver Deuda).
+
+---
 
 ## 7. Notas de implementación
 - Usar `useReducer` con `State = NoWorld | { kind: "WorldLoaded"; worldId; metadata; matches }`.
@@ -54,18 +102,48 @@ Flujo principal (máquina de estados implícita):
 - Gestionados por un `ErrorBoundary` sencillo en la raíz.
 
 ## 10. Estado
-- **Versión del contrato**: v1.0
-- **Último cierre**: 2026-04-27 (iter-012)
+- **Versión del contrato**: v2.0
+- **Último cierre**: 2026-05-11 (toolbar, NPC panel, tile detail panel, layout móvil — iter-19; proxy dev Vite — iter-20b)
 - **Iteración actual**: cerrada
 
 ### Decisiones tomadas
 - `useReducer` con `AppState = NoWorld | WorldLoaded` (tipo discriminado).
+- `WorldLoaded` extendido con `selectedTile`, `tileDetail`, `npcs`, `layers`, `maskMode`, `sidebarOpen`, `panels`, `zoom`.
+- Estado de tipos separado en `appState.ts`; contexto en `AppContext.tsx`; sub-componentes en `components/`.
+- `AppContext` (no exportado desde `index.ts`) proporciona `state/dispatch/canvasHandle` a `Toolbar`, `NpcPanel`, `TileDetailPanel`.
+- `onMatchFocus` ahora también despacha `SELECT_TILE` → trigger lazy-load de `getTileDetail`.
+- NPC loading: `useEffect` que vigila `panels.npcs && npcs === null`; carga una sola vez por mundo.
+- `layers.grid` se pasa como `showLayerLines` a `WorldCanvas`; otros layers (`walls/liquids/wires`) almacenados en estado pero pendientes de contrato F3 (deuda anotada).
+- `maskMode` se pasa como `style="mask"` a `HighlightOverlay`.
+- `sidebarOpen` inicializa con `window.innerWidth >= 768`; botón toggle en header visible en mobile.
 - `canvasHandle` en `useState` (no `useRef`) para que `handleMatchFocus` reciba el valor actual.
 - `sessionStorage` persiste `terra_world_id` + `terra_world_metadata`; se recupera en `readSessionState` (lazy init de `useReducer`).
-- `deleteWorld` falla silenciosamente: se muestra toast pero se cierra la sesión local igualmente (sesiones en memoria, pueden haber expirado).
-- `ErrorBoundary` clase mínima en el mismo fichero (no necesita módulo propio).
-- `src/App.tsx` re-exporta desde `./app-shell` para mantener compatibilidad con cualquier import legacy.
+- `deleteWorld` falla silenciosamente: se muestra toast pero se cierra la sesión local igualmente.
+- `ErrorBoundary` clase mínima en el mismo fichero.
+- Layout `WorldLoaded`: `search-panel` queda a la izquierda con ancho fijo `320px`; `world-canvas` ocupa la columna restante con `minmax(0, 1fr)`.
 
 ### Deuda / follow-ups
-- Smoke test manual pendiente (requiere backend vivo con `.wld` real). Anotar resultado aquí tras realizarlo.
-- P1 deployment-docker: empaquetar frontend con nginx.
+- Cerrado 2026-05-19: layer toggles `walls/liquids/wires` conectados a props reales de `WorldCanvas`.
+- Cerrado 2026-05-19: `zoomToFit()` expuesto por `WorldCanvasHandle` y conectado en toolbar.
+- Cerrado 2026-05-19: panel de propiedades del mundo muestra metadata v0.2 (`spawn_x/y`, capas, version, seed, size, hardmode).
+- Cerrado 2026-05-19: export PNG compone los canvas visibles dentro de `.app-canvas-container`, incluido overlay.
+- Smoke test manual pendiente (requiere backend vivo con `.wld` real).
+
+### Evolución propuesta para paridad con TerraMap
+
+F6 debe coordinar los controles globales, porque es el único módulo que conoce canvas, búsqueda y API.
+
+Pendiente:
+- **Toolbar global**: controles anterior/siguiente match.
+- **Frame UI**: controles para explotar `frameX/frameY` de F1 si se decide exponer búsqueda por frame en interfaz.
+
+Restricciones:
+- no meter lógica de parsing/render en F6.
+- no abrir endpoints nuevos hasta que `api-contract.md`, B5 y F1 estén actualizados.
+- mantener controles como composición de contratos públicos de F3/F4/F5.
+- export PNG: F6 compone los canvas visibles del contenedor; si F5 cambia a render no-canvas, debe exponer una API equivalente de exportación.
+
+Tests mínimos futuros:
+- next/previous match llama `centerOn` con wrap-around y actualiza `focusedMatchIndex`.
+- `zoom-to-fit` invoca `canvasHandle.zoomToFit()`.
+- panel propiedades muestra `world_surface_y` formateado.

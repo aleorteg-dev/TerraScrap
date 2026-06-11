@@ -1,11 +1,11 @@
-FROM python:3.12-slim AS build
+FROM python:3.12-alpine AS build
 WORKDIR /src
 COPY backend/pyproject.toml ./
 COPY backend/src ./src
 RUN pip install --no-cache-dir build && python -m build --wheel
 
-FROM python:3.12-slim
-RUN useradd -r -u 10001 twi
+FROM python:3.12-alpine
+RUN addgroup -S -g 10001 twi && adduser -S -D -H -u 10001 -G twi twi
 WORKDIR /app
 RUN mkdir -p /app/data && chown twi:twi /app/data
 COPY --from=build /src/dist/*.whl /tmp/

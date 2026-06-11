@@ -1,4 +1,5 @@
 import type { components } from './__generated__/schema';
+import { ApiError, ApiVersionMismatchError, WorldNotFoundError, parseError } from './errors';
 
 // ── Tipos re-exportados desde el schema generado ──────────────────────────────
 
@@ -8,43 +9,53 @@ export type SearchResult = components['schemas']['SearchResultDto'];
 export type SearchMatch = components['schemas']['SearchMatchDto'];
 export type ItemSummary = components['schemas']['ItemSummaryDto'];
 export type ItemDetail = components['schemas']['ItemDetailDto'];
+export type Npc = components['schemas']['NpcDto'];
+export type NpcList = components['schemas']['NpcListDto'];
+export type TileDetail = components['schemas']['TileDetailDto'];
+export type TilesEncoding = TilesChunk['encoding'];
 
-// Tipo interno: no expuesto, sólo usado dentro de uploadWorld
 type WorldCreatedDto = components['schemas']['WorldCreatedDto'];
 type ItemListDto = components['schemas']['ItemListDto'];
 
-// ── ApiError ──────────────────────────────────────────────────────────────────
-
-export class ApiError extends Error {
-  readonly code: string;
-  readonly httpStatus: number;
-  readonly details: unknown;
-
-  constructor(code: string, httpStatus: number, message: string, details?: unknown) {
-    super(message);
-    this.name = 'ApiError';
-    this.code = code;
-    this.httpStatus = httpStatus;
-    this.details = details;
-  }
-}
+export const EXPECTED_API_VERSION = '0.2';
 
 // ── Contrato público ──────────────────────────────────────────────────────────
 
+export interface UploadOptions {
+  onProgress?: (pct: number) => void;
+}
+
+export interface SearchInWorldOptions {
+  includeContainers?: boolean;
+  frameX?: number;
+  frameY?: number;
+}
+
 export interface ApiClient {
-  uploadWorld(file: File): Promise<{ worldId: string; metadata: WorldMetadata }>;
+  uploadWorld(
+    file: File,
+    opts?: UploadOptions
+  ): Promise<{ worldId: string; metadata: WorldMetadata }>;
   getWorldMetadata(worldId: string): Promise<WorldMetadata>;
   getTilesChunk(
     worldId: string,
     chunkX: number,
     chunkY: number,
-    chunkSize?: number
+    chunkSize?: number,
+    encoding?: TilesEncoding
   ): Promise<TilesChunk>;
-  searchItems(query: string, limit?: number): Promise<ItemSummary[]>;
+  getTileDetail(worldId: string, x: number, y: number): Promise<TileDetail>;
+  listNpcs(worldId: string, opts?: { townOnly?: boolean }): Promise<Npc[]>;
+  searchItems(
+    query: string,
+    limit?: number,
+    opts?: { signal?: AbortSignal }
+  ): Promise<ItemSummary[]>;
+  getItem(itemId: number): Promise<ItemDetail>;
   searchInWorld(
     worldId: string,
     itemId: number,
-    includeContainers?: boolean
+    options?: SearchInWorldOptions | boolean
   ): Promise<SearchResult>;
   deleteWorld(worldId: string): Promise<void>;
 }
@@ -52,18 +63,22 @@ export interface ApiClient {
 export interface ApiClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  xhrFactory?: () => XMLHttpRequest;
 }
 
 // ── Helpers internos ──────────────────────────────────────────────────────────
 
-function isErrorPayload(
-  v: unknown
-): v is { error: { code: string; message: string; details?: unknown } } {
-  if (typeof v !== 'object' || v === null || !('error' in v)) return false;
-  const inner = (v as Record<string, unknown>)['error'];
-  if (typeof inner !== 'object' || inner === null) return false;
-  const err = inner as Record<string, unknown>;
-  return typeof err['code'] === 'string' && typeof err['message'] === 'string';
+function checkApiVersion(response: Response): void {
+  const v = response.headers.get('X-API-Version');
+  if (v !== null && v !== EXPECTED_API_VERSION) {
+    throw new ApiVersionMismatchError(
+      'api_version_mismatch',
+      response.status,
+      `Expected X-API-Version ${EXPECTED_API_VERSION}, got ${v}`,
+      { received: v, expected: EXPECTED_API_VERSION },
+      v
+    );
+  }
 }
 
 async function doRequest<T>(fetchImpl: typeof fetch, url: string, init?: RequestInit): Promise<T> {
@@ -75,16 +90,14 @@ async function doRequest<T>(fetchImpl: typeof fetch, url: string, init?: Request
     throw new ApiError('network_error', 0, msg);
   }
 
+  checkApiVersion(response);
+
   if (response.status === 204) {
     return undefined as T;
   }
 
   if (!response.ok) {
-    const body: unknown = await response.json();
-    if (isErrorPayload(body)) {
-      throw new ApiError(body.error.code, response.status, body.error.message, body.error.details);
-    }
-    throw new ApiError('unknown_error', response.status, 'Unknown server error');
+    throw await parseError(response);
   }
 
   const json: unknown = await response.json();
@@ -97,9 +110,82 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
   const baseUrl =
     opts?.baseUrl ?? (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '/api';
   const fetchImpl = opts?.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  const xhrFactory = opts?.xhrFactory ?? ((): XMLHttpRequest => new XMLHttpRequest());
+
+  function uploadViaXhr(file: File, onProgress: (pct: number) => void): Promise<WorldCreatedDto> {
+    return new Promise<WorldCreatedDto>((resolve, reject) => {
+      const xhr = xhrFactory();
+      const body = new FormData();
+      body.append('file', file);
+      xhr.open('POST', `${baseUrl}/worlds`);
+      xhr.responseType = 'text';
+
+      let lastPct = 0;
+      xhr.upload.onprogress = (ev: ProgressEvent): void => {
+        if (!ev.lengthComputable || ev.total <= 0) return;
+        const pct = Math.max(0, Math.min(100, Math.floor((ev.loaded / ev.total) * 100)));
+        if (pct >= lastPct) {
+          lastPct = pct;
+          onProgress(pct);
+        }
+      };
+      xhr.upload.onerror = (): void => {
+        reject(new ApiError('network_error', 0, 'Upload failed'));
+      };
+      xhr.onerror = (): void => {
+        reject(new ApiError('network_error', 0, 'Network error'));
+      };
+      xhr.onload = (): void => {
+        const apiVersion = xhr.getResponseHeader('X-API-Version') ?? undefined;
+        if (apiVersion !== undefined && apiVersion !== EXPECTED_API_VERSION) {
+          reject(
+            new ApiVersionMismatchError(
+              'api_version_mismatch',
+              xhr.status,
+              `Expected X-API-Version ${EXPECTED_API_VERSION}, got ${apiVersion}`,
+              { received: apiVersion, expected: EXPECTED_API_VERSION },
+              apiVersion
+            )
+          );
+          return;
+        }
+        const status = xhr.status;
+        const text = xhr.responseText;
+        let parsed: unknown;
+        try {
+          parsed = text ? JSON.parse(text) : undefined;
+        } catch {
+          parsed = undefined;
+        }
+        if (status >= 200 && status < 300) {
+          if (lastPct < 100) {
+            lastPct = 100;
+            onProgress(100);
+          }
+          resolve(parsed as WorldCreatedDto);
+        } else {
+          const fakeResponse = {
+            ok: false,
+            status,
+            json: (): Promise<unknown> => Promise.resolve(parsed),
+            headers: {
+              get: (name: string): string | null =>
+                name.toLowerCase() === 'x-api-version' ? (apiVersion ?? null) : null,
+            },
+          } as unknown as Response;
+          parseError(fakeResponse).then(reject, reject);
+        }
+      };
+      xhr.send(body);
+    });
+  }
 
   return {
-    async uploadWorld(file: File) {
+    async uploadWorld(file: File, uploadOpts?: UploadOptions) {
+      if (uploadOpts?.onProgress) {
+        const dto = await uploadViaXhr(file, uploadOpts.onProgress);
+        return { worldId: dto.world_id, metadata: dto.metadata };
+      }
       const body = new FormData();
       body.append('file', file);
       const dto = await doRequest<WorldCreatedDto>(fetchImpl, `${baseUrl}/worlds`, {
@@ -113,30 +199,71 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
       return doRequest<WorldMetadata>(fetchImpl, `${baseUrl}/worlds/${worldId}`);
     },
 
-    getTilesChunk(worldId: string, chunkX: number, chunkY: number, chunkSize?: number) {
+    getTilesChunk(
+      worldId: string,
+      chunkX: number,
+      chunkY: number,
+      chunkSize?: number,
+      encoding?: TilesEncoding
+    ) {
       const params = new URLSearchParams({
         chunk_x: String(chunkX),
         chunk_y: String(chunkY),
       });
       if (chunkSize !== undefined) params.set('chunk_size', String(chunkSize));
+      if (encoding !== undefined) params.set('encoding', encoding);
       return doRequest<TilesChunk>(
         fetchImpl,
         `${baseUrl}/worlds/${worldId}/tiles?${params.toString()}`
       );
     },
 
-    async searchItems(query: string, limit?: number) {
+    getTileDetail(worldId: string, x: number, y: number) {
+      const params = new URLSearchParams({ x: String(x), y: String(y) });
+      return doRequest<TileDetail>(
+        fetchImpl,
+        `${baseUrl}/worlds/${worldId}/tile?${params.toString()}`
+      );
+    },
+
+    async listNpcs(worldId: string, listOpts?: { townOnly?: boolean }) {
+      const params = new URLSearchParams();
+      if (listOpts?.townOnly !== undefined) {
+        params.set('town_only', String(listOpts.townOnly));
+      }
+      const qs = params.toString();
+      const url = qs
+        ? `${baseUrl}/worlds/${worldId}/npcs?${qs}`
+        : `${baseUrl}/worlds/${worldId}/npcs`;
+      const dto = await doRequest<NpcList>(fetchImpl, url);
+      return dto.npcs;
+    },
+
+    async searchItems(query: string, limit?: number, opts?: { signal?: AbortSignal }) {
       const params = new URLSearchParams({ q: query });
       if (limit !== undefined) params.set('limit', String(limit));
-      const dto = await doRequest<ItemListDto>(fetchImpl, `${baseUrl}/items?${params.toString()}`);
+      const dto = await doRequest<ItemListDto>(
+        fetchImpl,
+        `${baseUrl}/items?${params.toString()}`,
+        opts?.signal ? { signal: opts.signal } : undefined
+      );
       return dto.items;
     },
 
-    searchInWorld(worldId: string, itemId: number, includeContainers?: boolean) {
+    getItem(itemId: number) {
+      return doRequest<ItemDetail>(fetchImpl, `${baseUrl}/items/${itemId}`);
+    },
+
+    searchInWorld(worldId: string, itemId: number, options?: SearchInWorldOptions | boolean) {
       const params = new URLSearchParams({ item_id: String(itemId) });
+      const normalized =
+        typeof options === 'boolean' ? { includeContainers: options } : (options ?? {});
+      const { includeContainers, frameX, frameY } = normalized;
       if (includeContainers !== undefined) {
         params.set('include_containers', String(includeContainers));
       }
+      if (frameX !== undefined) params.set('frame_x', String(frameX));
+      if (frameY !== undefined) params.set('frame_y', String(frameY));
       return doRequest<SearchResult>(
         fetchImpl,
         `${baseUrl}/worlds/${worldId}/search?${params.toString()}`
@@ -151,19 +278,16 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
         const msg = err instanceof Error ? err.message : 'Network error';
         throw new ApiError('network_error', 0, msg);
       }
-      // SP-06: swallow 404 (idempotente)
-      if (response.status === 404) return;
-      if (response.ok) return;
-      const body: unknown = await response.json();
-      if (isErrorPayload(body)) {
-        throw new ApiError(
-          body.error.code,
-          response.status,
-          body.error.message,
-          body.error.details
+      checkApiVersion(response);
+      if (response.status === 404) {
+        throw await parseError(response).then((e) =>
+          e instanceof WorldNotFoundError
+            ? e
+            : new WorldNotFoundError('world_not_found', 404, e.message, e.details, e.apiVersion)
         );
       }
-      throw new ApiError('unknown_error', response.status, 'Unknown server error');
+      if (response.status === 204 || response.ok) return;
+      throw await parseError(response);
     },
   };
 }

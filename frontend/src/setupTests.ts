@@ -11,8 +11,21 @@ afterEach(() => {
 const mockCtx: Partial<CanvasRenderingContext2D> = {
   clearRect: vi.fn(),
   fillRect: vi.fn(),
+  strokeRect: vi.fn(),
+  drawImage: vi.fn() as unknown as CanvasRenderingContext2D['drawImage'],
+  beginPath: vi.fn(),
+  moveTo: vi.fn(),
+  lineTo: vi.fn(),
+  stroke: vi.fn(),
+  setLineDash: vi.fn(),
 };
 
-HTMLCanvasElement.prototype.getContext = vi
-  .fn()
-  .mockReturnValue(mockCtx) as typeof HTMLCanvasElement.prototype.getContext;
+if (typeof HTMLCanvasElement !== 'undefined') {
+  HTMLCanvasElement.prototype.getContext = vi
+    .fn()
+    .mockReturnValue(mockCtx) as typeof HTMLCanvasElement.prototype.getContext;
+
+  HTMLCanvasElement.prototype.toBlob = vi.fn().mockImplementation((callback: BlobCallback) => {
+    callback(new Blob(['mock-png'], { type: 'image/png' }));
+  }) as typeof HTMLCanvasElement.prototype.toBlob;
+}

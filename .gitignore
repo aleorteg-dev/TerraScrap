@@ -34,6 +34,13 @@ backend/src/*.egg-info/
 
 # ─── pytest ──────────────────────────────────────────────
 .pytest_cache/
+# Codex pytest tmp dirs: known historical names plus future variants.
+backend/.codex_pytest_tmp/
+backend/codex_pytest_tmp/
+backend/codex-review-pytest-tmp/
+backend/codex-review-pytest-tmp2/
+backend/codex*pytest*tmp*/
+backend/.codex*pytest*tmp*/
 backend/htmlcov/
 backend/coverage.xml
 backend/.coverage
@@ -72,11 +79,16 @@ frontend/src/api-client/__generated__/
 # ─── Ficheros de mundo Terraria (.wld) ───────────────────
 # Pueden pesar cientos de MB; nunca subirlos al repo
 *.wld
+# Excepción: fixture sintética mínima para smoke tests (550 B, generada con wld_builder)
+!docker/smoke_world.wld
 
 # ─── Fixtures de test grandes ────────────────────────────
 # Los fixtures sintéticos pequeños SÍ se suben.
 # Ignorar dumps grandes que se generen localmente.
 backend/tests/fixtures/*.wld
+
+# Corpus de mundos reales para tests de integración
+backend/tests/wld_corpus/**/*.wld
 
 # ─── Docker ──────────────────────────────────────────────
 # Los Dockerfiles y docker-compose.yml SÍ se suben.
@@ -120,3 +132,5 @@ Desktop.ini
 # ─── Gemini / Antigravity (contexto IA local) ───────────
 .gemini/
 .claude/
+.agents/
+skills-lock.json

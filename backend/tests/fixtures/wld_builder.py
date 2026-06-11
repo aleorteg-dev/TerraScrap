@@ -14,6 +14,21 @@ from dataclasses import dataclass, field
 # ── .NET string helper ────────────────────────────────────────────────────────
 
 
+def _net_bytes(raw: bytes) -> bytes:
+    """LEB128-prefix a raw byte payload (no encoding)."""
+    length = len(raw)
+    parts: list[int] = []
+    while True:
+        b = length & 0x7F
+        length >>= 7
+        if length:
+            b |= 0x80
+        parts.append(b)
+        if not length:
+            break
+    return bytes(parts) + raw
+
+
 def _net_string(s: str) -> bytes:
     payload = s.encode("utf-8")
     length = len(payload)
@@ -44,18 +59,102 @@ def _encode_air_column(height: int) -> bytes:
     return bytes([0x80, lo, hi])  # int16 RLE
 
 
-def _encode_block_tile(tile_id: int, wall_id: int | None = None) -> bytes:
-    """Encode a single active tile (no RLE, no frame data)."""
+_LIQUID_BITS: dict[str, int] = {
+    "none": 0,
+    "water": 1,
+    "shimmer": 1,  # same bits as water; shimmer flag lives in flags3 bit 7
+    "lava": 2,
+    "honey": 3,
+}
+
+
+def _encode_block_tile(
+    tile_id: int,
+    wall_id: int | None = None,
+    *,
+    frame: tuple[int, int] | None = None,
+    flags4: int | None = None,
+) -> bytes:
+    """Encode a single active tile (no RLE).
+
+    If ``frame`` is provided, two int16 little-endian values (U, V) are
+    appended after the tile_id, matching the layout the parser expects when
+    ``tfi[tile_id]`` is true.
+    """
     flags1 = 0x02  # isActive
+    flags3 = 0
     if wall_id is not None:
         flags1 |= 0x04
+        if wall_id > 255:
+            flags3 |= 0x40
+    if flags4 is not None:
+        flags3 |= 0x01
     if tile_id > 255:
         flags1 |= 0x20
-    out = bytes([flags1])
+    if flags3:
+        flags1 |= 0x01  # has flags2
+        out = bytes([flags1, 0x01, flags3])  # flags2 bit 0 = has flags3
+        if flags4 is not None:
+            out += bytes([flags4])
+    else:
+        out = bytes([flags1])
     out += struct.pack("<H", tile_id) if tile_id > 255 else bytes([tile_id])
+    if frame is not None:
+        out += struct.pack("<hh", frame[0], frame[1])
     if wall_id is not None:
         out += bytes([wall_id & 0xFF])
+        if wall_id > 255:
+            out += bytes([(wall_id >> 8) & 0xFF])
     return out
+
+
+def _encode_wall_tile(wall_id: int, *, flags4: int | None = None) -> bytes:
+    """Encode a single wall-only tile (no RLE)."""
+    flags1 = 0x04
+    flags3 = 0x40 if wall_id > 255 else 0
+    if flags4 is not None:
+        flags3 |= 0x01
+    if flags3:
+        flags1 |= 0x01
+        out = bytes([flags1, 0x01, flags3])
+        if flags4 is not None:
+            out += bytes([flags4])
+    else:
+        out = bytes([flags1])
+    out += bytes([wall_id & 0xFF])
+    if wall_id > 255:
+        out += bytes([(wall_id >> 8) & 0xFF])
+    return out
+
+
+def _encode_flags4_air_tile(flags4: int) -> bytes:
+    """Encode an air tile that carries the fourth flags byte."""
+    return bytes([0x01, 0x01, 0x01, flags4])
+
+
+def _encode_liquid_tile(liquid_type: str, amount: int) -> bytes:
+    """Encode an air tile that contains liquid (no active block, no wall).
+
+    Layout: [flags1] [flags2?] [flags3?] [amount_byte]
+
+    Shimmer needs flags3 bit 7 set, which requires flags2 bit 0 and flags1 bit 0.
+    Water/lava/honey only need flags1 bits 3-4.
+    """
+    lbits = _LIQUID_BITS.get(liquid_type, 0)
+    if lbits == 0:
+        return bytes([0x00])  # plain air
+
+    flags1 = lbits << 3  # bits 3-4
+
+    if liquid_type == "shimmer":
+        # Need flags2 + flags3 to carry the shimmer flag (bit 7 of flags3).
+        # flags1 bit 0 = has_flags2; flags2 bit 0 = has_flags3.
+        flags1 |= 0x01  # has_flags2
+        flags2 = 0x01  # has_flags3
+        flags3 = 0x80  # shimmer bit
+        return bytes([flags1, flags2, flags3, amount])
+    else:
+        return bytes([flags1, amount])
 
 
 # ── chest / sign specs ────────────────────────────────────────────────────────
@@ -75,6 +174,67 @@ class SignSpec:
     x: int
     y: int
     text: str = ""
+    text_bytes: bytes | None = None  # raw bytes override for non-UTF-8 fixture tests
+
+
+@dataclass
+class NpcSpec:
+    id: int
+    name: str
+    position_x: float
+    position_y: float
+    is_homeless: bool
+    home_x: int
+    home_y: int
+    is_town_npc: bool = True
+
+
+@dataclass
+class TileEntitySpec:
+    """Synthetic tile entity for test fixtures.
+
+    ``payload`` is the type-specific bytes written after the common header
+    (type:uint8, id:int32, x:int16, y:int16).  Use the ``te_*`` helpers below
+    to build payloads for each entity type.
+    """
+
+    entity_type: int
+    x: int
+    y: int
+    payload: bytes = field(default_factory=bytes)
+
+
+# ── tile entity payload helpers ───────────────────────────────────────────────
+
+
+def te_target_dummy(npc_id: int = 0) -> bytes:
+    return struct.pack("<h", npc_id)
+
+
+def te_item(item_id: int = 0, prefix_id: int = 0, stack: int = 0) -> bytes:
+    return struct.pack("<hBh", item_id, prefix_id, stack)
+
+
+def te_logic_sensor(logic_check_type: int = 0, on: int = 0) -> bytes:
+    return struct.pack("BB", logic_check_type, on)
+
+
+def te_mannequin_empty() -> bytes:
+    """All slots empty: arg0=0, bb=0, pose=0, bits_byte=0."""
+    return bytes([0, 0, 0, 0])
+
+
+def te_hat_rack_empty() -> bytes:
+    """All slots empty: bitmask=0."""
+    return bytes([0])
+
+
+def te_pylon() -> bytes:
+    return b""
+
+
+def te_anchor(item_id: int = 0) -> bytes:
+    return struct.pack("<h", item_id)
 
 
 # ── section builders ──────────────────────────────────────────────────────────
@@ -88,6 +248,11 @@ def _build_section0(
     width: int,
     height: int,
     hardmode: bool,
+    skyblock_world: bool,
+    spawn_x: int,
+    spawn_y: int,
+    world_surface_y: float,
+    rock_layer_y: float,
 ) -> bytes:
     buf = bytearray()
     buf += _net_string(name)
@@ -101,43 +266,87 @@ def _build_section0(
     buf += struct.pack("<i", height * 16)  # bottomWorld
     buf += struct.pack("<i", height)  # maxTilesY
     buf += struct.pack("<i", width)  # maxTilesX
-    buf += struct.pack("<i", 0)  # gameMode (v225+)
-    buf += b"\x00"  # drunkWorld
-    buf += b"\x00"  # goodWorld (v185+)
-    buf += b"\x00"  # tenthAnnivWorld (v215+)
-    buf += b"\x00"  # dontStarveWorld (v229+)
+    buf += struct.pack("<i", 0)  # gameMode (v209+)
+    if version >= 222:
+        buf += b"\x00"  # drunkWorld
+    if version >= 227:
+        buf += b"\x00"  # getGoodWorld
     if version >= 238:
+        buf += b"\x00"  # tenthAnnivWorld
+    if version >= 239:
+        buf += b"\x00"  # dontStarveWorld
+    if version >= 241:
         buf += b"\x00"  # notTheBeesWorld
-    if version >= 250:
+    if version >= 249:
         buf += b"\x00"  # remixWorld
-    if version >= 261:
+    if version >= 266:
         buf += b"\x00"  # noTrapsWorld
-    if version >= 274:
+    if version >= 267:
         buf += b"\x00"  # zenithWorld
+    if version >= 302:
+        buf += b"\x01" if skyblock_world else b"\x00"
     buf += struct.pack("<q", 0)  # creationTime (v141+)
+    if version >= 284:
+        buf += struct.pack("<q", 0)  # lastPlayed (v284+)
     buf += b"\x00"  # moonType
+    # Background style arrays (WorldLoader.js layout):
+    # treeTypeXCoordinates[3] + treeStyles[4] + caveBackXCoordinates[3]
+    # + caveBackStyles[4] + iceBackStyle + jungleBackStyle + hellBackStyle
+    buf += struct.pack("<17i", *([0] * 17))
+    # Spawn point and world layers
+    buf += struct.pack("<i", spawn_x)  # spawnTileX
+    buf += struct.pack("<i", spawn_y)  # spawnTileY
+    buf += struct.pack("<d", world_surface_y)  # worldSurfaceY (float64)
+    buf += struct.pack("<d", rock_layer_y)  # rockLayerY (float64)
+    # Skip fields from gameTime to eclipse
+    buf += struct.pack("<d", 0.0)  # gameTime
+    buf += b"\x01"  # isDay
+    buf += struct.pack("<i", 0)  # moonPhase
+    buf += b"\x00"  # bloodMoon
+    buf += b"\x00"  # eclipse
     buf += struct.pack("<i", 0)  # dungeonX
     buf += struct.pack("<i", 0)  # dungeonY
-    buf += b"\x00"  # isEvilWorld
-    buf += b"\x00"  # downedBoss1
-    buf += b"\x00"  # downedBoss2
-    buf += b"\x00"  # downedBoss3
-    buf += b"\x00"  # downedQueenBee
-    buf += b"\x00"  # downedMechBoss1
-    buf += b"\x00"  # downedMechBoss2
-    buf += b"\x00"  # downedMechBoss3
-    buf += b"\x00"  # downedMechBossAny
-    buf += b"\x00"  # downedPlant
-    buf += b"\x00"  # downedGolem
-    buf += b"\x00"  # downedSlimeKing
-    buf += b"\x00"  # savedGoblin
-    buf += b"\x00"  # savedWizard
-    buf += b"\x00"  # savedMechanic
-    buf += b"\x00"  # smashedOrb
-    buf += b"\x00"  # meteorLanded
-    buf += b"\x00"  # shadowOrbCount
+    # 21 bools: crimsonWorld + 11 killed-boss + 3 saved-NPC
+    # + defeatedGoblinInvasion + killedClown + defeatedFrostLegion
+    # + defeatedPirates + brokeAShadowOrb + meteorSpawned
+    buf += b"\x00" * 21
+    buf += b"\x00"  # shadowOrbsbrokenmod3
     buf += struct.pack("<i", 0)  # altarsSmashed
-    buf += b"\x01" if hardmode else b"\x00"
+    buf += b"\x01" if hardmode else b"\x00"  # hardMode
+    return bytes(buf)
+
+
+def _build_section4(*, version: int, npcs: Sequence[NpcSpec] | None) -> bytes:
+    specs = list(npcs) if npcs else []
+    town_npcs = [npc for npc in specs if npc.is_town_npc]
+    transient_npcs = [npc for npc in specs if not npc.is_town_npc]
+
+    buf = bytearray()
+    if version >= 268:
+        buf += struct.pack("<i", 0)  # NPC kill-count entries
+
+    for npc in town_npcs:
+        buf += b"\x01"
+        buf += struct.pack("<i", npc.id)
+        buf += _net_string(npc.name)
+        buf += struct.pack("<f", npc.position_x * 16.0)
+        buf += struct.pack("<f", npc.position_y * 16.0)
+        buf += b"\x01" if npc.is_homeless else b"\x00"
+        buf += struct.pack("<i", npc.home_x)
+        buf += struct.pack("<i", npc.home_y)
+        if version >= 213:
+            buf += b"\x00"  # no town variation payload
+        if version >= 280:
+            buf += b"\x00"  # homelessDespawn (added in v280+)
+    buf += b"\x00"
+
+    for npc in transient_npcs:
+        buf += b"\x01"
+        buf += struct.pack("<i", npc.id)
+        buf += struct.pack("<f", npc.position_x * 16.0)
+        buf += struct.pack("<f", npc.position_y * 16.0)
+    buf += b"\x00"
+
     return bytes(buf)
 
 
@@ -146,20 +355,51 @@ def _build_section1(
     width: int,
     height: int,
     tile_id_at: dict[tuple[int, int], int] | None = None,
+    tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
+    frame_important_ids: set[int] | None = None,
+    wall_id_at: dict[tuple[int, int], int] | None = None,
+    liquid_at: dict[tuple[int, int], tuple[str, int]] | None = None,
+    flags4_at: dict[tuple[int, int], int] | None = None,
 ) -> bytes:
     overrides = tile_id_at or {}
+    frames = tile_frame_at or {}
+    tfi = frame_important_ids or set()
+    walls = wall_id_at or {}
+    liquids = liquid_at or {}
+    flags4s = flags4_at or {}
+    # All positions that are non-air (block override or liquid)
+    special: set[tuple[int, int]] = (
+        set(overrides) | set(walls) | set(liquids) | set(flags4s)
+    )
     buf = bytearray()
     for x in range(width):
         y = 0
         while y < height:
             pos = (x, y)
             if pos in overrides:
-                buf += _encode_block_tile(overrides[pos])
+                tile_id = overrides[pos]
+                frame = frames.get(pos) if tile_id in tfi else None
+                buf += _encode_block_tile(
+                    tile_id,
+                    wall_id=walls.get(pos),
+                    frame=frame,
+                    flags4=flags4s.get(pos),
+                )
+                y += 1
+            elif pos in walls:
+                buf += _encode_wall_tile(walls[pos], flags4=flags4s.get(pos))
+                y += 1
+            elif pos in liquids:
+                ltype, lamount = liquids[pos]
+                buf += _encode_liquid_tile(ltype, lamount)
+                y += 1
+            elif pos in flags4s:
+                buf += _encode_flags4_air_tile(flags4s[pos])
                 y += 1
             else:
-                # Find run of consecutive air in this column
+                # Find run of consecutive plain-air in this column
                 run_end = y + 1
-                while run_end < height and (x, run_end) not in overrides:
+                while run_end < height and (x, run_end) not in special:
                     run_end += 1
                 run_len = run_end - y
                 buf += _encode_air_column(run_len)
@@ -167,15 +407,18 @@ def _build_section1(
     return bytes(buf)
 
 
-def _build_section2(chests: Sequence[ChestSpec] | None) -> bytes:
+def _build_section2(*, version: int, chests: Sequence[ChestSpec] | None) -> bytes:
     specs = list(chests) if chests else []
     buf = bytearray()
     buf += struct.pack("<h", len(specs))  # chestCount
-    buf += struct.pack("<h", 40)  # chestSize
+    if version < 280:
+        buf += struct.pack("<h", 40)  # chestSize
     for cs in specs:
         buf += struct.pack("<i", cs.x)
         buf += struct.pack("<i", cs.y)
         buf += _net_string(cs.name)
+        if version >= 280:
+            buf += struct.pack("<i", 40)  # per-chest item slot count
         items = list(cs.items)
         for i in range(40):
             if i < len(items):
@@ -194,15 +437,112 @@ def _build_section3(signs: Sequence[SignSpec] | None) -> bytes:
     buf = bytearray()
     buf += struct.pack("<h", len(specs))
     for ss in specs:
-        buf += _net_string(ss.text)
+        raw = ss.text_bytes if ss.text_bytes is not None else ss.text.encode("utf-8")
+        buf += _net_bytes(raw)
         buf += struct.pack("<i", ss.x)
         buf += struct.pack("<i", ss.y)
+    return bytes(buf)
+
+
+def _build_section5(
+    tile_entities: Sequence[TileEntitySpec] | None,
+) -> bytes:
+    specs = list(tile_entities) if tile_entities else []
+    buf = bytearray()
+    buf += struct.pack("<i", len(specs))
+    for i, te in enumerate(specs):
+        buf += bytes([te.entity_type])
+        buf += struct.pack("<i", i)  # sequential id
+        buf += struct.pack("<hh", te.x, te.y)
+        buf += te.payload
+    return bytes(buf)
+
+
+def _build_section6_footer(name: str, world_id: int) -> bytes:
+    """Footer section: bool(1) + .NET string(name) + int32(world_id)."""
+    buf = bytearray()
+    buf += b"\x01"  # flag = True
+    buf += _net_string(name)
+    buf += struct.pack("<i", world_id)
     return bytes(buf)
 
 
 # ── main builder ──────────────────────────────────────────────────────────────
 
 _NUM_TILE_TYPES = 623  # cover all Terraria 1.4.x tile IDs
+
+
+def _encode_tfi(num_tile_types: int, frame_important_ids: set[int] | None) -> bytes:
+    ids = frame_important_ids or set()
+    num_bytes = (num_tile_types + 7) // 8
+    out = bytearray(num_bytes)
+    for tid in ids:
+        if 0 <= tid < num_tile_types:
+            out[tid // 8] |= 1 << (tid % 8)
+    return bytes(out)
+
+
+@dataclass
+class WldBuilder:
+    name: str = "TestWorld"
+    version: int = 269
+    width: int = 8
+    height: int = 4
+    seed: str = "1234567890.1.1"
+    hardmode: bool = False
+    npcs: list[NpcSpec] = field(default_factory=list)
+    tile_entities: list[TileEntitySpec] = field(default_factory=list)
+
+    def add_npc(
+        self,
+        *,
+        id: int,
+        name: str,
+        position_x: float,
+        position_y: float,
+        is_homeless: bool,
+        home_x: int,
+        home_y: int,
+        is_town_npc: bool = True,
+    ) -> WldBuilder:
+        self.npcs.append(
+            NpcSpec(
+                id=id,
+                name=name,
+                position_x=position_x,
+                position_y=position_y,
+                is_homeless=is_homeless,
+                home_x=home_x,
+                home_y=home_y,
+                is_town_npc=is_town_npc,
+            )
+        )
+        return self
+
+    def add_tile_entity(
+        self,
+        *,
+        entity_type: int,
+        x: int,
+        y: int,
+        payload: bytes = b"",
+    ) -> WldBuilder:
+        self.tile_entities.append(
+            TileEntitySpec(entity_type=entity_type, x=x, y=y, payload=payload)
+        )
+        return self
+
+    def build(self) -> bytes:
+        return build_world(
+            name=self.name,
+            version=self.version,
+            width=self.width,
+            height=self.height,
+            seed=self.seed,
+            hardmode=self.hardmode,
+            npcs=self.npcs,
+            tile_entities=self.tile_entities,
+        )
 
 
 def build_world(
@@ -213,11 +553,29 @@ def build_world(
     height: int = 4,
     seed: str = "1234567890.1.1",
     hardmode: bool = False,
+    skyblock_world: bool = False,
+    spawn_x: int = 100,
+    spawn_y: int = 50,
+    world_surface_y: float = 200.0,
+    rock_layer_y: float = 500.0,
     chests: Sequence[ChestSpec] | None = None,
     signs: Sequence[SignSpec] | None = None,
+    npcs: Sequence[NpcSpec] | None = None,
+    tile_entities: Sequence[TileEntitySpec] | None = None,
     tile_id_at: dict[tuple[int, int], int] | None = None,
+    tile_frame_at: dict[tuple[int, int], tuple[int, int]] | None = None,
+    frame_important_ids: set[int] | None = None,
+    wall_id_at: dict[tuple[int, int], int] | None = None,
+    liquid_at: dict[tuple[int, int], tuple[str, int]] | None = None,
+    flags4_at: dict[tuple[int, int], int] | None = None,
+    extra_sections: int = 0,
 ) -> bytes:
-    """Return bytes of a valid synthetic .wld file."""
+    """Return bytes of a valid synthetic .wld file.
+
+    ``extra_sections`` inserts that many empty sections between section 5
+    (tile entities) and the footer, simulating worlds with num_sections > 7
+    (e.g. v319 with 11 sections).  Footer is always offsets[-1].
+    """
     s0 = _build_section0(
         version=version,
         name=name,
@@ -225,19 +583,37 @@ def build_world(
         width=width,
         height=height,
         hardmode=hardmode,
+        skyblock_world=skyblock_world,
+        spawn_x=spawn_x,
+        spawn_y=spawn_y,
+        world_surface_y=world_surface_y,
+        rock_layer_y=rock_layer_y,
     )
-    s1 = _build_section1(width=width, height=height, tile_id_at=tile_id_at)
-    s2 = _build_section2(chests)
+    s1 = _build_section1(
+        width=width,
+        height=height,
+        tile_id_at=tile_id_at,
+        tile_frame_at=tile_frame_at,
+        frame_important_ids=frame_important_ids,
+        wall_id_at=wall_id_at,
+        liquid_at=liquid_at,
+        flags4_at=flags4_at,
+    )
+    s2 = _build_section2(version=version, chests=chests)
     s3 = _build_section3(signs)
+    s4 = _build_section4(version=version, npcs=npcs)
+    s5 = _build_section5(tile_entities)
+    s6 = _build_section6_footer(name, 1)  # world_id=1 matches _build_section0
 
     # Build header (everything before section data)
     magic = b"relogic"
     file_type = bytes([2])  # world
     revision = struct.pack("<I", 0)
     favorites = struct.pack("<Q", 0)
-    num_sections = struct.pack("<h", 4)
+    num_sections_total = 7 + extra_sections
+    num_sections_bytes = struct.pack("<h", num_sections_total)
     num_tile_types = struct.pack("<h", _NUM_TILE_TYPES)
-    tfi_bytes = b"\x00" * ((_NUM_TILE_TYPES + 7) // 8)  # all non-frame-important
+    tfi_bytes = _encode_tfi(_NUM_TILE_TYPES, frame_important_ids)
 
     header_size = (
         4  # version int32
@@ -246,7 +622,7 @@ def build_world(
         + 4  # revision
         + 8  # favorites
         + 2  # num_sections
-        + 4 * 4  # 4 section offsets (int32 each)
+        + 4 * num_sections_total  # section offsets (int32 each)
         + 2  # num_tile_types
         + len(tfi_bytes)  # tfi bitfield
     )
@@ -255,8 +631,22 @@ def build_world(
     off1 = off0 + len(s0)
     off2 = off1 + len(s1)
     off3 = off2 + len(s2)
+    off4 = off3 + len(s3)
+    off5 = off4 + len(s4)
+    off_te_end = off5 + len(s5)
+    # Extra sections each contain a single null byte so their offsets are
+    # distinct from the footer offset — this is what triggers the bug when
+    # the parser incorrectly uses offsets[6] instead of offsets[-1].
+    extra_section_data = b"\x00" * extra_sections  # 1 byte per extra section
+    extra_offs: list[int] = []
+    cur = off_te_end
+    for _ in range(extra_sections):
+        extra_offs.append(cur)
+        cur += 1
+    off6 = cur  # footer starts after all extra section data
 
-    offsets = struct.pack("<4i", off0, off1, off2, off3)
+    all_offsets = [off0, off1, off2, off3, off4, off5, *extra_offs, off6]
+    offsets = struct.pack(f"<{num_sections_total}i", *all_offsets)
 
     header = (
         struct.pack("<i", version)
@@ -264,11 +654,11 @@ def build_world(
         + file_type
         + revision
         + favorites
-        + num_sections
+        + num_sections_bytes
         + offsets
         + num_tile_types
         + tfi_bytes
     )
 
     assert len(header) == header_size, f"{len(header)} != {header_size}"
-    return header + s0 + s1 + s2 + s3
+    return header + s0 + s1 + s2 + s3 + s4 + s5 + extra_section_data + s6

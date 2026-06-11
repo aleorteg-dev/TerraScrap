@@ -9,7 +9,8 @@
     "lint": "eslint . && prettier --check src tests --ignore-unknown",
     "preview": "vite preview",
     "test": "vitest run",
-    "gen:api": "openapi-typescript ../docs/contracts/openapi.json -o src/api-client/__generated__/schema.d.ts"
+    "gen:api": "openapi-typescript ../docs/contracts/openapi.json -o src/api-client/__generated__/schema.d.ts",
+    "generate:api-types": "openapi-typescript ../docs/contracts/openapi.json -o src/api-client/__generated__/schema.d.ts"
   },
   "dependencies": {
     "react": "^19.2.5",
@@ -33,7 +34,7 @@
     "jsdom": "^26.1.0",
     "openapi-typescript": "^7",
     "prettier": "^3",
-    "typescript": "~6.0.2",
+    "typescript": "~5.9.3",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",
     "vitest": "^3"

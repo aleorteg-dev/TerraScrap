@@ -1,29 +1,57 @@
 """Public contract for B5 – api-rest."""
 
+from twi.api_rest.errors import (
+    API_VERSION,
+    API_VERSION_HEADER,
+    UploadTooLargeError,
+    XApiVersionMiddleware,
+    error_code_for_status,
+    register_error_handlers,
+)
 from twi.api_rest.router import create_router
 from twi.api_rest.schemas import (
+    BackgroundStylesDto,
     ErrorDetailDto,
+    ErrorDetails,
     ErrorDto,
     ItemDetailDto,
     ItemListDto,
     ItemSummaryDto,
+    NpcDto,
+    NpcListDto,
     SearchMatchDto,
     SearchResultDto,
+    TileDetailDto,
+    TileEntityDto,
     TilesChunkDto,
+    TilesEncoding,
     WorldCreatedDto,
     WorldMetadataDto,
 )
 
 __all__ = [
+    "API_VERSION",
+    "API_VERSION_HEADER",
+    "BackgroundStylesDto",
+    "ErrorDetails",
     "ErrorDetailDto",
     "ErrorDto",
     "ItemDetailDto",
     "ItemListDto",
     "ItemSummaryDto",
+    "NpcDto",
+    "NpcListDto",
     "SearchMatchDto",
     "SearchResultDto",
+    "TileDetailDto",
+    "TileEntityDto",
     "TilesChunkDto",
+    "TilesEncoding",
+    "UploadTooLargeError",
     "WorldCreatedDto",
     "WorldMetadataDto",
+    "XApiVersionMiddleware",
     "create_router",
+    "error_code_for_status",
+    "register_error_handlers",
 ]

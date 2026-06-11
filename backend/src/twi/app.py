@@ -10,23 +10,36 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-from twi.api_rest import create_router
+from twi.api_rest import (
+    UploadTooLargeError,
+    XApiVersionMiddleware,
+    create_router,
+    register_error_handlers,
+)
 from twi.item_catalog import (
     ItemCatalog,
+    ItemCatalogUnavailableError,
     ItemDetail,
-    ItemNotFoundError,
     ItemSummary,
-    create_catalog_from_cache,
+    load_catalog,
+)
+from twi.observability import (
+    PURGE_LOGGER_NAME,
+    RequestContextMiddleware,
+    configure_logging,
 )
 from twi.tile_search import create_tile_search_engine
 from twi.world_repository import WorldRepository, create_in_memory_repository
+
+_DEFAULT_SEED_PATH: Path = (
+    Path(__file__).parent / "item_catalog" / "data" / "items.seed.json"
+)
 
 _LOG_LEVELS: dict[str, int] = {
     "DEBUG": logging.DEBUG,
@@ -42,6 +55,7 @@ class Settings(BaseSettings):
 
     max_upload_mb: int = 200
     item_cache_path: Path = Path("data/items.json")
+    item_seed_path: Path = _DEFAULT_SEED_PATH
     world_ttl_seconds: int = 1800
     cors_origins: list[str] = ["http://localhost:5173"]
     log_level: str = "INFO"
@@ -59,33 +73,29 @@ class _UploadSizeLimitMiddleware(BaseHTTPMiddleware):
         content_length = request.headers.get("Content-Length")
         if content_length is not None and int(content_length) > self._max_bytes:
             limit_mb = self._max_bytes // (1024 * 1024)
-            return JSONResponse(
-                status_code=413,
-                content={
-                    "error": {
-                        "code": "upload_too_large",
-                        "message": f"Request body exceeds the {limit_mb} MB limit.",
-                        "details": None,
-                    }
-                },
-            )
+            raise UploadTooLargeError(limit_mb)
         return await call_next(request)
 
 
 class _NullCatalog:
-    """Placeholder when item cache is unavailable at startup."""
+    """Placeholder when item cache is unavailable at startup; all calls raise."""
 
     def search(self, query: str, limit: int = 20) -> list[ItemSummary]:
-        return []
+        raise ItemCatalogUnavailableError("Item catalog unavailable.")
 
     def get(self, item_id: int) -> ItemDetail:
-        raise ItemNotFoundError(item_id)
+        raise ItemCatalogUnavailableError("Item catalog unavailable.")
 
 
 async def _purge_loop(repo: WorldRepository, interval: int) -> None:
+    purge_logger = logging.getLogger(PURGE_LOGGER_NAME)
     while True:
         await asyncio.sleep(interval)
-        repo.purge_expired()
+        purged = repo.purge_expired()
+        purge_logger.info(
+            "purge_expired",
+            extra={"event": "purge", "status": int(purged)},
+        )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -93,17 +103,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings = Settings()
 
     log_level = _LOG_LEVELS.get(settings.log_level.upper(), logging.INFO)
-    logging.basicConfig(level=log_level, force=True)
+    configure_logging(log_level)
 
     repo = create_in_memory_repository(ttl_seconds=settings.world_ttl_seconds)
 
     catalog: ItemCatalog
     try:
-        catalog = create_catalog_from_cache(settings.item_cache_path)
-    except Exception:
+        catalog = load_catalog(settings.item_cache_path, settings.item_seed_path)
+    except ItemCatalogUnavailableError:
         logging.warning(
-            "Item catalog unavailable at %s; /api/items returns empty results.",
+            "Item catalog unavailable (cache=%s, seed=%s); "
+            "/api/items returns empty results.",
             settings.item_cache_path,
+            settings.item_seed_path,
         )
         catalog = _NullCatalog()
 
@@ -130,19 +142,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 pass
 
     fastapi_app = FastAPI(lifespan=lifespan, title="TerraScrap API")
+    register_error_handlers(fastapi_app)
 
-    # Size-limit middleware added first (inner); CORS added second (outer) so that
-    # CORS headers are present even on 413 responses.
+    # Size-limit middleware added first (inner); API version and CORS wrap it so
+    # their headers are present even on 413 responses.
     fastapi_app.add_middleware(
         _UploadSizeLimitMiddleware,
         max_bytes=settings.max_upload_mb * 1024 * 1024,
     )
+    fastapi_app.add_middleware(XApiVersionMiddleware)
     fastapi_app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Outermost: assign request_id and emit structured access logs.
+    fastapi_app.add_middleware(RequestContextMiddleware)
 
     fastapi_app.include_router(router)
 

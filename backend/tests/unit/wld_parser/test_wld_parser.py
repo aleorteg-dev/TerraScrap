@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from tests.fixtures.wld_builder import ChestSpec, build_world
+from tests.fixtures.wld_builder import ChestSpec, SignSpec, build_world
 from twi.wld_parser import (
     Tile,
     UnsupportedWorldVersionError,
@@ -110,10 +110,107 @@ def test_parse_rejects_unsupported_version_below_range() -> None:
 
 
 def test_parse_rejects_unsupported_version_above_range() -> None:
-    data = build_world(version=300)
+    data = build_world(version=320)
     with pytest.raises(UnsupportedWorldVersionError) as exc_info:
         parse_wld_bytes(data)
-    assert exc_info.value.version == 300
+    assert exc_info.value.version == 320
+
+
+def test_parse_above_ceiling_raises_unsupported_version() -> None:
+    data = build_world(version=320)
+    with pytest.raises(UnsupportedWorldVersionError) as exc_info:
+        parse_wld_bytes(data)
+
+    exc = exc_info.value
+    assert exc.code == "unsupported_version"
+    assert exc.version == 320
+    assert exc.detected_version == 320
+    assert exc.supported_range == (230, 319)
+    assert exc.details == {
+        "detected_version": 320,
+        "supported_range": (230, 319),
+    }
+    message = str(exc)
+    assert "320" in message
+    assert "230-319" in message
+    assert "not supported" in message.lower()
+
+
+def test_parse_v319_real_world_ok() -> None:
+    data = build_world(
+        name="V319Synthetic",
+        version=319,
+        width=4200,
+        height=1200,
+        seed="2105673604",
+        hardmode=True,
+        skyblock_world=True,
+        spawn_x=2104,
+        spawn_y=261,
+        world_surface_y=337.0,
+        rock_layer_y=517.0,
+        chests=[ChestSpec(x=10, y=20, name="ModernChest", items=[(3930, 1, 0)])],
+        wall_id_at={(1, 1): 300},
+        flags4_at={(2, 2): 0x7F},
+    )
+
+    world = parse_wld_bytes(data)
+
+    assert world.metadata.name == "V319Synthetic"
+    assert world.metadata.version == 319
+    assert world.metadata.width == 4200
+    assert world.metadata.height == 1200
+    assert world.metadata.seed == "2105673604"
+    assert world.metadata.hardmode is True
+    assert world.metadata.spawn_x == 2104
+    assert world.metadata.spawn_y == 261
+    assert world.metadata.world_surface_y == pytest.approx(337.0)
+    assert world.metadata.rock_layer_y == pytest.approx(517.0)
+    assert world.tiles.width == 4200
+    assert world.tiles.height == 1200
+    assert world.tiles[1][1].wall_id == 300
+    assert world.tiles[2][2].tile_id is None
+    assert len(world.chests) == 1
+    assert world.chests[0].name == "ModernChest"
+    assert world.chests[0].items[0].item_id == 3930
+
+
+def test_parse_v230_still_ok() -> None:
+    data = build_world(version=230, width=8, height=4, hardmode=True)
+    world = parse_wld_bytes(data)
+    assert world.metadata.version == 230
+    assert world.metadata.width == 8
+    assert world.metadata.height == 4
+    assert world.metadata.hardmode is True
+
+
+def test_parse_v279_still_ok() -> None:
+    data = build_world(version=279, width=8, height=4, hardmode=True)
+    world = parse_wld_bytes(data)
+    assert world.metadata.version == 279
+    assert world.metadata.width == 8
+    assert world.metadata.height == 4
+    assert world.metadata.hardmode is True
+
+
+def test_parse_v302_skyblock_world_flag_alignment_ok() -> None:
+    data = build_world(version=302, width=8, height=4, hardmode=True)
+    world = parse_wld_bytes(data)
+    assert world.metadata.version == 302
+    assert world.metadata.hardmode is True
+
+
+@pytest.mark.parametrize("version", [287, 288, 291, 296, 297, 300, 310, 313])
+def test_parse_documented_intermediate_version_tramos_ok(version: int) -> None:
+    data = build_world(version=version, width=8, height=4)
+    world = parse_wld_bytes(data)
+    assert world.metadata.version == version
+
+
+def test_parse_v304_dual_dungeons_tramo_ok() -> None:
+    data = build_world(version=304, width=8, height=4)
+    world = parse_wld_bytes(data)
+    assert world.metadata.version == 304
 
 
 # ── T-07 ──────────────────────────────────────────────────────────────────────
@@ -130,6 +227,27 @@ def test_parse_is_deterministic_same_bytes_equal_world() -> None:
 
 
 # ── T-08 ──────────────────────────────────────────────────────────────────────
+
+
+# ── T-51: sign text in Windows-1252 (cp1252 fallback) ────────────────────────
+
+
+def test_parse_sign_with_cp1252_text_falls_back_gracefully() -> None:
+    """Sign text encoded in cp1252 (not UTF-8) must parse without error.
+
+    0xDA = 'Ú' in cp1252; invalid as UTF-8.  Before the fix, read_net_string
+    raises WldParseError(code='corrupt').  After the fix it falls back to
+    cp1252 and returns the correct character.
+    """
+    cp1252_text = "H\xdallo".encode("cp1252")  # b'H\xdallo'
+    data = build_world(
+        width=4,
+        height=4,
+        signs=[SignSpec(x=1, y=1, text_bytes=cp1252_text)],
+    )
+    world = parse_wld_bytes(data)
+    assert len(world.signs) == 1
+    assert world.signs[0].text == "H\xdallo".encode("cp1252").decode("cp1252")
 
 
 @pytest.mark.perf

@@ -1,5 +1,6 @@
 services:
   backend:
+    image: terrascrap-backend:latest
     build:
       context: ..
       dockerfile: docker/backend.Dockerfile
@@ -23,6 +24,7 @@ services:
       start_period: 10s
 
   frontend:
+    image: terrascrap-frontend:latest
     build:
       context: ..
       dockerfile: docker/frontend.Dockerfile
@@ -30,7 +32,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${PORT:-8080}:80"
+      - "${PORT:-8080}:8080"
 
 volumes:
   items-cache:

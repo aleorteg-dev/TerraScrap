@@ -11,13 +11,16 @@ docker/
 ├── backend.Dockerfile
 ├── frontend.Dockerfile
 ├── nginx.conf
-└── docker-compose.yml
+├── docker-compose.yml
+├── smoke.sh
+├── scan.sh
+└── smoke_world.wld     ← fixture mínima generada con wld_builder v269
 ```
 
 Servicios expuestos:
 - `backend`: puerto interno 8000.
-- `frontend`: puerto 80 (nginx) que sirve estáticos y proxea `/api` → `backend:8000`.
-- Puerto público por defecto: `8080:80`.
+- `frontend`: puerto 8080 (nginx no-root) que sirve estáticos y proxea `/api` → `backend:8000`.
+- Puerto público por defecto: `8080:8080`.
 
 Variables de entorno soportadas (ver `PROJECT.md` sección 3):
 - `TWI_MAX_UPLOAD_MB` (default 200)
@@ -36,8 +39,8 @@ Variables de entorno soportadas (ver `PROJECT.md` sección 3):
 
 ## 5. Especificación (SDD)
 - **SP-01** `docker compose up --build` levanta frontend accesible en `http://localhost:8080` y backend accesible en `http://localhost:8080/api`.
-- **SP-02** La imagen de backend es multi-stage: etapa build con `uv` o `pip`, etapa final `python:3.12-slim` con solo runtime.
-- **SP-03** La imagen de frontend es multi-stage: `node:20-alpine` para `npm ci && npm run build`, y `nginx:1.27-alpine` para servir.
+- **SP-02** La imagen de backend es multi-stage: etapa build con `uv` o `pip`, etapa final `python:3.12-alpine` con solo runtime y sin Perl instalado.
+- **SP-03** La imagen de frontend es multi-stage: `node:20-alpine` para `npm ci && npm run build`, y `nginx:stable-alpine` para servir.
 - **SP-04** `healthz` del backend es comprobado por `docker-compose` con `healthcheck`.
 - **SP-05** Un volumen `items-cache` persiste el JSON del catálogo en `backend`.
 - **SP-06** Las imágenes no corren como root.
@@ -46,23 +49,35 @@ Variables de entorno soportadas (ver `PROJECT.md` sección 3):
 ## 6. Plan de tests (TDD / verificación)
 No se testean Dockerfiles con pytest; se verifica en CI con scripts:
 
-- [x] `T-01 bash docker/smoke.sh` levanta compose, `curl /healthz` responde 200, `curl /api/items?q=dirt` responde 200, `GET /` sirve el frontend, `POST /api/worlds` sin body devuelve 422.
-- [x] `T-02` La imagen final de backend pesa < 250 MB. **Resultado: 249 MB virtual / 57 MB comprimida.**
-- [x] `T-03` La imagen final de frontend. **Nota: `nginx:1.27-alpine` pesa 74.5 MB en Docker Desktop/Windows; la imagen resultante es 73.9 MB virtual / 20 MB comprimida. El target < 50 MB original asumía Linux bare-metal (~42 MB). En CI Linux el target se cumplirá; en Windows Docker Desktop el baseline del propio nginx ya supera 50 MB.**
-- [ ] `T-04` `docker scout` / `trivy` sobre las imágenes sin vulnerabilidades críticas. (diferido — requiere trivy en CI)
+- [x] `T-01 bash docker/smoke.sh` levanta compose, `curl /healthz` responde 200, `curl /api/items?q=dirt` responde 200, `GET /` sirve el frontend, `POST /api/worlds` sin body devuelve 422. Extendido en iter-020: T-01e (`/api/items?q=` vacío → 200), T-01f (POST fixture → 200 + world_id), T-01g (GET /tiles → 200), T-01h (GET /npcs → 200), T-01i (DELETE → 204), T-01j (GET post-delete → 404).
+- [x] `T-02` La imagen final de backend pesa < 250 MB. **Resultado actual: 37.6 MB virtual con `python:3.12-alpine`.**
+- [x] `T-03` La imagen final de frontend pesa < 50 MB. **Resultado actual: 26.1 MB virtual con `nginx:stable-alpine`.**
+- [x] `T-04` `docker/scan.sh` integrado: script creado en iter-020. Ejecución real requiere `trivy` en PATH; si no está disponible, el script avisa y sale con 0. CRITICAL bloquea (exit 1), HIGH solo loguea. Validado localmente con la imagen oficial `aquasec/trivy:latest`.
 
-## 7. Notas de implementación
+## 7. Bundle size frontend
+| Artefacto | Raw | Gzip |
+|-----------|-----|------|
+| `dist/assets/index-*.js` | 223.71 kB | 71.31 kB |
+| `dist/assets/index-*.css` | 6.77 kB | 2.21 kB |
+| `dist/index.html` | 0.47 kB | 0.30 kB |
+| **Total dist/** | **230.95 kB** | **73.82 kB** |
+
+Target: < 2 MB gzipped. **Actual: 73.82 kB — cumple con margen amplio.** Code splitting no necesario.
+
+Medido con `npm run build` (Vite 8.0.10, React 19, TypeScript 6.0.2) — iter-020 (2026-05-11).
+
+## 8. Notas de implementación
 
 ### `backend.Dockerfile` (esbozo)
 ```Dockerfile
-FROM python:3.12-slim AS build
+FROM python:3.12-alpine AS build
 WORKDIR /src
 COPY backend/pyproject.toml backend/README.md ./
 COPY backend/src ./src
 RUN pip install --no-cache-dir build && python -m build --wheel
 
-FROM python:3.12-slim
-RUN useradd -r -u 10001 twi
+FROM python:3.12-alpine
+RUN addgroup -S -g 10001 twi && adduser -S -D -H -u 10001 -G twi twi
 WORKDIR /app
 COPY --from=build /src/dist/*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl uvicorn && rm /tmp/*.whl
@@ -81,7 +96,7 @@ RUN npm ci
 COPY frontend .
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:stable-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 ```
@@ -142,28 +157,31 @@ volumes:
   items-cache:
 ```
 
-## 8. Performance
+## 9. Performance
 - Build reproducible en CI, capas cacheables.
 - Imágenes slim/alpine.
 
-## 9. Errores
+## 10. Errores
 - Si falta la wiki cache, el backend arranca igual y `/api/items` devolverá 503 hasta poblar el cache (ver `app-bootstrap`).
 
-## 10. Estado
-- **Versión del contrato**: v0.1.0
-- **Último cierre**: 2026-04-27
-- **Iteración actual**: iter-013
+## 11. Estado
+- **Versión del contrato**: v0.2.0
+- **Último cierre**: 2026-05-11 (iter-020)
+- **Iteración actual**: iter-020
 
-## 11. Decisiones tomadas
+## 12. Decisiones tomadas
 
 - `context: ..` en docker-compose.yml (compose en `docker/`, contexto = raíz del repo).
-- `npm ci --legacy-peer-deps` en frontend.Dockerfile: `openapi-typescript@7` requiere `typescript@^5.x` pero el proyecto usa `typescript@~6.0.2`; npm v10 (node:20-alpine) es más estricto que npm v11 local. Ver deuda.
+- `npm ci` en frontend.Dockerfile: `openapi-typescript@7.13.0` requiere `typescript@^5.x`; el proyecto fija `typescript@~5.9.3` para no necesitar `--legacy-peer-deps`.
+- `nginx:stable-alpine` evita fijar una release Alpine antigua en runtime frontend; `nginx:1.27-alpine` quedó vulnerable a CVE críticos de OpenSSL en Alpine 3.21.
 - `location /healthz` añadido a nginx.conf para exponer el health del backend desde el puerto 80 (útil para load balancers y smoke tests).
 - `/app/data` creado con `chown twi:twi` antes del `USER twi` para que el volumen `items-cache` herede permisos correctos en primera ejecución.
 - `TWI_CORS_ORIGINS=[]` por defecto en compose: en producción, front y back comparten origen (nginx:8080); no se necesita CORS.
+- `docker/smoke_world.wld` fixture mínima (550 bytes, v269, 8×4 tiles) generada con `wld_builder.py` y comprometida en repo para smoke tests independientes de Python en host.
+- `docker/scan.sh`: CRITICAL bloquea CI, HIGH solo loguea. Umbral configurable via `TRIVY_SEVERITY_BLOCK` y `TRIVY_SEVERITY_LOG`. Si trivy no está instalado, avisa y sale con 0 (no bloquea builds locales).
+- Code splitting descartado: bundle gzipped total 73.82 kB, muy por debajo del target de 2 MB.
 
-## 12. Deuda / follow-ups
+## 13. Deuda / follow-ups
 
-- **F1 / frontend**: actualizar `openapi-typescript` a versión compatible con `typescript@6.x` (o fijar typescript en `^5.x`). Mientras tanto, el Dockerfile usa `--legacy-peer-deps`.
-- **T-04**: integrar `trivy` en CI/CD pipeline para escaneo de vulnerabilidades de las imágenes.
-- **T-03 target**: revisar el límite de 50 MB para frontend; nginx:1.27-alpine en Linux bare-metal pesa ~42 MB (OK), pero en Docker Desktop/Windows reporta 74.5 MB. Anotar en CI script.
+- **DEUDA-P1-01 (cerrada 2026-05-19)** `--legacy-peer-deps` eliminado: `typescript@~5.9.3` satisface el peer `typescript@^5.x` de `openapi-typescript@7.13.0`; `npm ci --dry-run` valida el lock.
+- **DEUDA-P1-02 (cerrada en repo 2026-05-19)** `.github/workflows/ci.yml` instala Trivy y ejecuta `docker/scan.sh` tras `docker/smoke.sh`. La evidencia final se obtiene en el primer run remoto del workflow.

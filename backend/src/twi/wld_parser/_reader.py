@@ -58,6 +58,12 @@ class Reader:
     def read_uint64(self) -> int:
         return int(struct.unpack_from("<Q", self.read_bytes(8))[0])
 
+    def read_float32(self) -> float:
+        return float(struct.unpack_from("<f", self.read_bytes(4))[0])
+
+    def read_double(self) -> float:
+        return float(struct.unpack_from("<d", self.read_bytes(8))[0])
+
     # ── .NET string (LEB128 length + UTF-8 payload) ───────────────────────
     def read_net_string(self) -> str:
         length = 0
@@ -73,5 +79,7 @@ class Reader:
         raw = self.read_bytes(length)
         try:
             return raw.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise WldParseError(f"String decode error: {exc}", code="corrupt") from exc
+        except UnicodeDecodeError:
+            # Older Terraria worlds (pre-Unicode client) stored strings in
+            # Windows-1252.  cp1252 decodes every byte sequence without error.
+            return raw.decode("cp1252")

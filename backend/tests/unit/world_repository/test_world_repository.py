@@ -26,7 +26,9 @@ def _make_world(name: str = "TestWorld") -> World:
         size="small",
         hardmode=False,
     )
-    tile = Tile(tile_id=None, wall_id=None, liquid=0, flags=0)
+    tile = Tile(
+        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+    )
     grid = TileGrid([[tile]])
     return World(metadata=meta, tiles=grid, chests=(), signs=())
 
@@ -193,3 +195,72 @@ def test_concurrent_store_and_get_is_safe() -> None:
 
     assert not errors
     assert len(stored_ids) == 20
+
+
+# ---------------------------------------------------------------------------
+# T-09
+# ---------------------------------------------------------------------------
+
+
+def test_delete_strict_removes_existing_world() -> None:
+    repo = create_in_memory_repository()
+    world = _make_world()
+    world_id = repo.store(world)
+
+    repo.delete_strict(world_id)
+
+    with pytest.raises(WorldNotFoundError):
+        repo.get(world_id)
+
+
+def test_delete_strict_raises_on_unknown_id() -> None:
+    repo = create_in_memory_repository()
+    with pytest.raises(WorldNotFoundError) as exc_info:
+        repo.delete_strict("nonexistent-id")
+    assert exc_info.value.world_id == "nonexistent-id"
+
+
+def test_delete_strict_raises_on_expired_world() -> None:
+    clock_ref = _frozen_clock(datetime(2000, 1, 1, 0, 0, 0))
+    repo = create_in_memory_repository(ttl_seconds=60, clock=lambda: clock_ref[0])
+    world = _make_world()
+    world_id = repo.store(world)
+
+    clock_ref[0] = datetime(2000, 1, 1, 0, 1, 1)  # past TTL
+
+    with pytest.raises(WorldNotFoundError) as exc_info:
+        repo.delete_strict(world_id)
+    assert exc_info.value.world_id == world_id
+
+
+# ---------------------------------------------------------------------------
+# T-09d – thread-safety for delete_strict
+# ---------------------------------------------------------------------------
+
+
+def test_delete_strict_concurrent_deletes_no_race_condition() -> None:
+    """Exactly one thread succeeds; all others raise WorldNotFoundError; no crash."""
+    repo = create_in_memory_repository()
+    world_id = repo.store(_make_world())
+
+    successes: list[int] = []
+    not_found: list[int] = []
+    lock = threading.Lock()
+
+    def try_delete() -> None:
+        try:
+            repo.delete_strict(world_id)
+            with lock:
+                successes.append(1)
+        except WorldNotFoundError:
+            with lock:
+                not_found.append(1)
+
+    threads = [threading.Thread(target=try_delete) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(successes) == 1
+    assert len(not_found) == 9
