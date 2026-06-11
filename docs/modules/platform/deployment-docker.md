@@ -39,8 +39,8 @@ Variables de entorno soportadas (ver `PROJECT.md` sección 3):
 
 ## 5. Especificación (SDD)
 - **SP-01** `docker compose up --build` levanta frontend accesible en `http://localhost:8080` y backend accesible en `http://localhost:8080/api`.
-- **SP-02** La imagen de backend es multi-stage: etapa build con `uv` o `pip`, etapa final `python:3.12-slim` con solo runtime.
-- **SP-03** La imagen de frontend es multi-stage: `node:20-alpine` para `npm ci && npm run build`, y `nginx:1.27-alpine` para servir.
+- **SP-02** La imagen de backend es multi-stage: etapa build con `uv` o `pip`, etapa final `python:3.12-alpine` con solo runtime y sin Perl instalado.
+- **SP-03** La imagen de frontend es multi-stage: `node:20-alpine` para `npm ci && npm run build`, y `nginx:stable-alpine` para servir.
 - **SP-04** `healthz` del backend es comprobado por `docker-compose` con `healthcheck`.
 - **SP-05** Un volumen `items-cache` persiste el JSON del catálogo en `backend`.
 - **SP-06** Las imágenes no corren como root.
@@ -50,9 +50,9 @@ Variables de entorno soportadas (ver `PROJECT.md` sección 3):
 No se testean Dockerfiles con pytest; se verifica en CI con scripts:
 
 - [x] `T-01 bash docker/smoke.sh` levanta compose, `curl /healthz` responde 200, `curl /api/items?q=dirt` responde 200, `GET /` sirve el frontend, `POST /api/worlds` sin body devuelve 422. Extendido en iter-020: T-01e (`/api/items?q=` vacío → 200), T-01f (POST fixture → 200 + world_id), T-01g (GET /tiles → 200), T-01h (GET /npcs → 200), T-01i (DELETE → 204), T-01j (GET post-delete → 404).
-- [x] `T-02` La imagen final de backend pesa < 250 MB. **Resultado: 249 MB virtual / 57 MB comprimida.**
-- [x] `T-03` La imagen final de frontend. **Nota: `nginx:1.27-alpine` pesa 74.5 MB en Docker Desktop/Windows; la imagen resultante es 73.9 MB virtual / 20 MB comprimida. El target < 50 MB original asumía Linux bare-metal (~42 MB). En CI Linux el target se cumplirá; en Windows Docker Desktop el baseline del propio nginx ya supera 50 MB.**
-- [x] `T-04` `docker/scan.sh` integrado: script creado en iter-020. Ejecución real requiere `trivy` en PATH; si no está disponible, el script avisa y sale con 0. CRITICAL bloquea (exit 1), HIGH solo loguea. **Evidencia de ejecución pendiente de CI con trivy instalado** — ver deuda.
+- [x] `T-02` La imagen final de backend pesa < 250 MB. **Resultado actual: 37.6 MB virtual con `python:3.12-alpine`.**
+- [x] `T-03` La imagen final de frontend pesa < 50 MB. **Resultado actual: 26.1 MB virtual con `nginx:stable-alpine`.**
+- [x] `T-04` `docker/scan.sh` integrado: script creado en iter-020. Ejecución real requiere `trivy` en PATH; si no está disponible, el script avisa y sale con 0. CRITICAL bloquea (exit 1), HIGH solo loguea. Validado localmente con la imagen oficial `aquasec/trivy:latest`.
 
 ## 7. Bundle size frontend
 | Artefacto | Raw | Gzip |
@@ -70,14 +70,14 @@ Medido con `npm run build` (Vite 8.0.10, React 19, TypeScript 6.0.2) — iter-02
 
 ### `backend.Dockerfile` (esbozo)
 ```Dockerfile
-FROM python:3.12-slim AS build
+FROM python:3.12-alpine AS build
 WORKDIR /src
 COPY backend/pyproject.toml backend/README.md ./
 COPY backend/src ./src
 RUN pip install --no-cache-dir build && python -m build --wheel
 
-FROM python:3.12-slim
-RUN useradd -r -u 10001 twi
+FROM python:3.12-alpine
+RUN addgroup -S -g 10001 twi && adduser -S -D -H -u 10001 -G twi twi
 WORKDIR /app
 COPY --from=build /src/dist/*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl uvicorn && rm /tmp/*.whl
@@ -96,7 +96,7 @@ RUN npm ci
 COPY frontend .
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:stable-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 ```
@@ -173,6 +173,7 @@ volumes:
 
 - `context: ..` en docker-compose.yml (compose en `docker/`, contexto = raíz del repo).
 - `npm ci` en frontend.Dockerfile: `openapi-typescript@7.13.0` requiere `typescript@^5.x`; el proyecto fija `typescript@~5.9.3` para no necesitar `--legacy-peer-deps`.
+- `nginx:stable-alpine` evita fijar una release Alpine antigua en runtime frontend; `nginx:1.27-alpine` quedó vulnerable a CVE críticos de OpenSSL en Alpine 3.21.
 - `location /healthz` añadido a nginx.conf para exponer el health del backend desde el puerto 80 (útil para load balancers y smoke tests).
 - `/app/data` creado con `chown twi:twi` antes del `USER twi` para que el volumen `items-cache` herede permisos correctos en primera ejecución.
 - `TWI_CORS_ORIGINS=[]` por defecto en compose: en producción, front y back comparten origen (nginx:8080); no se necesita CORS.

@@ -8,7 +8,7 @@ COPY frontend/ frontend/
 WORKDIR /workspace/frontend
 RUN npm run gen:api && npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:stable-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build --chown=nginx:nginx /workspace/frontend/dist /usr/share/nginx/html
 # Run nginx as the non-root `nginx` user (SP-06):
