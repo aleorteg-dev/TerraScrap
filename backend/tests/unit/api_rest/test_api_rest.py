@@ -30,6 +30,7 @@ from twi.api_rest.router import (
     _chunk_surface_y,
     _encode_chunk,
     _encode_chunk_v2,
+    _sync_runner,
     create_router,
 )
 from twi.app import Settings, create_app
@@ -1845,3 +1846,156 @@ def test_x_api_version_header_present_on_503_catalog_unavailable(
     resp = client.get("/api/items", params={"q": "dirt"})
     assert resp.status_code == 503
     assert resp.headers.get("x-api-version") == "0.2"
+
+
+# ---------------------------------------------------------------------------
+# Import job endpoint tests
+# ---------------------------------------------------------------------------
+
+
+def _make_import_client(
+    repo: WorldRepository,
+    catalog: ItemCatalog,
+    search: TileSearchEngine,
+    import_parser: Callable[[bytes, Callable[[int], None] | None], World] | None = None,
+    max_upload_mb: int = 200,
+) -> TestClient:
+    """TestClient that runs import jobs synchronously (no threads)."""
+    app = FastAPI()
+    register_error_handlers(app)
+    app.add_middleware(XApiVersionMiddleware)
+    router = create_router(
+        repo=repo,
+        catalog=catalog,
+        search=search,
+        max_upload_mb=max_upload_mb,
+        _import_parser=import_parser,
+        _job_runner=_sync_runner,
+    )
+    app.include_router(router)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def _import_parser_ok(data: bytes, cb: Callable[[int], None] | None) -> World:
+    if cb is not None:
+        cb(50)
+        cb(100)
+    return _make_world()
+
+
+def _import_parser_invalid(data: bytes, cb: Callable[[int], None] | None) -> World:
+    raise WldParseError("bad bytes")
+
+
+def _import_parser_unsupported(data: bytes, cb: Callable[[int], None] | None) -> World:
+    raise UnsupportedWorldVersionError(100)
+
+
+def test_create_import_job_returns_202_and_job_id(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    client = _make_import_client(repo, catalog, search_engine, _import_parser_ok)
+    resp = client.post(
+        "/api/world-imports",
+        files={"file": ("world.wld", b"data", "application/octet-stream")},
+    )
+    assert resp.status_code == 202
+    body = resp.json()
+    assert "job_id" in body
+    assert isinstance(body["job_id"], str)
+    assert len(body["job_id"]) > 0
+
+
+def test_get_import_job_done_returns_world_id(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    client = _make_import_client(repo, catalog, search_engine, _import_parser_ok)
+    create_resp = client.post(
+        "/api/world-imports",
+        files={"file": ("world.wld", b"data", "application/octet-stream")},
+    )
+    job_id = create_resp.json()["job_id"]
+    status_resp = client.get(f"/api/world-imports/{job_id}")
+    assert status_resp.status_code == 200
+    body = status_resp.json()
+    assert body["status"] == "done"
+    assert body["pct"] == 100
+    assert body["world_id"] is not None
+    assert body["metadata"] is not None
+    assert body["error_code"] is None
+
+
+def test_get_import_job_invalid_wld_sets_error_status(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    client = _make_import_client(repo, catalog, search_engine, _import_parser_invalid)
+    create_resp = client.post(
+        "/api/world-imports",
+        files={"file": ("world.wld", b"bad", "application/octet-stream")},
+    )
+    job_id = create_resp.json()["job_id"]
+    status_resp = client.get(f"/api/world-imports/{job_id}")
+    assert status_resp.status_code == 200
+    body = status_resp.json()
+    assert body["status"] == "error"
+    assert body["error_code"] == "invalid_wld"
+    assert body["world_id"] is None
+
+
+def test_create_import_job_upload_too_large_returns_413(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    client = _make_import_client(
+        repo, catalog, search_engine, _import_parser_ok, max_upload_mb=0
+    )
+    resp = client.post(
+        "/api/world-imports",
+        files={"file": ("world.wld", b"x", "application/octet-stream")},
+    )
+    assert resp.status_code == 413
+    assert resp.json()["error"]["code"] == "upload_too_large"
+
+
+def test_get_import_job_not_found_returns_404(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    client = _make_import_client(repo, catalog, search_engine, _import_parser_ok)
+    resp = client.get("/api/world-imports/nonexistent-job-id")
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "job_not_found"
+
+
+def test_import_progress_callback_called(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    progress_calls: list[int] = []
+
+    def _capturing_parser(data: bytes, cb: Callable[[int], None] | None) -> World:
+        if cb is not None:
+            for pct in [10, 30, 60, 100]:
+                cb(pct)
+        return _make_world()
+
+    client = _make_import_client(repo, catalog, search_engine, _capturing_parser)
+    create_resp = client.post(
+        "/api/world-imports",
+        files={"file": ("world.wld", b"data", "application/octet-stream")},
+    )
+    assert create_resp.status_code == 202
+    job_id = create_resp.json()["job_id"]
+    status_resp = client.get(f"/api/world-imports/{job_id}")
+    body = status_resp.json()
+    assert body["status"] == "done"
+    assert body["pct"] == 100

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Callable
 from typing import BinaryIO, Literal
 
 from twi.wld_parser._exceptions import UnsupportedWorldVersionError, WldParseError
@@ -226,7 +227,13 @@ _AIR_TILE = Tile(
 )
 
 
-def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid:
+def _read_tiles(
+    r: Reader,
+    width: int,
+    height: int,
+    tfi: list[bool],
+    on_progress: Callable[[int], None] | None = None,
+) -> TileGrid:
     columns: list[list[Tile]] = []
     for _x in range(width):
         col: list[Tile] = []
@@ -308,6 +315,8 @@ def _read_tiles(r: Reader, width: int, height: int, tfi: list[bool]) -> TileGrid
             y += 1
 
         columns.append(col)
+        if on_progress is not None:
+            on_progress(int((_x + 1) * 100 // width))
     return TileGrid(columns)
 
 
@@ -666,14 +675,17 @@ def _validate_footer(
 # ── public entry points ───────────────────────────────────────────────────────
 
 
-def parse_wld(stream: BinaryIO) -> World:
+def parse_wld(
+    stream: BinaryIO,
+    on_progress: Callable[[int], None] | None = None,
+) -> World:
     r = Reader(stream)
     try:
         version, offsets, tfi = _read_file_header(r)
         r.seek(offsets[0])
         metadata, world_id = _read_world_info(r, version)
         r.seek(offsets[1])
-        tiles = _read_tiles(r, metadata.width, metadata.height, tfi)
+        tiles = _read_tiles(r, metadata.width, metadata.height, tfi, on_progress)
         r.seek(offsets[2])
         chests = _read_chests(r, version)
         r.seek(offsets[3])

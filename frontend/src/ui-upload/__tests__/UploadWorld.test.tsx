@@ -153,6 +153,59 @@ describe('UploadWorld', () => {
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
   });
 
+  it('progressbar label switches to procesando when progress >= 50', async () => {
+    let capturedOnProgress: ((pct: number) => void) | undefined;
+    const uploadWorld = vi.fn().mockImplementation((_file: File, opts?: UploadOptions) => {
+      capturedOnProgress = opts?.onProgress;
+      return new Promise<{ worldId: string; metadata: WorldMetadata }>(() => {});
+    });
+    const { client } = makeApiClient(uploadWorld);
+    render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
+    const input = screen.getByLabelText(fileInputLabel);
+    fireEvent.change(input, { target: { files: [makeFile('world.wld', 1024)] } });
+
+    await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
+
+    act(() => {
+      capturedOnProgress!(30);
+    });
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-label', 'Subiendo mundo');
+
+    act(() => {
+      capturedOnProgress!(55);
+    });
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-label', 'Procesando mundo');
+    expect(screen.getByText(/Procesando/)).toBeInTheDocument();
+  });
+
+  it('progressbar does not reach 100 before onUploaded fires', async () => {
+    let capturedOnProgress: ((pct: number) => void) | undefined;
+    let resolveUpload!: (v: { worldId: string; metadata: WorldMetadata }) => void;
+    const uploadWorld = vi.fn().mockImplementation((_file: File, opts?: UploadOptions) => {
+      capturedOnProgress = opts?.onProgress;
+      return new Promise<{ worldId: string; metadata: WorldMetadata }>((r) => {
+        resolveUpload = r;
+      });
+    });
+    const { client } = makeApiClient(uploadWorld);
+    const onUploaded = vi.fn();
+    render(<UploadWorld onUploaded={onUploaded} apiClient={client} />);
+    const input = screen.getByLabelText(fileInputLabel);
+    fireEvent.change(input, { target: { files: [makeFile('world.wld', 1024)] } });
+
+    await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
+
+    // Simulate progress up to 99% — bar must stay visible, onUploaded not called
+    act(() => { capturedOnProgress!(99); });
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '99');
+    expect(onUploaded).not.toHaveBeenCalled();
+
+    // Resolve with worldId — triggers onUploaded and removes bar
+    act(() => { resolveUpload({ worldId: 'w1', metadata: mockMeta }); });
+    await waitFor(() => expect(onUploaded).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+  });
+
   it('accepts .wld file with uppercase extension (WORLD.WLD)', async () => {
     const { client, uploadWorld } = makeApiClient();
     render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);

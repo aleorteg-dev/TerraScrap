@@ -16,6 +16,8 @@ export type TilesEncoding = TilesChunk['encoding'];
 
 type WorldCreatedDto = components['schemas']['WorldCreatedDto'];
 type ItemListDto = components['schemas']['ItemListDto'];
+type ImportJobCreatedDto = components['schemas']['ImportJobCreatedDto'];
+type ImportJobStatusDto = components['schemas']['ImportJobStatusDto'];
 
 export const EXPECTED_API_VERSION = '0.2';
 
@@ -112,21 +114,26 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
   const fetchImpl = opts?.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const xhrFactory = opts?.xhrFactory ?? ((): XMLHttpRequest => new XMLHttpRequest());
 
-  function uploadViaXhr(file: File, onProgress: (pct: number) => void): Promise<WorldCreatedDto> {
-    return new Promise<WorldCreatedDto>((resolve, reject) => {
+  function uploadViaXhrForJob(
+    file: File,
+    onUploadProgress: (pct: number) => void
+  ): Promise<ImportJobCreatedDto> {
+    return new Promise<ImportJobCreatedDto>((resolve, reject) => {
       const xhr = xhrFactory();
       const body = new FormData();
       body.append('file', file);
-      xhr.open('POST', `${baseUrl}/worlds`);
+      xhr.open('POST', `${baseUrl}/world-imports`);
       xhr.responseType = 'text';
 
       let lastPct = 0;
       xhr.upload.onprogress = (ev: ProgressEvent): void => {
         if (!ev.lengthComputable || ev.total <= 0) return;
-        const pct = Math.max(0, Math.min(100, Math.floor((ev.loaded / ev.total) * 100)));
-        if (pct >= lastPct) {
+        // Scale upload bytes to 0-49% — 50-100% reserved for server-side processing
+        const rawPct = Math.floor((ev.loaded / ev.total) * 49);
+        const pct = Math.max(0, Math.min(49, rawPct));
+        if (pct > lastPct) {
           lastPct = pct;
-          onProgress(pct);
+          onUploadProgress(pct);
         }
       };
       xhr.upload.onerror = (): void => {
@@ -158,11 +165,7 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
           parsed = undefined;
         }
         if (status >= 200 && status < 300) {
-          if (lastPct < 100) {
-            lastPct = 100;
-            onProgress(100);
-          }
-          resolve(parsed as WorldCreatedDto);
+          resolve(parsed as ImportJobCreatedDto);
         } else {
           const fakeResponse = {
             ok: false,
@@ -180,11 +183,48 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
     });
   }
 
+  async function pollImportJob(
+    jobId: string,
+    onJobProgress: (pct: number) => void,
+    intervalMs = 500
+  ): Promise<{ worldId: string; metadata: WorldMetadata }> {
+    let lastReported = 49;
+    for (;;) {
+      const dto = await doRequest<ImportJobStatusDto>(
+        fetchImpl,
+        `${baseUrl}/world-imports/${jobId}`
+      );
+      if (dto.status === 'error') {
+        throw new ApiError(
+          dto.error_code ?? 'import_error',
+          0,
+          dto.error_message ?? 'Import failed'
+        );
+      }
+      // Map job pct (0-100) to 50-99%
+      const scaled = 50 + Math.min(49, Math.floor((dto.pct * 49) / 100));
+      if (scaled > lastReported) {
+        lastReported = scaled;
+        onJobProgress(scaled);
+      }
+      if (dto.status === 'done' && dto.world_id != null && dto.metadata != null) {
+        return { worldId: dto.world_id, metadata: dto.metadata as WorldMetadata };
+      }
+      await new Promise<void>((r) => setTimeout(r, intervalMs));
+    }
+  }
+
   return {
     async uploadWorld(file: File, uploadOpts?: UploadOptions) {
       if (uploadOpts?.onProgress) {
-        const dto = await uploadViaXhr(file, uploadOpts.onProgress);
-        return { worldId: dto.world_id, metadata: dto.metadata };
+        const onProgress = uploadOpts.onProgress;
+        // Phase 1: upload (0-49%)
+        const jobDto = await uploadViaXhrForJob(file, onProgress);
+        // Phase 2: server processing (50-99%)
+        const result = await pollImportJob(jobDto.job_id, onProgress);
+        // 100% only when world_id received
+        onProgress(100);
+        return result;
       }
       const body = new FormData();
       body.append('file', file);

@@ -7,7 +7,7 @@ afterEach(() => {
 });
 
 // jsdom does not implement canvas rendering. Provide a spy-able mock so tests
-// can assert on clearRect/fillRect without needing the native canvas package.
+// can assert on clearRect/fillRect/putImageData without needing the native canvas package.
 const mockCtx: Partial<CanvasRenderingContext2D> = {
   clearRect: vi.fn(),
   fillRect: vi.fn(),
@@ -18,6 +18,15 @@ const mockCtx: Partial<CanvasRenderingContext2D> = {
   lineTo: vi.fn(),
   stroke: vi.fn(),
   setLineDash: vi.fn(),
+  createImageData: vi.fn().mockImplementation(
+    (w: number, h: number): ImageData =>
+      ({
+        data: new Uint8ClampedArray(w * h * 4),
+        width: w,
+        height: h,
+      }) as ImageData
+  ),
+  putImageData: vi.fn() as unknown as CanvasRenderingContext2D['putImageData'],
 };
 
 if (typeof HTMLCanvasElement !== 'undefined') {

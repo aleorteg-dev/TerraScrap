@@ -129,3 +129,17 @@ class ErrorDetailDto(BaseModel):
 
 class ErrorDto(BaseModel):
     error: ErrorDetailDto
+
+
+class ImportJobCreatedDto(BaseModel):
+    job_id: str
+
+
+class ImportJobStatusDto(BaseModel):
+    job_id: str
+    status: Literal["queued", "processing", "done", "error"]
+    pct: int
+    world_id: str | None = None
+    metadata: WorldMetadataDto | None = None
+    error_code: str | None = None
+    error_message: str | None = None

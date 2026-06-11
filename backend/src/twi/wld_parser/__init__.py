@@ -1,6 +1,7 @@
 """Public contract for B1 – wld-parser."""
 
 import io
+from collections.abc import Callable
 
 from twi.wld_parser._exceptions import UnsupportedWorldVersionError, WldParseError
 from twi.wld_parser._parser import parse_wld
@@ -18,8 +19,11 @@ from twi.wld_parser._types import (
 )
 
 
-def parse_wld_bytes(data: bytes) -> World:
-    return parse_wld(io.BytesIO(data))
+def parse_wld_bytes(
+    data: bytes,
+    on_progress: Callable[[int], None] | None = None,
+) -> World:
+    return parse_wld(io.BytesIO(data), on_progress)
 
 
 __all__ = [

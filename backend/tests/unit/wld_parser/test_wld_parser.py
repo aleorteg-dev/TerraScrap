@@ -260,3 +260,38 @@ def test_parse_large_synthetic_world_completes_within_budget() -> None:
     assert world.metadata.width == 8400
     assert world.metadata.height == 2400
     assert elapsed < 10.0, f"Parse took {elapsed:.2f}s, budget is 10s"
+
+
+# ── Progress callback tests ───────────────────────────────────────────────────
+
+
+def test_parse_wld_bytes_without_callback_still_works() -> None:
+    data = build_world(width=4, height=4)
+    world = parse_wld_bytes(data)
+    assert world.metadata.width == 4
+
+
+def test_parse_progress_callback_is_monotonic() -> None:
+    data = build_world(width=8, height=4)
+    calls: list[int] = []
+    parse_wld_bytes(data, on_progress=calls.append)
+    assert len(calls) > 0
+    for i in range(1, len(calls)):
+        assert calls[i] >= calls[i - 1], (
+            f"Progress went backward: {calls[i - 1]} → {calls[i]}"
+        )
+
+
+def test_parse_progress_callback_reaches_100() -> None:
+    data = build_world(width=8, height=4)
+    calls: list[int] = []
+    parse_wld_bytes(data, on_progress=calls.append)
+    assert calls[-1] == 100
+
+
+def test_parse_progress_all_values_in_range() -> None:
+    data = build_world(width=8, height=4)
+    calls: list[int] = []
+    parse_wld_bytes(data, on_progress=calls.append)
+    for v in calls:
+        assert 0 <= v <= 100

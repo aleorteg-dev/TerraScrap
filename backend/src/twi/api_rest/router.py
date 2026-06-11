@@ -6,8 +6,11 @@ import base64
 import logging
 import math
 import struct
+import threading
+import uuid
 from collections.abc import Callable, Mapping
-from typing import Final
+from dataclasses import dataclass, field
+from typing import Final, Literal
 
 from fastapi import APIRouter, Query, Response, UploadFile
 from fastapi.responses import JSONResponse
@@ -30,6 +33,8 @@ from .schemas import (
     BackgroundStylesDto,
     ErrorDetails,
     ErrorDto,
+    ImportJobCreatedDto,
+    ImportJobStatusDto,
     ItemDetailDto,
     ItemListDto,
     ItemSummaryDto,
@@ -44,6 +49,29 @@ from .schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+_ProgressFn = Callable[[int], None]
+_ImportParserFn = Callable[[bytes, _ProgressFn | None], World]
+_RunnerFn = Callable[[Callable[[], None]], None]
+
+
+@dataclass
+class _ImportJob:
+    job_id: str
+    status: Literal["queued", "processing", "done", "error"] = field(default="queued")
+    pct: int = field(default=0)
+    world_id: str | None = field(default=None)
+    metadata: WorldMetadataDto | None = field(default=None)
+    error_code: str | None = field(default=None)
+    error_message: str | None = field(default=None)
+
+
+def _thread_runner(fn: Callable[[], None]) -> None:
+    threading.Thread(target=fn, daemon=True).start()
+
+
+def _sync_runner(fn: Callable[[], None]) -> None:
+    fn()
 
 
 def _err(
@@ -407,10 +435,19 @@ def create_router(
     repo: WorldRepository,
     catalog: ItemCatalog,
     search: TileSearchEngine,
-    parser: Callable[[bytes], World] = parse_wld_bytes,
+    parser: Callable[[bytes], World] = lambda data: parse_wld_bytes(data),
     max_upload_mb: int = 200,
+    _import_parser: _ImportParserFn | None = None,
+    _job_runner: _RunnerFn | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api")
+    jobs: dict[str, _ImportJob] = {}
+    import_parser: _ImportParserFn = (
+        _import_parser
+        if _import_parser is not None
+        else lambda data, cb: parse_wld_bytes(data, cb)
+    )
+    run_job: _RunnerFn = _job_runner if _job_runner is not None else _thread_runner
 
     @router.post(
         "/worlds",
@@ -452,6 +489,86 @@ def create_router(
         world_id = repo.store(world)
         return _ok(
             WorldCreatedDto(world_id=world_id, metadata=_meta_dto(world.metadata))
+        )
+
+    # ── Import jobs (progress-aware upload) ──────────────────────────────────
+
+    @router.post(
+        "/world-imports",
+        response_model=None,
+        responses={
+            202: {"model": ImportJobCreatedDto},
+            413: _REQUEST_ENTITY_TOO_LARGE_RESPONSE,
+        },
+    )
+    async def create_import_job(file: UploadFile) -> Response:
+        data = await file.read()
+        if len(data) > max_upload_mb * 1024 * 1024:
+            return _err(
+                413, UPLOAD_TOO_LARGE_CODE, f"File exceeds {max_upload_mb} MB limit."
+            )
+        job_id = str(uuid.uuid4())
+        job = _ImportJob(job_id=job_id, status="queued", pct=0)
+        jobs[job_id] = job
+
+        def _do_import() -> None:
+            job.status = "processing"
+
+            def _on_progress(pct: int) -> None:
+                job.pct = pct
+
+            try:
+                world = import_parser(data, _on_progress)
+            except UnsupportedWorldVersionError as exc:
+                job.status = "error"
+                job.error_code = "unsupported_version"
+                job.error_message = str(exc)
+                return
+            except WldParseError as exc:
+                logger.warning(
+                    "WldParseError in import job %s: code=%s", job_id, exc.code
+                )
+                job.status = "error"
+                job.error_code = "invalid_wld"
+                job.error_message = str(exc)
+                return
+            world_id = repo.store(world)
+            job.pct = 100
+            job.world_id = world_id
+            job.metadata = _meta_dto(world.metadata)
+            job.status = "done"
+
+        run_job(_do_import)
+        return JSONResponse(
+            status_code=202,
+            content=ImportJobCreatedDto(job_id=job_id).model_dump(),
+            headers=API_VERSION_HEADERS,
+        )
+
+    @router.get(
+        "/world-imports/{job_id}",
+        response_model=None,
+        responses={
+            200: {"model": ImportJobStatusDto},
+            404: {"model": ErrorDto},
+        },
+    )
+    async def get_import_job(job_id: str) -> Response:
+        job = jobs.get(job_id)
+        if job is None:
+            return _err(404, "job_not_found", f"Import job '{job_id}' not found.")
+        return JSONResponse(
+            status_code=200,
+            content=ImportJobStatusDto(
+                job_id=job.job_id,
+                status=job.status,
+                pct=job.pct,
+                world_id=job.world_id,
+                metadata=job.metadata,
+                error_code=job.error_code,
+                error_message=job.error_message,
+            ).model_dump(),
+            headers=API_VERSION_HEADERS,
         )
 
     @router.get(
