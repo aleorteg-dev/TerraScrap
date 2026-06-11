@@ -1,3 +1,5 @@
+import { FALLBACK_TILE_COLORS, FALLBACK_WALL_COLORS } from './tilePaletteFallback';
+
 // Palette ported from TerraMap (MapHelper.js, decompiled Terraria colors).
 // Uses the first style variant per tile/wall. Chests and notable containers
 // are overridden with a vivid gold so they stand out from surrounding wood.
@@ -315,8 +317,18 @@ const TILE_COLORS: Readonly<Record<number, string>> = {
   621: '#fafafa', // Crystal Block
   622: '#ebebf9', // Aether
   624: '#d25b4d', // Sandstone Slab
-  625: '#dc0ced', // Lava
-  627: '#ff4c4c', // Shimmer alt
+  381: '#fe7902', // Lava Moss
+  534: '#72fe02', // Krypton Moss
+  536: '#00c5d0', // Xenon Moss
+  539: '#d0007e', // Argon Moss
+  625: '#dc0ced', // Neon Moss
+  627: '#ff4c4c', // Helium Moss
+  687: '#fe7902', // Lava Moss Brick
+  688: '#d0007e', // Argon Moss Brick
+  689: '#72fe02', // Krypton Moss Brick
+  690: '#00c5d0', // Xenon Moss Brick
+  691: '#dc0ced', // Neon Moss Brick
+  692: '#ff4c4c', // Helium Moss Brick
   629: '#7ad9e8', // Sub-biome block
   633: '#d28c64', // Sandstone variant
   634: '#917878', // Lihzahrd variant
@@ -513,6 +525,27 @@ const WALL_COLORS: Readonly<Record<number, string>> = {
   349: '#343434', // Cave Wall
   351: '#c5944c', // Solar Brick Wall (Lunar)
   353: '#1b6d45', // Pine Wall
+  94: '#20282d', // Blue Slab Wall (Dungeon)
+  95: '#2c2932', // Blue Tiled Wall (Dungeon)
+  96: '#48324d', // Pink Slab Wall (Dungeon)
+  97: '#4e3245', // Pink Tiled Wall (Dungeon)
+  98: '#242d2c', // Green Slab Wall (Dungeon)
+  99: '#263132', // Green Tiled Wall (Dungeon)
+  200: '#8f327b', // Hallowed Prism Wall
+  201: '#887883', // Hallowed Cavern Wall
+  202: '#db5c8f', // Hallowed Shard Wall
+  203: '#714096', // Hallowed Crystalline Wall
+  218: '#390e0c', // Hardened Crimsand Wall
+  219: '#604885', // Hardened Pearlsand Wall
+  220: '#433750', // Ebonsandstone Wall
+  221: '#40251d', // Crimsandstone Wall
+  222: '#46335b', // Pearlsandstone Wall
+  235: '#8c4b30', // Smooth Sandstone Wall
+  341: '#642801', // Lava Moss Brick Wall
+  342: '#5c1e48', // Argon Moss Brick Wall
+  343: '#2a5101', // Krypton Moss Brick Wall
+  344: '#01516d', // Xenon Moss Brick Wall
+  345: '#381661', // Neon Moss Brick Wall
 };
 
 const LIQUID_COLORS: Readonly<Record<number, string>> = {
@@ -538,25 +571,57 @@ const DEFAULT_TILE_COLOR = '#555555';
 const DEFAULT_WALL_COLOR = '#3a3a3a';
 const DEFAULT_LIQUID_COLOR = '#093dbf';
 
+function isUsableBreakpoint(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+// Resolves the four banding breakpoints, substituting Terraria's canonical
+// proportions (sky 0.20, rock 0.50, hell 0.90 of world height) whenever the
+// metadata-derived breakpoint is missing, zero, NaN, or otherwise unusable.
+// Without this guard a world whose .wld lacks valid layer doubles ended up
+// rendering the entire vertical axis as DIRT_BAND_COLOR (brown), masking the
+// sky completely.
+function resolveBreakpoints(
+  worldHeight: number,
+  worldSurfaceY: number,
+  rockLayerY: number,
+  hellLayerY: number
+): { surface: number; rock: number; hell: number } {
+  const h = Number.isFinite(worldHeight) && worldHeight > 0 ? worldHeight : 1200;
+  const surface = isUsableBreakpoint(worldSurfaceY) ? worldSurfaceY : Math.floor(h * 0.2);
+  const rock =
+    isUsableBreakpoint(rockLayerY) && rockLayerY > surface ? rockLayerY : Math.floor(h * 0.5);
+  const hell =
+    isUsableBreakpoint(hellLayerY) && hellLayerY > rock ? hellLayerY : Math.floor(h * 0.9);
+  return { surface, rock, hell };
+}
+
 export function getBackgroundColor(
   worldY: number,
   worldSurfaceY: number,
   rockLayerY: number,
-  hellLayerY: number
+  hellLayerY: number,
+  worldHeight = Number.NaN
 ): string {
-  if (worldY < worldSurfaceY) return SKY_BAND_COLOR;
-  if (worldY < rockLayerY) return DIRT_BAND_COLOR;
-  if (worldY < hellLayerY) return ROCK_BAND_COLOR;
+  const { surface, rock, hell } = resolveBreakpoints(
+    worldHeight,
+    worldSurfaceY,
+    rockLayerY,
+    hellLayerY
+  );
+  if (worldY < surface) return SKY_BAND_COLOR;
+  if (worldY < rock) return DIRT_BAND_COLOR;
+  if (worldY < hell) return ROCK_BAND_COLOR;
   return HELL_BAND_COLOR;
 }
 
 export function getTileColor(tileId: number): string {
   if (tileId < 0) return AIR_COLOR;
-  return TILE_COLORS[tileId] ?? DEFAULT_TILE_COLOR;
+  return TILE_COLORS[tileId] ?? FALLBACK_TILE_COLORS[tileId] ?? DEFAULT_TILE_COLOR;
 }
 
 export function getWallColor(wallId: number): string {
-  return WALL_COLORS[wallId] ?? DEFAULT_WALL_COLOR;
+  return WALL_COLORS[wallId] ?? FALLBACK_WALL_COLORS[wallId] ?? DEFAULT_WALL_COLOR;
 }
 
 export function getLiquidColor(liquidType: number): string {

@@ -77,6 +77,60 @@ describe('tileColors palette (extended)', () => {
       expect(getWallColor(id)).not.toBe(DEFAULT_WALL);
     }
   });
+
+  it('moss / moss-brick tiles (179-183, 381, 534, 536, 539, 625, 627, 687-692) have explicit colors', () => {
+    const mossIds = [
+      179, 180, 181, 182, 183, 381, 534, 536, 539, 625, 627, 687, 688, 689, 690, 691, 692,
+    ];
+    for (const id of mossIds) {
+      expect(getTileColor(id)).not.toBe(DEFAULT_TILE);
+    }
+  });
+
+  it('moss tiles use TerraMap-derived hex (179 Green, 180 Brown, 181 Red, 182 Blue, 183 Purple)', () => {
+    expect(getTileColor(179)).toBe('#318672');
+    expect(getTileColor(180)).toBe('#7e8631');
+    expect(getTileColor(181)).toBe('#863b31');
+    expect(getTileColor(182)).toBe('#2b568c');
+    expect(getTileColor(183)).toBe('#793186');
+  });
+
+  it('moss brick tiles share hex with their moss counterparts', () => {
+    expect(getTileColor(687)).toBe(getTileColor(381)); // Lava
+    expect(getTileColor(688)).toBe(getTileColor(539)); // Argon
+    expect(getTileColor(689)).toBe(getTileColor(534)); // Krypton
+    expect(getTileColor(690)).toBe(getTileColor(536)); // Xenon
+    expect(getTileColor(691)).toBe(getTileColor(625)); // Neon
+    expect(getTileColor(692)).toBe(getTileColor(627)); // Helium
+  });
+
+  it('every Terraria tile id 0-720 resolves to a non-default color via fallback palette', () => {
+    const skipped = new Set<number>([4, 60]); // 4 (Torches) and a couple alts share core hex
+    let missing = 0;
+    for (let id = 0; id <= 720; id++) {
+      if (skipped.has(id)) continue;
+      if (getTileColor(id) === DEFAULT_TILE) missing++;
+    }
+    expect(missing).toBeLessThanOrEqual(40);
+  });
+
+  it('every Terraria wall id 1-353 resolves to a non-default color via fallback palette', () => {
+    let missing = 0;
+    for (let id = 1; id <= 353; id++) {
+      if (getWallColor(id) === DEFAULT_WALL) missing++;
+    }
+    expect(missing).toBeLessThanOrEqual(20);
+  });
+
+  it('background walls 94-99, 200-203, 218-222, 235, 341-346 have explicit colors', () => {
+    const wallIds = [
+      94, 95, 96, 97, 98, 99, 200, 201, 202, 203, 218, 219, 220, 221, 222, 235, 341, 342, 343, 344,
+      345, 346,
+    ];
+    for (const id of wallIds) {
+      expect(getWallColor(id)).not.toBe(DEFAULT_WALL);
+    }
+  });
 });
 
 describe('getBackgroundColor (TerraMap layer banding)', () => {
@@ -103,6 +157,11 @@ describe('getBackgroundColor (TerraMap layer banding)', () => {
   it('returns the hell band color (black) for rows at or below the hell layer', () => {
     expect(getBackgroundColor(HELL, SURFACE, ROCK, HELL)).toBe(HELL_BAND_COLOR);
     expect(getBackgroundColor(HELL + 500, SURFACE, ROCK, HELL)).toBe(HELL_BAND_COLOR);
+  });
+
+  it('cavern depth without wall resolves to ROCK_BAND_COLOR via getBackgroundColor', () => {
+    const cavernY = Math.floor((ROCK + HELL) / 2);
+    expect(getBackgroundColor(cavernY, SURFACE, ROCK, HELL)).toBe(ROCK_BAND_COLOR);
   });
 
   it('exposes constants that match TerraMap main.js getTileColor literals', () => {

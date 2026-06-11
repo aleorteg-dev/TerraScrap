@@ -61,7 +61,7 @@ export function renderChunkBitmap(
     // stays visible there.
     for (let ty = 0; ty < dimensions.h; ty++) {
       const worldY = cy * chunkSize + ty;
-      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY);
+      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY, worldH);
       ctx.fillRect(0, ty, dimensions.w, 1);
     }
     for (let ty = 0; ty < dimensions.h; ty++) {
@@ -100,7 +100,7 @@ export function renderChunkBitmapV2(
   if (ctx !== null) {
     for (let ty = 0; ty < dimensions.h; ty++) {
       const worldY = cy * chunkSize + ty;
-      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY);
+      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY, worldH);
       ctx.fillRect(0, ty, dimensions.w, 1);
     }
     if (opts.showWalls ?? true) {

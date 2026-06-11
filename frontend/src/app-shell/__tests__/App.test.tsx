@@ -641,6 +641,29 @@ describe('App', () => {
     expect(screen.queryByText(/desconocid[ao]/i)).not.toBeInTheDocument();
   });
 
+  it('tile detail panel labels tile_id 180 as Brown Moss (not Bloque eco / Terreno #180)', async () => {
+    mockGetTileDetail.mockResolvedValue({
+      ...mockTileDetail,
+      tile_id: 180,
+      wall_id: null,
+    });
+
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    act(() => {
+      capturedCanvasProps?.onTileSelected?.({ x: 10, y: 20 });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('tile-detail-panel')).toBeInTheDocument());
+
+    expect(screen.getByText('Brown Moss')).toBeInTheDocument();
+    expect(screen.queryByText('Bloque eco')).not.toBeInTheDocument();
+    expect(screen.queryByText('Terreno #180')).not.toBeInTheDocument();
+  });
+
   it('NPC list click centers canvas on NPC coords', async () => {
     const user = userEvent.setup();
     mockListNpcs.mockResolvedValue(mockNpcs);

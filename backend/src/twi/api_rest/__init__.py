@@ -10,6 +10,7 @@ from twi.api_rest.errors import (
 )
 from twi.api_rest.router import create_router
 from twi.api_rest.schemas import (
+    BackgroundStylesDto,
     ErrorDetailDto,
     ErrorDetails,
     ErrorDto,
@@ -31,6 +32,7 @@ from twi.api_rest.schemas import (
 __all__ = [
     "API_VERSION",
     "API_VERSION_HEADER",
+    "BackgroundStylesDto",
     "ErrorDetails",
     "ErrorDetailDto",
     "ErrorDto",

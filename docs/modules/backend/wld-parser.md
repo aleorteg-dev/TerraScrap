@@ -319,6 +319,13 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
   observado antes de ampliar semantica expuesta por el dominio.
 - **numpy para TileGrid**: si el rendimiento de B4 tile-search resulta limitado por
   iteración Python sobre listas, sustituir `list[list[Tile]]` por un `ndarray` empaquetado.
+- ~~**Background styles del header v0.x del `.wld`**~~ — Cerrado iter
+  moss-2026-06-11. `WorldMetadata` ahora expone `BackgroundStyles` con
+  `moon_style`, `tree_x[3]`, `tree_style[4]`, `cave_back_x[3]`,
+  `cave_back_style[4]`, `ice_back_style`, `jungle_back_style`, `hell_back_style`.
+  Los enteros viajan crudos vía `WorldMetadataDto.background_styles` (Optional;
+  fixtures legacy mantienen `None`). El frontend recibe los IDs y traduce
+  estilo→hex en `tileColors.ts` cuando se priorice paridad visual por bioma.
 
 ### Evolución propuesta para paridad con TerraMap
 

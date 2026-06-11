@@ -1,6 +1,7 @@
 import { type FC } from 'react';
 import { useAppContext } from '../AppContext';
 import type { TileDetail } from '../../api-client';
+import { FALLBACK_TILE_NAMES, FALLBACK_WALL_NAMES } from './tileNamesFallback';
 
 interface TileDetailPanelProps {
   onClose: () => void;
@@ -176,11 +177,21 @@ const TILE_NAMES: Readonly<Record<number, string>> = {
   176: 'Bloque de mithril',
   177: 'Bloque de platino',
   178: 'Vitrina de gemas',
-  179: 'Bloque eco',
-  180: 'Bloque eco',
-  181: 'Bloque eco',
-  182: 'Bloque eco',
-  183: 'Bloque eco',
+  179: 'Green Moss',
+  180: 'Brown Moss',
+  181: 'Red Moss',
+  182: 'Blue Moss',
+  183: 'Purple Moss',
+  381: 'Lava Moss',
+  534: 'Krypton Moss',
+  536: 'Xenon Moss',
+  539: 'Argon Moss',
+  687: 'Lava Moss Brick',
+  688: 'Argon Moss Brick',
+  689: 'Krypton Moss Brick',
+  690: 'Xenon Moss Brick',
+  691: 'Neon Moss Brick',
+  692: 'Helium Moss Brick',
   189: 'Nube',
   190: 'Champinon brillante',
   191: 'Madera viva',
@@ -250,8 +261,8 @@ const TILE_NAMES: Readonly<Record<number, string>> = {
   621: 'Bloque de cristal',
   622: 'Aether',
   624: 'Losa de arenisca',
-  625: 'Lava',
-  627: 'Shimmer',
+  625: 'Neon Moss',
+  627: 'Helium Moss',
   629: 'Bloque de subbioma',
   720: 'Lavamoss',
   721: 'Argon moss',
@@ -422,12 +433,33 @@ const WALL_NAMES: Readonly<Record<number, string>> = {
   316: 'Pared de mazmorra',
   317: 'Pared de mazmorra',
   330: 'Pared de arrecife',
-  346: 'Pared de caverna',
   347: 'Pared sagrada',
   348: 'Pared carmesi',
   349: 'Pared de caverna',
   351: 'Pared solar',
   353: 'Pared de pino',
+  94: 'Pared de losa azul',
+  95: 'Pared de azulejos azules',
+  96: 'Pared de losa rosa',
+  97: 'Pared de azulejos rosas',
+  98: 'Pared de losa verde',
+  99: 'Pared de azulejos verdes',
+  200: 'Pared de prisma sagrado',
+  201: 'Pared de caverna sagrada',
+  202: 'Pared de fragmento sagrado',
+  203: 'Pared cristalina sagrada',
+  218: 'Pared de arena carmesi endurecida',
+  219: 'Pared de arena perla endurecida',
+  220: 'Pared de arenisca ebon',
+  221: 'Pared de arenisca carmesi',
+  222: 'Pared de arenisca perla',
+  235: 'Pared de arenisca pulida',
+  341: 'Pared de ladrillo de lava moss',
+  342: 'Pared de ladrillo de argon moss',
+  343: 'Pared de ladrillo de krypton moss',
+  344: 'Pared de ladrillo de xenon moss',
+  345: 'Pared de ladrillo de neon moss',
+  346: 'Pared de ladrillo de helium moss',
 };
 
 function Row({ label, value }: { label: string; value: string }): React.ReactElement {
@@ -441,12 +473,12 @@ function Row({ label, value }: { label: string; value: string }): React.ReactEle
 
 function describeTile(tileId: number | null): string {
   if (tileId === null) return 'Aire';
-  return TILE_NAMES[tileId] ?? `Terreno #${tileId}`;
+  return TILE_NAMES[tileId] ?? FALLBACK_TILE_NAMES[tileId] ?? `Terreno #${tileId}`;
 }
 
 function describeWall(wallId: number | null): string {
   if (wallId === null) return 'Sin pared';
-  return WALL_NAMES[wallId] ?? `Pared #${wallId}`;
+  return WALL_NAMES[wallId] ?? FALLBACK_WALL_NAMES[wallId] ?? `Pared #${wallId}`;
 }
 
 function describeLiquid(detail: TileDetail): string {

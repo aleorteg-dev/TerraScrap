@@ -17,6 +17,7 @@ from twi.wld_parser._types import (
     TileEntity,
     TileGrid,
     World,
+    BackgroundStyles,
     WorldMetadata,
 )
 
@@ -136,22 +137,23 @@ def _read_world_info(r: Reader, version: int) -> tuple[WorldMetadata, int]:
     # v141+ creation time (always present for v230+)
     _creation_time = r.read_int64()
 
-    _moon_type = r.read_byte()
+    moon_style = r.read_byte()
 
     # Background style arrays (WorldLoader.js layout: 3+4+3+4+1+1+1 int32s).
     # These sit between moonType and the spawn/layer fields in the binary.
     try:
-        for _ in range(3):
-            r.read_int32()  # treeTypeXCoordinates
-        for _ in range(4):
-            r.read_int32()  # treeStyles
-        for _ in range(3):
-            r.read_int32()  # caveBackXCoordinates
-        for _ in range(4):
-            r.read_int32()  # caveBackStyles
-        r.read_int32()  # iceBackStyle
-        r.read_int32()  # jungleBackStyle
-        r.read_int32()  # hellBackStyle
+        tree_x = (r.read_int32(), r.read_int32(), r.read_int32())
+        tree_style = (r.read_int32(), r.read_int32(), r.read_int32(), r.read_int32())
+        cave_back_x = (r.read_int32(), r.read_int32(), r.read_int32())
+        cave_back_style = (
+            r.read_int32(),
+            r.read_int32(),
+            r.read_int32(),
+            r.read_int32(),
+        )
+        ice_back_style = r.read_int32()
+        jungle_back_style = r.read_int32()
+        hell_back_style = r.read_int32()
 
         spawn_x = r.read_int32()
         spawn_y = r.read_int32()
@@ -187,6 +189,16 @@ def _read_world_info(r: Reader, version: int) -> tuple[WorldMetadata, int]:
     hell_layer_y = _hell_level * 6.0 + world_surface_y - 5.0
 
     size = _classify_size(max_tiles_x)
+    background_styles = BackgroundStyles(
+        moon_style=moon_style,
+        tree_x=tree_x,
+        tree_style=tree_style,
+        cave_back_x=cave_back_x,
+        cave_back_style=cave_back_style,
+        ice_back_style=ice_back_style,
+        jungle_back_style=jungle_back_style,
+        hell_back_style=hell_back_style,
+    )
     return WorldMetadata(
         name=name,
         width=max_tiles_x,
@@ -200,6 +212,7 @@ def _read_world_info(r: Reader, version: int) -> tuple[WorldMetadata, int]:
         world_surface_y=world_surface_y,
         rock_layer_y=rock_layer_y,
         hell_layer_y=hell_layer_y,
+        background_styles=background_styles,
     ), world_id
 
 

@@ -9,6 +9,26 @@ from typing import Literal
 
 
 @dataclass(frozen=True)
+class BackgroundStyles:
+    """Background style ids + horizontal breakpoints from the .wld header.
+
+    Layout mirrors WorldLoader.js (moonType + tree zone arrays + cave-back zone
+    arrays + ice/jungle/hell style ids). Values are kept raw; the frontend owns
+    the style->hex translation so the parser does not need to know visual
+    semantics.
+    """
+
+    moon_style: int
+    tree_x: tuple[int, int, int]
+    tree_style: tuple[int, int, int, int]
+    cave_back_x: tuple[int, int, int]
+    cave_back_style: tuple[int, int, int, int]
+    ice_back_style: int
+    jungle_back_style: int
+    hell_back_style: int
+
+
+@dataclass(frozen=True)
 class WorldMetadata:
     name: str
     width: int
@@ -24,6 +44,8 @@ class WorldMetadata:
     world_surface_y: float = 0.0
     rock_layer_y: float = 0.0
     hell_layer_y: float = 0.0
+    # Background styles. None for fixtures that predate iter-moss-2026-06-11.
+    background_styles: BackgroundStyles | None = None
 
 
 @dataclass(frozen=True)

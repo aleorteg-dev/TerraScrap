@@ -27,6 +27,7 @@ from twi.world_repository import WorldNotFoundError, WorldRepository
 from .errors import API_VERSION_HEADERS, UPLOAD_TOO_LARGE_CODE, error_response
 from .schemas import (
     ErrorDetails,
+    BackgroundStylesDto,
     ErrorDto,
     ItemDetailDto,
     ItemListDto,
@@ -74,6 +75,21 @@ def _ok(dto: _OkDto) -> JSONResponse:
 
 
 def _meta_dto(m: WorldMetadata) -> WorldMetadataDto:
+    bg = m.background_styles
+    bg_dto = (
+        BackgroundStylesDto(
+            moon_style=bg.moon_style,
+            tree_x=bg.tree_x,
+            tree_style=bg.tree_style,
+            cave_back_x=bg.cave_back_x,
+            cave_back_style=bg.cave_back_style,
+            ice_back_style=bg.ice_back_style,
+            jungle_back_style=bg.jungle_back_style,
+            hell_back_style=bg.hell_back_style,
+        )
+        if bg is not None
+        else None
+    )
     return WorldMetadataDto(
         name=m.name,
         width=m.width,
@@ -87,6 +103,7 @@ def _meta_dto(m: WorldMetadata) -> WorldMetadataDto:
         world_surface_y=m.world_surface_y,
         rock_layer_y=m.rock_layer_y,
         hell_layer_y=m.hell_layer_y,
+        background_styles=bg_dto,
     )
 
 

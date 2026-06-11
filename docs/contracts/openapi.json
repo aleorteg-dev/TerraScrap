@@ -652,6 +652,112 @@
   },
   "components": {
     "schemas": {
+      "BackgroundStylesDto": {
+        "properties": {
+          "moon_style": {
+            "type": "integer",
+            "title": "Moon Style"
+          },
+          "tree_x": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Tree X"
+          },
+          "tree_style": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Tree Style"
+          },
+          "cave_back_x": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Cave Back X"
+          },
+          "cave_back_style": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Cave Back Style"
+          },
+          "ice_back_style": {
+            "type": "integer",
+            "title": "Ice Back Style"
+          },
+          "jungle_back_style": {
+            "type": "integer",
+            "title": "Jungle Back Style"
+          },
+          "hell_back_style": {
+            "type": "integer",
+            "title": "Hell Back Style"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moon_style",
+          "tree_x",
+          "tree_style",
+          "cave_back_x",
+          "cave_back_style",
+          "ice_back_style",
+          "jungle_back_style",
+          "hell_back_style"
+        ],
+        "title": "BackgroundStylesDto"
+      },
       "Body_upload_world_api_worlds_post": {
         "properties": {
           "file": {
@@ -1202,6 +1308,16 @@
           "hell_layer_y": {
             "type": "number",
             "title": "Hell Layer Y"
+          },
+          "background_styles": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackgroundStylesDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

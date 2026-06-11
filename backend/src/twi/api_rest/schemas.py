@@ -10,6 +10,17 @@ from pydantic import BaseModel
 ErrorDetails = Mapping[str, object] | list[Mapping[str, object]]
 
 
+class BackgroundStylesDto(BaseModel):
+    moon_style: int
+    tree_x: tuple[int, int, int]
+    tree_style: tuple[int, int, int, int]
+    cave_back_x: tuple[int, int, int]
+    cave_back_style: tuple[int, int, int, int]
+    ice_back_style: int
+    jungle_back_style: int
+    hell_back_style: int
+
+
 class WorldMetadataDto(BaseModel):
     name: str
     width: int
@@ -23,6 +34,7 @@ class WorldMetadataDto(BaseModel):
     world_surface_y: float
     rock_layer_y: float
     hell_layer_y: float
+    background_styles: BackgroundStylesDto | None = None
 
 
 class WorldCreatedDto(BaseModel):
