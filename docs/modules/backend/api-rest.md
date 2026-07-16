@@ -135,6 +135,10 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 - [x] `test_import_jobs_purge_bounded` (IT-01)
 - [x] `test_unknown_route_returns_generic_not_found_code` (IT-03)
 - [x] `test_tile_entity_dto_removed_from_public_contract` (IT-03)
+- [x] `test_read_upload_capped_stops_reading_once_over_limit` (IT-05)
+- [x] `test_read_upload_capped_returns_identical_bytes_within_limit` (IT-05)
+- [x] `test_upload_world_413_without_consuming_whole_body` (IT-05)
+- [x] `test_create_import_job_413_without_consuming_whole_body` (IT-05)
 
 ## 7. Notas de implementación
 - Usa un `APIRouter` con prefijo `/api`. El montaje ocurre en `app-bootstrap`.
@@ -158,8 +162,19 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
 - **Versión del contrato**: v0.2 (cerrada — DELETE estricto, search con `frame_x/frame_y`, `X-API-Version: 0.2`, OpenAPI snapshot regenerado) + retención de import jobs (IT-01) + 404 genérico `not_found` y retirada de `TileEntityDto` (IT-03).
-- **Último cierre**: 2026-07-16 (IT-03 remediación — E10 mapa 404, M01/M04/M19 código muerto, D03 dedup handlers)
+- **Último cierre**: 2026-07-16 (IT-05 remediación — E12 lectura de uploads en streaming)
 - **Iteración actual**: cerrada
+
+### 10.0. Cambios IT-05 (E12, sin cambio de contrato)
+
+- `POST /worlds` y `POST /world-imports` leen el body con
+  `_read_upload_capped(file, max_bytes)`: chunks de 1 MiB
+  (`_UPLOAD_CHUNK_BYTES`) y corte en cuanto lo acumulado excede el límite
+  (devuelve `None` → 413 `upload_too_large`, mismo mensaje que antes).
+  Nunca se retienen más de `límite + 1 chunk` bytes, también en subidas
+  chunked sin `Content-Length` (que eluden el middleware de B6).
+- `_check_upload_size` (leía el body entero antes de comprobar) sustituido
+  por `_read_upload_capped` + `_upload_too_large_response(max_upload_mb)`.
 
 ## 11. Decisiones tomadas en iter-005
 

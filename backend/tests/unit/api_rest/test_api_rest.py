@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -2137,3 +2138,103 @@ def test_tile_entity_dto_removed_from_public_contract() -> None:
 
     assert "TileEntityDto" not in api_rest.__all__
     assert not hasattr(api_rest, "TileEntityDto")
+
+
+# ---------------------------------------------------------------------------
+# IT-05 (E12): lectura de uploads en streaming con corte en el límite
+# ---------------------------------------------------------------------------
+
+
+class _CountingUpload:
+    """Fake UploadFile: sirve el payload por bloques y cuenta bytes leídos."""
+
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+        self._pos = 0
+        self.bytes_read = 0
+
+    async def read(self, size: int = -1) -> bytes:
+        if size < 0:
+            size = len(self._payload) - self._pos
+        chunk = self._payload[self._pos : self._pos + size]
+        self._pos += len(chunk)
+        self.bytes_read += len(chunk)
+        return chunk
+
+
+def _route_endpoint(router: object, path: str, method: str) -> object:
+    for route in router.routes:  # type: ignore[attr-defined]
+        if getattr(route, "path", None) == path and method in getattr(
+            route, "methods", set()
+        ):
+            return route.endpoint
+    raise AssertionError(f"route {method} {path} not found")
+
+
+def test_read_upload_capped_stops_reading_once_over_limit() -> None:
+    from twi.api_rest.router import (  # type: ignore[attr-defined]
+        _UPLOAD_CHUNK_BYTES,
+        _read_upload_capped,
+    )
+
+    limit = 2 * 1024 * 1024
+    upload = _CountingUpload(b"x" * (10 * 1024 * 1024))
+    result = asyncio.run(_read_upload_capped(upload, limit))
+    assert result is None
+    assert upload.bytes_read <= limit + _UPLOAD_CHUNK_BYTES
+
+
+def test_read_upload_capped_returns_identical_bytes_within_limit() -> None:
+    from twi.api_rest.router import _read_upload_capped  # type: ignore[attr-defined]
+
+    payload = bytes(range(256)) * (10 * 1024)  # 2.5 MiB: cruza bordes de chunk
+    upload = _CountingUpload(payload)
+    # Límite == tamaño exacto: se acepta entero (el 413 es solo para > límite).
+    result = asyncio.run(_read_upload_capped(upload, len(payload)))
+    assert result == payload
+
+
+def test_upload_world_413_without_consuming_whole_body(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    from twi.api_rest.router import _UPLOAD_CHUNK_BYTES  # type: ignore[attr-defined]
+
+    router = create_router(
+        repo=repo,
+        catalog=catalog,
+        search=search_engine,
+        parser=_parser_ok,
+        max_upload_mb=1,
+    )
+    endpoint = _route_endpoint(router, "/api/worlds", "POST")
+    upload = _CountingUpload(b"x" * (8 * 1024 * 1024))
+    resp = asyncio.run(endpoint(file=upload))  # type: ignore[operator]
+    assert resp.status_code == 413
+    assert _error_code(json.loads(resp.body)) == "upload_too_large"
+    assert upload.bytes_read <= 1024 * 1024 + _UPLOAD_CHUNK_BYTES
+
+
+def test_create_import_job_413_without_consuming_whole_body(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    from twi.api_rest.router import _UPLOAD_CHUNK_BYTES  # type: ignore[attr-defined]
+
+    router = create_router(
+        repo=repo,
+        catalog=catalog,
+        search=search_engine,
+        parser=_parser_ok,
+        max_upload_mb=1,
+        _import_parser=_import_parser_ok,
+        _job_runner=_sync_runner,
+    )
+    endpoint = _route_endpoint(router, "/api/world-imports", "POST")
+    upload = _CountingUpload(b"x" * (8 * 1024 * 1024))
+    resp = asyncio.run(endpoint(file=upload))  # type: ignore[operator]
+    assert resp.status_code == 413
+    assert _error_code(json.loads(resp.body)) == "upload_too_large"
+    assert upload.bytes_read <= 1024 * 1024 + _UPLOAD_CHUNK_BYTES

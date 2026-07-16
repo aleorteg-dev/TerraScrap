@@ -134,13 +134,30 @@ def _get_world_or_404(repo: WorldRepository, world_id: str) -> World:
         ) from exc
 
 
-def _check_upload_size(data: bytes, max_upload_mb: int) -> JSONResponse | None:
-    """Return the canonical 413 response when data exceeds the limit."""
-    if len(data) > max_upload_mb * 1024 * 1024:
-        return error_response(
-            413, UPLOAD_TOO_LARGE_CODE, f"File exceeds {max_upload_mb} MB limit."
-        )
-    return None
+_UPLOAD_CHUNK_BYTES: Final = 1024 * 1024
+
+
+async def _read_upload_capped(file: UploadFile, max_bytes: int) -> bytes | None:
+    """Read the upload in 1 MiB chunks; return None as soon as it exceeds max_bytes.
+
+    Never buffers more than ``max_bytes + _UPLOAD_CHUNK_BYTES``, so oversized or
+    chunked (no Content-Length) uploads cannot exhaust memory before the 413.
+    """
+    buf = bytearray()
+    while True:
+        chunk = await file.read(_UPLOAD_CHUNK_BYTES)
+        if not chunk:
+            return bytes(buf)
+        buf.extend(chunk)
+        if len(buf) > max_bytes:
+            return None
+
+
+def _upload_too_large_response(max_upload_mb: int) -> JSONResponse:
+    """The canonical 413 response for uploads over the limit."""
+    return error_response(
+        413, UPLOAD_TOO_LARGE_CODE, f"File exceeds {max_upload_mb} MB limit."
+    )
 
 
 def _match_dto(m: SearchMatch) -> SearchMatchDto:
@@ -529,10 +546,9 @@ def create_router(
         },
     )
     async def upload_world(file: UploadFile) -> Response:
-        data = await file.read()
-        too_large = _check_upload_size(data, max_upload_mb)
-        if too_large is not None:
-            return too_large
+        data = await _read_upload_capped(file, max_upload_mb * 1024 * 1024)
+        if data is None:
+            return _upload_too_large_response(max_upload_mb)
         try:
             world = parser(data)
         except UnsupportedWorldVersionError as exc:
@@ -570,10 +586,9 @@ def create_router(
         },
     )
     async def create_import_job(file: UploadFile) -> Response:
-        data = await file.read()
-        too_large = _check_upload_size(data, max_upload_mb)
-        if too_large is not None:
-            return too_large
+        data = await _read_upload_capped(file, max_upload_mb * 1024 * 1024)
+        if data is None:
+            return _upload_too_large_response(max_upload_mb)
         job_id = str(uuid.uuid4())
         job = _ImportJob(job_id=job_id, status="queued", pct=0)
         jobs.add(job)
