@@ -13,6 +13,7 @@ def create_router(
     search: TileSearchEngine,
     parser: Callable[[bytes], World] = parse_wld_bytes,
     max_upload_mb: int = 200,
+    job_ttl_seconds: int = 900,
 ) -> APIRouter: ...
 ```
 
@@ -41,6 +42,18 @@ Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
 - `payload` v1: `base64` de runs `(tileId:int16LE, count:uint16LE)`. Orden fila-mayor (y externo, x interno). Aire = `-1`.
 - `payload` v2: `base64` de `HEADER (8B "TWv2" + frame_count u16LE + reserved u16LE)` + `RUNS (10B/run: tile_id i16, wall_id u16, liquid_type u8, liquid_amount u8, frame_x_hi u8, flags u8, count u16)` + `FRAME_BLOCK (6B/entrada: run_index u16, frame_x_lo u8, reserved u8=0, frame_y u16)`. flags bit 0 = `has_frame`; bits 1..5 (actuator/wires) reservados a 0 (deuda hasta decomposición de `Tile.flags`).
 - `chunk_x` y `chunk_y` son índices de chunk; `start = index * chunk_size`.
+
+Contrato vigente de import jobs (`POST /api/world-imports` + `GET /api/world-imports/{job_id}`):
+- Un job en estado terminal (`done` | `error`) se retiene **`job_ttl_seconds` segundos**
+  (default **900 s = 15 min**) desde que alcanzó el estado terminal. Consultar un job
+  expirado (o purgado) → 404 `code:"job_not_found"`, indistinguible de un job que nunca
+  existió. Los jobs `queued`/`processing` no expiran por este TTL.
+- La purga es perezosa: se ejecuta en cada acceso al almacén de jobs (crear o consultar),
+  por lo que el diccionario interno queda acotado sin necesidad de tarea de fondo.
+- Cualquier excepción inesperada del parseo (distinta de `WldParseError` /
+  `UnsupportedWorldVersionError`) deja el job en `status:"error"` con
+  `error_code:"import_failed"` y un `error_message` genérico **sin traza ni detalles
+  internos**; el detalle se loguea a `ERROR` en el servidor.
 
 ## 3. Dependencias
 - `B2 world-repository`
@@ -73,6 +86,9 @@ Contrato vigente de `GET /api/worlds/{world_id}/tiles`:
 - **SP-16** Un mundo inexistente devuelve 404 `ErrorDto` con header de version.
 - **SP-17** Una excepcion no controlada devuelve 500 `ErrorDto` sin filtrar trazas.
 - **SP-18** El header `X-API-Version` esta presente tambien en respuestas 2xx gestionadas por FastAPI.
+- **SP-19** Una excepción inesperada durante un import job deja el job en `status:"error"` con `error_code:"import_failed"` y mensaje genérico sin traza (IT-01).
+- **SP-20** Un import job en estado terminal expira a los `job_ttl_seconds` (default 900 s); consultarlo tras expirar devuelve 404 `job_not_found` (IT-01).
+- **SP-21** El almacén interno de jobs queda acotado: los jobs terminales expirados se purgan en cada acceso (IT-01).
 
 ## 6. Plan de tests (TDD)
 Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
@@ -112,6 +128,9 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 - [x] `T-32 test_get_tile_unknown_world_returns_404` (iter-09)
 - [x] `test_chunk_surface_y_returns_first_active_tile_per_chunk_column` (fix cielo 2026-06-11)
 - [x] `test_tiles_endpoint_includes_surface_y_for_open_sky_by_column` (fix cielo 2026-06-11)
+- [x] `test_import_job_unexpected_exception_marks_job_error` (IT-01)
+- [x] `test_import_jobs_expire_after_terminal_ttl` (IT-01)
+- [x] `test_import_jobs_purge_bounded` (IT-01)
 
 ## 7. Notas de implementación
 - Usa un `APIRouter` con prefijo `/api`. El montaje ocurre en `app-bootstrap`.
@@ -134,8 +153,8 @@ Validacion FastAPI: 422 `validation_error` con `details` como lista normalizada.
 Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
-- **Versión del contrato**: v0.2 (cerrada — DELETE estricto, search con `frame_x/frame_y`, `X-API-Version: 0.2`, OpenAPI snapshot regenerado).
-- **Último cierre**: 2026-05-11 (iter-12 — WldParseError logging + details.parser_code)
+- **Versión del contrato**: v0.2 (cerrada — DELETE estricto, search con `frame_x/frame_y`, `X-API-Version: 0.2`, OpenAPI snapshot regenerado) + retención de import jobs (IT-01).
+- **Último cierre**: 2026-07-16 (IT-01 remediación — E01 purga de jobs, E02 catch-all `import_failed`)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -225,3 +244,20 @@ OpenAPI y tipos frontend se regeneran en esa iteración.
 - 400 `coordinates_out_of_bounds` cuando `x<0 ∨ y<0 ∨ x>=width ∨ y>=height`, con `details: {x, y, width, height}`. Diverge del contrato §5.4 (`invalid_coordinates`) por instrucción explícita de la iteración.
 - 404 `world_not_found` si `world_id` no existe.
 - Mapping de tile vacío: cuando `Tile.tile_id is None`, todos los campos opcionales (`wall_id`, `frame_x`, `frame_y`) viajan tal cual (None si así fueron poblados); `liquid_type/amount` siempre presentes (default `"none"/0`).
+
+## 18. Decisiones tomadas (IT-01 remediación, 2026-07-16)
+
+- **E01 (leak de `jobs`)**: el `dict[str, _ImportJob]` del closure se sustituye por
+  `_ImportJobStore` (privado del módulo), thread-safe (`threading.Lock`), con TTL de
+  retención para jobs terminales y **purga perezosa** en cada `add()`/`get()`. Se eligió
+  purga perezosa (y no el purge loop de B6) para no tocar otro módulo en esta iteración.
+- **E02 (job colgado)**: `_do_import` añade `except Exception` final → log `ERROR` con
+  `logger.exception` (traza solo en servidor) y estado terminal
+  `error_code="import_failed"` con mensaje genérico fijo (`"Unexpected error during
+  import."`); nunca se serializa `str(exc)` de excepciones no tipadas.
+- `_ImportJob` gana `finished_at: datetime | None`, sellado con el clock inyectado en
+  todos los caminos terminales (`done` y los tres `error`).
+- `create_router` gana `job_ttl_seconds: int = 900` (público) y `_clock:
+  Callable[[], datetime] | None = None` (inyección para tests, mismo patrón que B2).
+- Sin cambios en el schema OpenAPI (`ImportJobStatusDto.error_code` ya era `str | None`),
+  por lo que no se regeneran `openapi.json`/snapshot/tipos frontend.

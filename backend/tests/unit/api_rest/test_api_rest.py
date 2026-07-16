@@ -7,7 +7,7 @@ import json
 import logging
 import struct as _struct
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -1997,3 +1997,126 @@ def test_import_progress_callback_called(
     body = status_resp.json()
     assert body["status"] == "done"
     assert body["pct"] == 100
+
+
+# ---------------------------------------------------------------------------
+# Import job retention tests (IT-01: E01 leak, E02 catch-all)
+# ---------------------------------------------------------------------------
+
+
+class _MutableClock:
+    def __init__(self, start: datetime) -> None:
+        self.now = start
+
+    def advance(self, seconds: float) -> None:
+        self.now += timedelta(seconds=seconds)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+def _make_ttl_import_client(
+    repo: WorldRepository,
+    catalog: ItemCatalog,
+    search: TileSearchEngine,
+    import_parser: Callable[[bytes, Callable[[int], None] | None], World],
+    job_ttl_seconds: int,
+    clock: Callable[[], datetime],
+) -> TestClient:
+    """TestClient with injected job TTL and clock (sync runner, no threads)."""
+    app = FastAPI()
+    register_error_handlers(app)
+    app.add_middleware(XApiVersionMiddleware)
+    router = create_router(
+        repo=repo,
+        catalog=catalog,
+        search=search,
+        _import_parser=import_parser,
+        _job_runner=_sync_runner,
+        job_ttl_seconds=job_ttl_seconds,
+        _clock=clock,
+    )
+    app.include_router(router)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def _import_parser_boom(data: bytes, cb: Callable[[int], None] | None) -> World:
+    raise RuntimeError("secret internal detail")
+
+
+def test_import_job_unexpected_exception_marks_job_error(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    client = _make_import_client(repo, catalog, search_engine, _import_parser_boom)
+    create_resp = client.post(
+        "/api/world-imports",
+        files={"file": ("world.wld", b"data", "application/octet-stream")},
+    )
+    assert create_resp.status_code == 202
+    job_id = create_resp.json()["job_id"]
+    status_resp = client.get(f"/api/world-imports/{job_id}")
+    assert status_resp.status_code == 200
+    body = status_resp.json()
+    assert body["status"] == "error"
+    assert body["error_code"] == "import_failed"
+    assert body["world_id"] is None
+    # El body nunca filtra la traza ni el detalle interno de la excepción.
+    assert "secret internal detail" not in status_resp.text
+    assert "RuntimeError" not in status_resp.text
+    assert "Traceback" not in status_resp.text
+
+
+def test_import_jobs_expire_after_terminal_ttl(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    clock = _MutableClock(datetime(2026, 7, 16, 12, 0, 0, tzinfo=UTC))
+    client = _make_ttl_import_client(
+        repo,
+        catalog,
+        search_engine,
+        _import_parser_ok,
+        job_ttl_seconds=900,
+        clock=clock,
+    )
+    create_resp = client.post(
+        "/api/world-imports",
+        files={"file": ("world.wld", b"data", "application/octet-stream")},
+    )
+    job_id = create_resp.json()["job_id"]
+    assert client.get(f"/api/world-imports/{job_id}").status_code == 200
+
+    clock.advance(899)
+    assert client.get(f"/api/world-imports/{job_id}").status_code == 200
+
+    clock.advance(2)
+    expired_resp = client.get(f"/api/world-imports/{job_id}")
+    assert expired_resp.status_code == 404
+    assert expired_resp.json()["error"]["code"] == "job_not_found"
+
+
+def test_import_jobs_purge_bounded() -> None:
+    from twi.api_rest.router import _ImportJob, _ImportJobStore
+
+    clock = _MutableClock(datetime(2026, 7, 16, 12, 0, 0, tzinfo=UTC))
+    store = _ImportJobStore(ttl_seconds=900, clock=clock)
+    for i in range(50):
+        job = _ImportJob(job_id=f"job-{i}", status="done", pct=100)
+        job.finished_at = clock()
+        store.add(job)
+    stuck = _ImportJob(job_id="stuck", status="processing")
+    store.add(stuck)
+    assert len(store) == 51
+
+    clock.advance(901)
+    fresh = _ImportJob(job_id="fresh", status="queued")
+    store.add(fresh)
+
+    # Los 50 terminales expirados se purgan; queued/processing sobreviven.
+    assert len(store) == 2
+    assert store.get("job-0") is None
+    assert store.get("stuck") is stuck
+    assert store.get("fresh") is fresh

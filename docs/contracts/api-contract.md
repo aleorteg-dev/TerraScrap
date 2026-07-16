@@ -182,6 +182,23 @@ Lista de NPCs del mundo cargado.
   - Lista vacía si el mundo no tiene NPCs.
 - **404**: `code: "world_not_found"`.
 
+### `POST /api/world-imports` · `GET /api/world-imports/{job_id}` — retención de jobs
+
+> Los endpoints existen desde iter-08 en `openapi.json`/snapshot; su especificación
+> completa (202 + polling + códigos) se incorporará a este documento en IT-DOC-1 (G03).
+> Esta subsección fija desde ya el contrato de **retención** (IT-01).
+
+- Un job en estado terminal (`done` | `error`) se retiene **15 minutos** (900 s,
+  configurable con `job_ttl_seconds` en `create_router`) desde que alcanza el estado
+  terminal. Pasado ese plazo el job se purga del servidor.
+- **`GET /api/world-imports/{job_id}` de un job expirado o desconocido** → 404
+  `code: "job_not_found"` (mismo error en ambos casos; el cliente no puede distinguirlos).
+- Los jobs `queued`/`processing` no expiran por este TTL.
+- **Nuevo código de error de job**: `error_code: "import_failed"` en
+  `ImportJobStatusDto` cuando el import falla por una causa inesperada (distinta de
+  `invalid_wld` / `unsupported_version`). El `error_message` acompañante es genérico:
+  nunca incluye trazas ni detalles internos.
+
 ---
 
 ## 3. Reglas transversales

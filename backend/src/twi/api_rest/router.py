@@ -10,6 +10,7 @@ import threading
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Final, Literal
 
 from fastapi import APIRouter, Query, Response, UploadFile
@@ -64,6 +65,52 @@ class _ImportJob:
     metadata: WorldMetadataDto | None = field(default=None)
     error_code: str | None = field(default=None)
     error_message: str | None = field(default=None)
+    finished_at: datetime | None = field(default=None)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+class _ImportJobStore:
+    """Almacén de import jobs con retención TTL para estados terminales.
+
+    Los jobs `done`/`error` expiran `ttl_seconds` después de `finished_at`;
+    la purga es perezosa (en cada `add`/`get`), así el dict queda acotado
+    sin tarea de fondo (contrato api-contract.md §2, IT-01).
+    """
+
+    def __init__(self, ttl_seconds: int, clock: Callable[[], datetime]) -> None:
+        self._jobs: dict[str, _ImportJob] = {}
+        self._ttl_seconds = ttl_seconds
+        self._clock = clock
+        self._lock = threading.Lock()
+
+    def add(self, job: _ImportJob) -> None:
+        with self._lock:
+            self._purge_locked()
+            self._jobs[job.job_id] = job
+
+    def get(self, job_id: str) -> _ImportJob | None:
+        with self._lock:
+            self._purge_locked()
+            return self._jobs.get(job_id)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._jobs)
+
+    def _purge_locked(self) -> None:
+        now = self._clock()
+        expired = [
+            job_id
+            for job_id, job in self._jobs.items()
+            if job.status in ("done", "error")
+            and job.finished_at is not None
+            and (now - job.finished_at).total_seconds() >= self._ttl_seconds
+        ]
+        for job_id in expired:
+            del self._jobs[job_id]
 
 
 def _thread_runner(fn: Callable[[], None]) -> None:
@@ -437,11 +484,14 @@ def create_router(
     search: TileSearchEngine,
     parser: Callable[[bytes], World] = lambda data: parse_wld_bytes(data),
     max_upload_mb: int = 200,
+    job_ttl_seconds: int = 900,
     _import_parser: _ImportParserFn | None = None,
     _job_runner: _RunnerFn | None = None,
+    _clock: Callable[[], datetime] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api")
-    jobs: dict[str, _ImportJob] = {}
+    clock: Callable[[], datetime] = _clock if _clock is not None else _utcnow
+    jobs = _ImportJobStore(ttl_seconds=job_ttl_seconds, clock=clock)
     import_parser: _ImportParserFn = (
         _import_parser
         if _import_parser is not None
@@ -509,7 +559,7 @@ def create_router(
             )
         job_id = str(uuid.uuid4())
         job = _ImportJob(job_id=job_id, status="queued", pct=0)
-        jobs[job_id] = job
+        jobs.add(job)
 
         def _do_import() -> None:
             job.status = "processing"
@@ -519,23 +569,34 @@ def create_router(
 
             try:
                 world = import_parser(data, _on_progress)
+                world_id = repo.store(world)
+                metadata_dto = _meta_dto(world.metadata)
             except UnsupportedWorldVersionError as exc:
-                job.status = "error"
                 job.error_code = "unsupported_version"
                 job.error_message = str(exc)
+                job.finished_at = clock()
+                job.status = "error"
                 return
             except WldParseError as exc:
                 logger.warning(
                     "WldParseError in import job %s: code=%s", job_id, exc.code
                 )
-                job.status = "error"
                 job.error_code = "invalid_wld"
                 job.error_message = str(exc)
+                job.finished_at = clock()
+                job.status = "error"
                 return
-            world_id = repo.store(world)
+            except Exception:
+                logger.exception("Unexpected error in import job %s", job_id)
+                job.error_code = "import_failed"
+                job.error_message = "Unexpected error during import."
+                job.finished_at = clock()
+                job.status = "error"
+                return
             job.pct = 100
             job.world_id = world_id
-            job.metadata = _meta_dto(world.metadata)
+            job.metadata = metadata_dto
+            job.finished_at = clock()
             job.status = "done"
 
         run_job(_do_import)
