@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
   classifyBackgroundBand,
@@ -12,7 +14,10 @@ import {
   DIRT_BAND_COLOR,
   ROCK_BAND_COLOR,
   HELL_BAND_COLOR,
+  TILE_COLORS,
+  WALL_COLORS,
 } from '../tileColors';
+import { FALLBACK_TILE_COLORS, FALLBACK_WALL_COLORS } from '../tilePaletteFallback';
 
 const DEFAULT_TILE = '#555555';
 const DEFAULT_WALL = '#3a3a3a';
@@ -134,6 +139,44 @@ describe('tileColors palette (extended)', () => {
     for (const id of wallIds) {
       expect(getWallColor(id)).not.toBe(DEFAULT_WALL);
     }
+  });
+});
+
+describe('curated palette overrides (IT-06)', () => {
+  const readPaletteSource = (file: string): string =>
+    readFileSync(join(process.cwd(), 'src', 'world-canvas', file), 'utf8');
+
+  it('tileColors should only contain overrides that differ from the fallback', () => {
+    const duplicated = Object.entries(TILE_COLORS).filter(
+      ([id, color]) => FALLBACK_TILE_COLORS[Number(id)]?.toLowerCase() === color.toLowerCase()
+    );
+    expect(duplicated).toEqual([]);
+  });
+
+  it('wallColors should only contain overrides that differ from the fallback', () => {
+    const duplicated = Object.entries(WALL_COLORS).filter(
+      ([id, color]) => FALLBACK_WALL_COLORS[Number(id)]?.toLowerCase() === color.toLowerCase()
+    );
+    expect(duplicated).toEqual([]);
+  });
+
+  it('all palette entries should be valid #rrggbb', () => {
+    for (const file of ['tileColors.ts', 'tilePaletteFallback.ts']) {
+      const source = readPaletteSource(file);
+      const hexLiterals = source.match(/'#[0-9a-fA-F]*'/g) ?? [];
+      expect(hexLiterals.length).toBeGreaterThan(0);
+      for (const literal of hexLiterals) {
+        expect(literal, `invalid hex literal ${literal} in ${file}`).toMatch(/^'#[0-9a-f]{6}'$/);
+      }
+    }
+  });
+
+  it('getTileColor(125) should return #8dafff', () => {
+    expect(getTileColor(125)).toBe('#8dafff');
+  });
+
+  it('should not contain the unused sentinel entry 10000', () => {
+    expect(TILE_COLORS[10000]).toBeUndefined();
   });
 });
 

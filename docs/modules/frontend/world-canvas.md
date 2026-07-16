@@ -134,9 +134,28 @@ Nuevos tests de componente (iter-16):
 - Fallos de API delegados por `onError` del host (v1.1 opcional).
 
 ## 10. Estado
-- **Versión del contrato**: v2 (breaking: nuevas props, handle extendido, tipos migrados a F1)
-- **Último cierre**: 2026-05-11 — iter-16 cerrada: decoder v2, capas, spawn, zoom [0.25,8], exportToPng, onTileSelected, worldId change, refactor tipos
+- **Versión del contrato**: v2 (breaking: nuevas props, handle extendido, tipos migrados a F1) — sin cambios en IT-06 (`getTileColor`/`getWallColor` conservan firma)
+- **Último cierre**: 2026-07-16 — IT-06 (PLAN_REMEDIACION E04+M12+D01): paleta curada reducida a overrides reales
 - **Iteración actual**: cerrada
+
+### 10.0. Cambios IT-06 (paleta, sin cambio de contrato)
+
+- D01 — `TILE_COLORS`/`WALL_COLORS` (`tileColors.ts`) reducidas de 346/188 entradas
+  a 24/13 overrides reales: se eliminaron las 316 (tiles) + 175 (paredes) entradas
+  byte a byte idénticas a `FALLBACK_TILE_COLORS`/`FALLBACK_WALL_COLORS`, que es la
+  paleta base derivada de TerraMap. Un test nuevo prohíbe reintroducir duplicados
+  idénticos y otro valida que TODOS los literales de ambos ficheros sean `#rrggbb`.
+- E04 — eliminados los overrides con typo de transcripción; gana el valor del
+  fallback (TerraMap): 125 (`#8daff` inválido → `#8dafff`), 245/246
+  (`#633220` → `#63321e`), 637/638 (`#c87850` → `#c8784b`).
+- M12 — eliminada la entrada centinela `10000: DRESSER_COLOR` y la constante
+  `DRESSER_COLOR` (sin uso).
+- Las tablas se exportan ahora desde `tileColors.ts` (solo para tests/inspección;
+  el contrato público del módulo en `index.ts` no cambia).
+- Tests nuevos: `tileColors should only contain overrides that differ from the
+  fallback` (×2, tiles y paredes), `all palette entries should be valid #rrggbb`,
+  `getTileColor(125) should return #8dafff`, `should not contain the unused
+  sentinel entry 10000`.
 
 ## 11. Decisiones tomadas en iter-007
 
