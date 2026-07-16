@@ -241,6 +241,59 @@ def test_access_log_includes_error_code_on_failure(
     assert entry.get("error", {}).get("code") == "upload_too_large"
 
 
+# ── T-12 (IT-04, E13) ───────────────────────────────────────────────────────
+
+
+def test_malformed_content_length_returns_400() -> None:
+    resp = _client().get("/healthz", headers={"Content-Length": "banana"})
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["error"]["code"] == "validation_error"
+
+
+# ── T-13 (IT-04, E20) ───────────────────────────────────────────────────────
+
+
+def test_unhandled_error_response_has_request_id_and_no_error_code_header() -> None:
+    app = create_app()
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("kaboom")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/boom")
+    assert resp.status_code == 500
+    assert resp.json()["error"]["code"] == "internal_error"
+    assert "X-Error-Code" not in resp.headers
+    rid = resp.headers.get("X-Request-Id")
+    assert rid is not None
+    assert _UUID_V4_RE.match(rid) is not None
+
+
+# ── T-14 (IT-04, P08) ───────────────────────────────────────────────────────
+
+
+def test_purge_logs_only_when_purged(log_capture: _ListHandler) -> None:
+    mock_repo = MagicMock()
+    mock_repo.purge_expired.return_value = 0
+
+    settings = Settings(purge_interval_seconds=0)
+
+    with patch("twi.app.create_in_memory_repository", return_value=mock_repo):
+        app = create_app(settings)
+        with TestClient(app):
+            time.sleep(0.05)
+
+    mock_repo.purge_expired.assert_called()
+    purge_entries = [
+        json.loads(line)
+        for line in log_capture.formatted
+        if json.loads(line).get("event") == "purge"
+    ]
+    assert purge_entries == []
+
+
 # ── T-11 ────────────────────────────────────────────────────────────────────
 
 

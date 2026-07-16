@@ -1,7 +1,7 @@
 """Structured logging and request correlation for the FastAPI app.
 
-Provides a JSON formatter for stdlib ``logging``, a ContextVar-based hook for
-request-scoped correlation IDs, and a Starlette middleware that:
+Provides a JSON formatter for stdlib ``logging`` and a Starlette middleware
+that:
 
 * assigns a UUID v4 ``X-Request-Id`` per request (or honours one supplied by
   the client),
@@ -15,7 +15,6 @@ import json
 import logging
 import time
 import uuid
-from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Final
 
@@ -24,10 +23,10 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
+from twi.api_rest.errors import ERROR_CODE_HEADER, REQUEST_ID_HEADER
+
 ACCESS_LOGGER_NAME: Final = "twi.access"
 PURGE_LOGGER_NAME: Final = "twi.purge"
-REQUEST_ID_HEADER: Final = "X-Request-Id"
-ERROR_CODE_HEADER: Final = "X-Error-Code"
 
 _LOG_EXTRA_FIELDS: Final[tuple[str, ...]] = (
     "request_id",
@@ -37,8 +36,6 @@ _LOG_EXTRA_FIELDS: Final[tuple[str, ...]] = (
     "duration_ms",
     "event",
 )
-
-current_request_id: ContextVar[str | None] = ContextVar("twi_request_id", default=None)
 
 
 class JsonFormatter(logging.Formatter):
@@ -105,7 +102,6 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request_id = (
             incoming if incoming and _looks_like_uuid(incoming) else str(uuid.uuid4())
         )
-        rid_token = current_request_id.set(request_id)
         request.state.request_id = request_id
         start = time.perf_counter()
         try:
@@ -122,7 +118,6 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 duration_ms=duration_ms,
                 error_code="internal_error",
             )
-            current_request_id.reset(rid_token)
             raise
         duration_ms = round((time.perf_counter() - start) * 1000.0, 3)
         response.headers[REQUEST_ID_HEADER] = request_id
@@ -139,7 +134,6 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             duration_ms=duration_ms,
             error_code=error_code,
         )
-        current_request_id.reset(rid_token)
         return response
 
     def _log(

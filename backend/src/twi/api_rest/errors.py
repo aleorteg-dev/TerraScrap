@@ -25,6 +25,7 @@ VALIDATION_ERROR_CODE: Final = "validation_error"
 INTERNAL_ERROR_CODE: Final = "internal_error"
 
 ERROR_CODE_HEADER: Final = "X-Error-Code"
+REQUEST_ID_HEADER: Final = "X-Request-Id"
 
 # 404 genérico: "not_found". El código de dominio "world_not_found" queda
 # reservado a los handlers de /worlds/*, que lo emiten explícitamente (IT-03, E10).
@@ -105,13 +106,21 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(
-        _request: Request, _exc: Exception
+        request: Request, _exc: Exception
     ) -> JSONResponse:
-        return error_response(
+        # Este handler corre en ServerErrorMiddleware, fuera de
+        # RequestContextMiddleware: hay que consumir aquí el header transitorio
+        # X-Error-Code y propagar X-Request-Id manualmente.
+        response = error_response(
             500,
             INTERNAL_ERROR_CODE,
             "Internal server error.",
         )
+        del response.headers[ERROR_CODE_HEADER]
+        request_id = getattr(request.state, "request_id", None)
+        if isinstance(request_id, str):
+            response.headers[REQUEST_ID_HEADER] = request_id
+        return response
 
 
 def _upload_too_large_response(exc: UploadTooLargeError) -> JSONResponse:

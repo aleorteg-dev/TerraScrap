@@ -22,6 +22,7 @@ from twi.api_rest import (
     create_router,
     register_error_handlers,
 )
+from twi.api_rest.errors import VALIDATION_ERROR_CODE, error_response
 from twi.item_catalog import (
     ItemCatalog,
     ItemCatalogUnavailableError,
@@ -71,9 +72,18 @@ class _UploadSizeLimitMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         content_length = request.headers.get("Content-Length")
-        if content_length is not None and int(content_length) > self._max_bytes:
-            limit_mb = self._max_bytes // (1024 * 1024)
-            raise UploadTooLargeError(limit_mb)
+        if content_length is not None:
+            try:
+                declared_bytes = int(content_length)
+            except ValueError:
+                return error_response(
+                    400,
+                    VALIDATION_ERROR_CODE,
+                    "Invalid Content-Length header.",
+                )
+            if declared_bytes > self._max_bytes:
+                limit_mb = self._max_bytes // (1024 * 1024)
+                raise UploadTooLargeError(limit_mb)
         return await call_next(request)
 
 
@@ -92,10 +102,11 @@ async def _purge_loop(repo: WorldRepository, interval: int) -> None:
     while True:
         await asyncio.sleep(interval)
         purged = repo.purge_expired()
-        purge_logger.info(
-            "purge_expired",
-            extra={"event": "purge", "status": int(purged)},
-        )
+        if purged:
+            purge_logger.info(
+                "purge_expired",
+                extra={"event": "purge", "status": int(purged)},
+            )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

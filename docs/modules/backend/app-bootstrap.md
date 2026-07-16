@@ -51,6 +51,9 @@ class Settings(BaseSettings):
 - [x] `T-10 test_access_log_is_valid_json_with_required_fields` (iter-07)
 - [x] `T-10b test_access_log_includes_error_code_on_failure` (iter-07)
 - [x] `T-11 test_purge_loop_emits_json_log` (iter-07)
+- [x] `T-12 test_malformed_content_length_returns_400` (IT-04)
+- [x] `T-13 test_unhandled_error_response_has_request_id_and_no_error_code_header` (IT-04)
+- [x] `T-14 test_purge_logs_only_when_purged` (IT-04)
 
 ## 7. Notas de implementación
 - Preferir `FastAPI(lifespan=...)` para arrancar/parar el task de purga.
@@ -64,11 +67,30 @@ class Settings(BaseSettings):
 - Fallo cargando cache de ítems → log warning; el endpoint `/api/items` devolverá 503 hasta que exista.
 
 ## 10. Estado
-- **Versión del contrato**: v0.1.2 (sin cambios en IT-00A)
-- **Último cierre**: 2026-07-16 (IT-00A, PLAN_REMEDIACION N01)
+- **Versión del contrato**: v0.1.3
+- **Último cierre**: 2026-07-16 (IT-04, PLAN_REMEDIACION E13+E20+M03+D05+P08)
 - **Iteración actual**: cerrada
 
-### 10.0. Cambios IT-00A (solo tests)
+### 10.0. Cambios v0.1.3 (IT-04)
+
+- E13 — `_UploadSizeLimitMiddleware` parsea `Content-Length` con try/except:
+  un header malformado (`banana`) responde 400 `validation_error` en vez de
+  propagar `ValueError` → 500.
+- E20 — el handler de `Exception` (en `twi/api_rest/errors.py`, corre en
+  `ServerErrorMiddleware`, **fuera** de `RequestContextMiddleware`) ahora
+  consume él mismo el header transitorio `X-Error-Code` y añade `X-Request-Id`
+  desde `request.state.request_id`: los 500 no controlados ya no filtran
+  `X-Error-Code` al cliente y sí llevan el id de correlación.
+- M03 — eliminado el ContextVar `current_request_id` (`observability.py`):
+  se escribía en cada request pero nadie lo leía. `request.state.request_id`
+  sigue siendo el mecanismo de propagación.
+- D05 — `ERROR_CODE_HEADER` (y `REQUEST_ID_HEADER`) tienen ahora una única
+  definición en `twi.api_rest.errors`; `observability.py` las importa de ahí
+  (B6 depende de B5: dirección permitida).
+- P08 — el purge loop solo emite log cuando `purge_expired()` purga > 0
+  mundos (antes logueaba cada ciclo aunque purgara 0).
+
+### 10.1. Cambios IT-00A (solo tests)
 
 - `T-01` reescrito: FastAPI 0.139 representa los routers incluidos como
   `_IncludedRouter` sin `.path`, rompiendo la introspección de `app.routes`.
@@ -76,7 +98,7 @@ class Settings(BaseSettings):
   (`GET /healthz` → 200, `POST /api/worlds` sin body → 422,
   `GET /api/items?q=x` → 200/503). Sin cambio de contrato ni de código fuente.
 
-### 10.1. Cambios v0.1.2 (iter-07)
+### 10.2. Cambios v0.1.2 (iter-07)
 
 - `RequestContextMiddleware` (en `twi/observability.py`): asigna `X-Request-Id`
   (UUID v4) por request si no llega del cliente; respeta el id entrante si viene
