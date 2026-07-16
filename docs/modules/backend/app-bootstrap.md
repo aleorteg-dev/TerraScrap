@@ -64,9 +64,17 @@ class Settings(BaseSettings):
 - Fallo cargando cache de ítems → log warning; el endpoint `/api/items` devolverá 503 hasta que exista.
 
 ## 10. Estado
-- **Versión del contrato**: v0.1.2
-- **Último cierre**: 2026-05-09 (iter-07)
+- **Versión del contrato**: v0.1.2 (sin cambios en IT-00A)
+- **Último cierre**: 2026-07-16 (IT-00A, PLAN_REMEDIACION N01)
 - **Iteración actual**: cerrada
+
+### 10.0. Cambios IT-00A (solo tests)
+
+- `T-01` reescrito: FastAPI 0.139 representa los routers incluidos como
+  `_IncludedRouter` sin `.path`, rompiendo la introspección de `app.routes`.
+  El test ahora verifica el montaje con peticiones reales vía `TestClient`
+  (`GET /healthz` → 200, `POST /api/worlds` sin body → 422,
+  `GET /api/items?q=x` → 200/503). Sin cambio de contrato ni de código fuente.
 
 ### 10.1. Cambios v0.1.2 (iter-07)
 

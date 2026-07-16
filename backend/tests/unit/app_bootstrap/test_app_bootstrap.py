@@ -34,9 +34,13 @@ def _client(settings: Settings | None = None) -> TestClient:
 def test_create_app_returns_fastapi_with_routes_mounted() -> None:
     app = create_app()
     assert isinstance(app, FastAPI)
-    paths = {getattr(r, "path", None) for r in app.routes}
-    assert "/api/worlds" in paths
-    assert "/healthz" in paths
+    client = TestClient(app, raise_server_exceptions=False)
+    # /healthz responde 200 → montado.
+    assert client.get("/healthz").status_code == 200
+    # POST /api/worlds sin fichero → 422 del router (404 significaría no montado).
+    assert client.post("/api/worlds").status_code == 422
+    # GET /api/items → 200 (catálogo cargado) o 503 (no disponible), nunca 404.
+    assert client.get("/api/items", params={"q": "x"}).status_code in (200, 503)
 
 
 # ── T-02 ─────────────────────────────────────────────────────────────────────
