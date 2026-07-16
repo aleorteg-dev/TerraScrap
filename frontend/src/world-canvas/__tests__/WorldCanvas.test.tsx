@@ -311,7 +311,7 @@ describe('WorldCanvas', () => {
     expect(s1.px - s0.px).toBeCloseTo(8, 2);
   });
 
-  it('T-15c zoomToFit fits the full world in the canvas', () => {
+  it('T-15c zoomToFit fits the full world in the canvas (no lower clamp)', () => {
     const onReady = vi.fn();
     render(
       <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={makeApiClient()} onReady={onReady} />
@@ -320,7 +320,9 @@ describe('WorldCanvas', () => {
 
     const zoom = handle.zoomToFit();
 
-    expect(zoom).toBeCloseTo(0.25, 2);
+    // world 4200×1200, canvas 800×600 → min(800/4200, 600/1200) ≈ 0.1905,
+    // por debajo de ZOOM_LIMITS.min: zoomToFit ya no clampa inferiormente (E15).
+    expect(zoom).toBeCloseTo(800 / 4200, 3);
     const center = handle.worldToScreen(mockMeta.width / 2, mockMeta.height / 2);
     expect(center.px).toBeCloseTo(400, 0);
     expect(center.py).toBeCloseTo(300, 0);
@@ -352,6 +354,110 @@ describe('WorldCanvas', () => {
     // panX=1900, panY=90 → screenToWorld(100,200)={x:1950,y:190}
     fireEvent.click(canvas, { clientX: 100, clientY: 200 });
     expect(onTileSelected).toHaveBeenCalledWith({ x: 1950, y: 190 });
+  });
+
+  it('T-19 wheel zoom notifies onZoomChange with the new zoom', () => {
+    const onZoomChange = vi.fn();
+    render(
+      <WorldCanvas
+        worldId="w1"
+        metadata={mockMeta}
+        apiClient={makeApiClient()}
+        onZoomChange={onZoomChange}
+      />
+    );
+    const canvas = screen.getByTestId('world-canvas');
+    // zoom inicial 2, rueda hacia arriba → 2 * 1.2 = 2.4
+    fireEvent.wheel(canvas, { deltaY: -100, clientX: 400, clientY: 300 });
+    expect(onZoomChange).toHaveBeenCalledWith(2.4);
+  });
+
+  it('T-19b setZoom and zoomToFit notify onZoomChange', () => {
+    const onZoomChange = vi.fn();
+    const onReady = vi.fn();
+    render(
+      <WorldCanvas
+        worldId="w1"
+        metadata={mockMeta}
+        apiClient={makeApiClient()}
+        onReady={onReady}
+        onZoomChange={onZoomChange}
+      />
+    );
+    const handle = onReady.mock.calls[0]?.[0] as WorldCanvasHandle;
+
+    handle.setZoom(4);
+    expect(onZoomChange).toHaveBeenCalledWith(4);
+
+    onZoomChange.mockClear();
+    const fitted = handle.zoomToFit();
+    expect(onZoomChange).toHaveBeenCalledWith(fitted);
+  });
+
+  it('T-20 click after a >5px drag does not select a tile', () => {
+    const onTileSelected = vi.fn();
+    const onTileClick = vi.fn();
+    render(
+      <WorldCanvas
+        worldId="w1"
+        metadata={mockMeta}
+        apiClient={makeApiClient()}
+        onTileSelected={onTileSelected}
+        onTileClick={onTileClick}
+      />
+    );
+    const canvas = screen.getByTestId('world-canvas');
+    fireEvent.mouseDown(canvas, { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.mouseMove(canvas, { clientX: 130, clientY: 120 });
+    fireEvent.mouseUp(canvas);
+    fireEvent.click(canvas, { clientX: 130, clientY: 120 });
+    expect(onTileSelected).not.toHaveBeenCalled();
+    expect(onTileClick).not.toHaveBeenCalled();
+  });
+
+  it('T-20b click without movement still selects a tile', () => {
+    const onTileSelected = vi.fn();
+    render(
+      <WorldCanvas
+        worldId="w1"
+        metadata={mockMeta}
+        apiClient={makeApiClient()}
+        onTileSelected={onTileSelected}
+      />
+    );
+    const canvas = screen.getByTestId('world-canvas');
+    fireEvent.mouseDown(canvas, { button: 0, clientX: 100, clientY: 200 });
+    fireEvent.mouseUp(canvas);
+    fireEvent.click(canvas, { clientX: 100, clientY: 200 });
+    expect(onTileSelected).toHaveBeenCalledWith({ x: 1950, y: 190 });
+  });
+
+  it('T-21 zoomToFit returns min(w/W, h/H) without lower clamp on large worlds', () => {
+    const largeMeta: WorldMetadata = { ...mockMeta, width: 8400, height: 2400 };
+    const onReady = vi.fn();
+    render(
+      <WorldCanvas
+        worldId="w1"
+        metadata={largeMeta}
+        apiClient={makeApiClientForMetadata(largeMeta)}
+        onReady={onReady}
+      />
+    );
+    const handle = onReady.mock.calls[0]?.[0] as WorldCanvasHandle;
+
+    const zoom = handle.zoomToFit();
+
+    // canvas 800×600 → min(800/8400, 600/2400) = 800/8400 ≈ 0.0952 < 0.25
+    expect(zoom).toBeCloseTo(800 / 8400, 4);
+    const left = handle.worldToScreen(0, largeMeta.height / 2);
+    const right = handle.worldToScreen(largeMeta.width, largeMeta.height / 2);
+    expect(left.px).toBeGreaterThanOrEqual(0);
+    expect(right.px).toBeLessThanOrEqual(800);
+  });
+
+  it('T-22 ZOOM_LIMITS exported from index with min/max/initial/step', async () => {
+    const module = await import('../index');
+    expect(module.ZOOM_LIMITS).toEqual({ min: 0.25, max: 8, initial: 2, step: 0.5 });
   });
 
   it('T-18 onError fires when getTilesChunk rejects', async () => {

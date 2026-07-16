@@ -4,6 +4,15 @@ export interface ViewState {
   zoom: number; // pixels per tile
 }
 
+// Fuente única de las constantes de zoom (IT-07, D04). app-shell las consume
+// desde world-canvas/index.ts en vez de duplicarlas.
+export const ZOOM_LIMITS = {
+  min: 0.25,
+  max: 8,
+  initial: 2,
+  step: 0.5,
+} as const;
+
 export function screenToWorld(px: number, py: number, view: ViewState): { x: number; y: number } {
   return {
     x: view.panX + px / view.zoom,

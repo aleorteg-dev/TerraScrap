@@ -9,11 +9,18 @@ Renderizar el mundo de Terraria sobre un `<canvas>` HTML 2D, con pan y zoom. Con
 // src/world-canvas/index.ts
 export interface WorldCanvasHandle {
   centerOn(x: number, y: number): void;
-  setZoom(level: number): void;        // 1 = 1 tile por píxel base
+  setZoom(level: number): void;        // 1 = 1 tile por píxel base; clampa a [min, max]
+  zoomToFit(): number | null;          // ajusta el mundo entero; PUEDE devolver un zoom
+                                       // < ZOOM_LIMITS.min si el mundo no cabe (IT-07, E15)
   redraw(): void;
   screenToWorld(px: number, py: number): { x: number; y: number };
   worldToScreen(x: number, y: number): { px: number; py: number };
+  exportToPng(): Promise<Blob>;
 }
+
+// Fuente única de las constantes de zoom (IT-07, D04). app-shell debe
+// consumirlas de aquí en vez de duplicarlas.
+export const ZOOM_LIMITS: { min: 0.25; max: 8; initial: 2; step: 0.5 };
 
 export interface WorldCanvasProps {
   worldId: string;
@@ -21,6 +28,14 @@ export interface WorldCanvasProps {
   apiClient: ApiClient;
   onReady?: (handle: WorldCanvasHandle) => void;
   onTileClick?: (tile: { x: number; y: number }) => void;
+  onTileSelected?: (tile: { x: number; y: number }) => void;
+  onZoomChange?: (zoom: number) => void; // IT-07 (E05): rueda, setZoom y zoomToFit
+  onError?: (err: Error) => void;
+  showLayerLines?: boolean;
+  showSpawnPoint?: boolean;
+  showWalls?: boolean;
+  showLiquids?: boolean;
+  showWires?: boolean;
 }
 
 export const WorldCanvas: React.FC<WorldCanvasProps>;
@@ -48,6 +63,9 @@ export const WorldCanvas: React.FC<WorldCanvasProps>;
 - **SP-09** Es resiliente a redimensionado del contenedor (ResizeObserver).
 - **SP-10** El render usa `requestAnimationFrame`.
 - **SP-11** Los chunks parciales de los bordes derecho e inferior se recortan contra los limites reales del mundo. Para `(cx, cy)`, `chunkSize`, `worldW` y `worldH`: `w = min(chunkSize, worldW - cx * chunkSize)` y `h = min(chunkSize, worldH - cy * chunkSize)`. El helper interno `computeChunkDimensions` centraliza este calculo y se usa tanto al crear el bitmap como al escalar `drawImage`.
+- **SP-12** (IT-07) Todo cambio de zoom interno (rueda, `setZoom`, `zoomToFit`) notifica al host vía `onZoomChange(zoom)` para que el estado externo no se desincronice.
+- **SP-13** (IT-07) Un click precedido de un drag con desplazamiento acumulado > 5 px NO dispara `onTileClick`/`onTileSelected` (terminar un pan no selecciona tile).
+- **SP-14** (IT-07) `zoomToFit` no clampa por debajo de `ZOOM_LIMITS.min`: en mundos grandes devuelve `min(viewportW/worldW, viewportH/worldH)` aunque sea < min (solo clampa al máximo).
 
 ## 6. Plan de tests (TDD)
 Combinación de tests de componente + tests de funciones puras (más barato).
@@ -113,6 +131,15 @@ Nuevos tests de componente (iter-16):
 - [x] `T-16 exportToPng returns a non-empty Blob`
 - [x] `T-17 onTileSelected receives correct tile coordinates on click`
 
+Interacción/zoom (IT-07):
+- [x] `T-19 wheel zoom notifies onZoomChange with the new zoom`
+- [x] `T-19b setZoom and zoomToFit notify onZoomChange`
+- [x] `T-20 click after a >5px drag does not select a tile`
+- [x] `T-20b click without movement still selects a tile`
+- [x] `T-21 zoomToFit returns min(w/W, h/H) without lower clamp on large worlds`
+- [x] `T-22 ZOOM_LIMITS exported from index with min/max/initial/step`
+- [x] `T-15c` adaptado: `zoomToFit` en mundo 4200×1200 devuelve ~0.19 (ya sin clamp a 0.25)
+
 ## 7. Notas de implementación
 - Chunk size nominal: 128x128 tiles. En los bordes derecho e inferior, el bitmap usa el tamano real devuelto por `computeChunkDimensions`; no se anade padding hasta 128x128. Cada chunk se pinta a un `HTMLCanvasElement` cacheado; al redibujar, se copia a `ctx.drawImage()` con dimensiones escaladas por zoom.
 - Paleta: `tileColors.ts` expone `getTileColor`, `getWallColor`, `getLiquidColor`. Sprites detallados pospuestos.
@@ -134,11 +161,30 @@ Nuevos tests de componente (iter-16):
 - Fallos de API delegados por `onError` del host (v1.1 opcional).
 
 ## 10. Estado
-- **Versión del contrato**: v2 (breaking: nuevas props, handle extendido, tipos migrados a F1) — sin cambios en IT-06 (`getTileColor`/`getWallColor` conservan firma)
-- **Último cierre**: 2026-07-16 — IT-06 (PLAN_REMEDIACION E04+M12+D01): paleta curada reducida a overrides reales
+- **Versión del contrato**: v2.1 (IT-07: `onZoomChange`, `ZOOM_LIMITS`, `zoomToFit` sin clamp inferior)
+- **Último cierre**: 2026-07-16 — IT-07 (PLAN_REMEDIACION E05+E07+E15+D04 parte): interacción/zoom
 - **Iteración actual**: cerrada
 
-### 10.0. Cambios IT-06 (paleta, sin cambio de contrato)
+### 10.0. Cambios v2.1 (IT-07) 🔶
+
+- E05 — nueva prop `onZoomChange?: (zoom: number) => void`, disparada en los
+  tres caminos que cambian el zoom internamente (rueda, `setZoom`, `zoomToFit`)
+  para que el host (app-shell) no se desincronice.
+- E07 — supresión de click tras drag: acumulador de distancia en
+  `mousedown/mousemove`; si supera 5 px (`CLICK_DRAG_THRESHOLD_PX`), el click
+  que cierra el pan no dispara `onTileClick`/`onTileSelected`.
+- E15 — `zoomToFit` ya no clampa a `ZOOM_LIMITS.min`: devuelve
+  `min(viewportW/worldW, viewportH/worldH)` (solo clampa al máximo), de modo
+  que un mundo large (8400×2400) cabe entero en un canvas 800×600
+  (zoom ≈ 0.095). `setZoom` y la rueda siguen clampando a `[min, max]`.
+- D04 (parte F3) — constantes de zoom unificadas en `ZOOM_LIMITS =
+  { min: 0.25, max: 8, initial: 2, step: 0.5 }`, definidas en `viewport.ts` y
+  exportadas desde `world-canvas/index.ts`. La eliminación de las copias de
+  app-shell (`appState.ts`, HUD de `App.tsx`) es IT-09.
+- Consumidor pendiente: app-shell debe conectar `onZoomChange → SET_ZOOM` y
+  reutilizar `ZOOM_LIMITS` (IT-09; anotado también en PLAN_REMEDIACION).
+
+### 10.1. Cambios IT-06 (paleta, sin cambio de contrato)
 
 - D01 — `TILE_COLORS`/`WALL_COLORS` (`tileColors.ts`) reducidas de 346/188 entradas
   a 24/13 overrides reales: se eliminaron las 316 (tiles) + 175 (paredes) entradas

@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback, type FC } from 'react';
 import type { WorldMetadata, TilesChunk, ApiClient } from '../api-client';
 import {
   type ViewState,
+  ZOOM_LIMITS,
   screenToWorld,
   worldToScreen,
   clampZoom,
@@ -19,9 +20,10 @@ import {
 import { computeChunkDimensions } from './chunkDimensions';
 
 const CHUNK_SIZE = 128;
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 8;
-const INITIAL_ZOOM = 2;
+
+// Un click precedido de un drag con más de este desplazamiento acumulado (px)
+// no selecciona tile: terminar un pan no es una selección (IT-07, E07).
+const CLICK_DRAG_THRESHOLD_PX = 5;
 
 export interface WorldCanvasHandle {
   centerOn(x: number, y: number): void;
@@ -40,6 +42,7 @@ export interface WorldCanvasProps {
   onReady?: (handle: WorldCanvasHandle) => void;
   onTileClick?: (tile: { x: number; y: number }) => void;
   onTileSelected?: (tile: { x: number; y: number }) => void;
+  onZoomChange?: (zoom: number) => void;
   onError?: (err: Error) => void;
   showLayerLines?: boolean;
   showSpawnPoint?: boolean;
@@ -55,6 +58,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   onReady,
   onTileClick,
   onTileSelected,
+  onZoomChange,
   onError,
   showLayerLines = false,
   showSpawnPoint = false,
@@ -65,13 +69,14 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const viewRef = useRef<ViewState>({ panX: 0, panY: 0, zoom: INITIAL_ZOOM });
+  const viewRef = useRef<ViewState>({ panX: 0, panY: 0, zoom: ZOOM_LIMITS.initial });
   const viewInitializedRef = useRef(false);
   const bitmapCacheRef = useRef<ChunkBitmapCache>(createChunkBitmapCache());
   const pendingRef = useRef(new Set<string>());
   const rafRef = useRef(0);
   const isDraggingRef = useRef(false);
   const lastPointerRef = useRef({ x: 0, y: 0 });
+  const dragDistanceRef = useRef(0);
 
   // Prop mirrors — updated post-render so callbacks never capture stale closures.
   const metadataRef = useRef(metadata);
@@ -79,6 +84,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   const apiClientRef = useRef<ApiClient>(apiClient);
   const onTileClickRef = useRef(onTileClick);
   const onTileSelectedRef = useRef(onTileSelected);
+  const onZoomChangeRef = useRef(onZoomChange);
   const onErrorRef = useRef(onError);
   const onReadyRef = useRef(onReady);
   const showLayerLinesRef = useRef(showLayerLines);
@@ -93,6 +99,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
     apiClientRef.current = apiClient;
     onTileClickRef.current = onTileClick;
     onTileSelectedRef.current = onTileSelected;
+    onZoomChangeRef.current = onZoomChange;
     onErrorRef.current = onError;
     onReadyRef.current = onReady;
     showLayerLinesRef.current = showLayerLines;
@@ -279,7 +286,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       if (!viewInitializedRef.current) {
         viewInitializedRef.current = true;
         const meta = metadataRef.current;
-        const zoom = INITIAL_ZOOM;
+        const zoom = ZOOM_LIMITS.initial;
         // Center on spawn point
         viewRef.current = {
           zoom,
@@ -311,7 +318,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       },
       setZoom(level: number) {
         const canvas = canvasRef.current;
-        const clamped = clampZoom(level, MIN_ZOOM, MAX_ZOOM);
+        const clamped = clampZoom(level, ZOOM_LIMITS.min, ZOOM_LIMITS.max);
         if (canvas) {
           viewRef.current = zoomAroundCursor(
             canvas.width / 2,
@@ -324,15 +331,17 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         }
         loadVisibleChunks();
         scheduleRedraw();
+        onZoomChangeRef.current?.(viewRef.current.zoom);
       },
       zoomToFit(): number | null {
         const canvas = canvasRef.current;
         if (!canvas) return null;
         const meta = metadataRef.current;
-        const nextZoom = clampZoom(
+        // Sin clamp inferior: un mundo large puede necesitar un zoom < min
+        // para caber entero en el viewport (E15). Solo se limita el máximo.
+        const nextZoom = Math.min(
           Math.min(canvas.width / meta.width, canvas.height / meta.height),
-          MIN_ZOOM,
-          MAX_ZOOM
+          ZOOM_LIMITS.max
         );
         viewRef.current = {
           zoom: nextZoom,
@@ -341,6 +350,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
         };
         loadVisibleChunks();
         scheduleRedraw();
+        onZoomChangeRef.current?.(nextZoom);
         return nextZoom;
       },
       redraw: scheduleRedraw,
@@ -373,10 +383,11 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       const cursorPx = e.clientX - rect.left;
       const cursorPy = e.clientY - rect.top;
       const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
-      const newZoom = clampZoom(viewRef.current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+      const newZoom = clampZoom(viewRef.current.zoom * factor, ZOOM_LIMITS.min, ZOOM_LIMITS.max);
       viewRef.current = zoomAroundCursor(cursorPx, cursorPy, newZoom, viewRef.current);
       loadVisibleChunks();
       scheduleRedraw();
+      onZoomChangeRef.current?.(viewRef.current.zoom);
     };
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', handleWheel);
@@ -387,6 +398,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
     isDraggingRef.current = true;
+    dragDistanceRef.current = 0;
     lastPointerRef.current = { x: e.clientX, y: e.clientY };
   }, []);
 
@@ -395,6 +407,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       if (!isDraggingRef.current) return;
       const dx = e.clientX - lastPointerRef.current.x;
       const dy = e.clientY - lastPointerRef.current.y;
+      dragDistanceRef.current += Math.hypot(dx, dy);
       lastPointerRef.current = { x: e.clientX, y: e.clientY };
       const view = viewRef.current;
       viewRef.current = {
@@ -413,6 +426,8 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   }, []);
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // El click que cierra un pan no es una selección (E07).
+    if (dragDistanceRef.current > CLICK_DRAG_THRESHOLD_PX) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
