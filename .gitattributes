@@ -1,0 +1,28 @@
+# Normalización de finales de línea (IT-00B, N02).
+# Checkout y repo en LF para todo lo textual: mismo resultado de
+# prettier/ruff en Windows, Linux y CI independientemente de core.autocrlf.
+* text=auto
+
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.sh text eol=lf
+*.conf text eol=lf
+*.Dockerfile text eol=lf
+.dockerignore text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.prettierrc text eol=lf
+.prettierignore text eol=lf
+
+# Fixtures binarias de mundos Terraria: nunca normalizar.
+*.wld -text
