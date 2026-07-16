@@ -11,7 +11,7 @@ export {
   ApiVersionMismatchError,
   parseError,
 } from './errors';
-export { createApiClient, EXPECTED_API_VERSION } from './client';
+export { createApiClient, EXPECTED_API_VERSION, DEFAULT_IMPORT_TIMEOUT_MS } from './client';
 export type {
   ApiClient,
   ApiClientOptions,

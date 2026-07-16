@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createApiClient,
   ApiError,
@@ -229,6 +229,148 @@ describe('uploadWorld', () => {
     await expect(
       client.uploadWorld(new File(['x'], 'w.wld'), { onProgress: () => {} })
     ).rejects.toMatchObject({ code: 'invalid_wld' });
+  });
+});
+
+// ── T-15: polling acotado (IT-02, E03) ───────────────────────────────────────
+
+function makeJobXhr(jobId: string): XMLHttpRequest {
+  const xhr = {
+    upload: {
+      onprogress: null as ((ev: ProgressEvent) => void) | null,
+      onerror: null as (() => void) | null,
+    },
+    onload: null as (() => void) | null,
+    onerror: null as (() => void) | null,
+    status: 202,
+    responseText: JSON.stringify({ job_id: jobId }),
+    responseType: 'text',
+    open: vi.fn(),
+    send: vi.fn().mockImplementation(function (this: { onload: (() => void) | null }) {
+      this.onload?.();
+    }),
+    getResponseHeader: (name: string) => (name.toLowerCase() === 'x-api-version' ? '0.2' : null),
+  };
+  return xhr as unknown as XMLHttpRequest;
+}
+
+function jobResponse(status: number, body: unknown) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: (): Promise<unknown> => Promise.resolve(body),
+    headers: {
+      get: (name: string): string | null => V02[name] ?? null,
+    },
+  };
+}
+
+const PROCESSING_JOB = { job_id: 'job-1', status: 'processing', pct: 60 };
+const DONE_JOB = {
+  job_id: 'job-1',
+  status: 'done',
+  pct: 100,
+  world_id: 'wid-1',
+  metadata: WORLD_META,
+};
+
+describe('uploadWorld polling bounds (IT-02)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('T-15a uploadWorld should reject with import_timeout when polling exceeds timeoutMs', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jobResponse(200, PROCESSING_JOB));
+    const client = createApiClient({
+      fetchImpl: asFetch(fetchMock),
+      xhrFactory: () => makeJobXhr('job-1'),
+    });
+
+    const promise = client.uploadWorld(new File(['x'], 'w.wld'), {
+      onProgress: () => {},
+      timeoutMs: 2000,
+    });
+    const expectation = expect(promise).rejects.toMatchObject({
+      code: 'import_timeout',
+      status: 0,
+    });
+    await vi.advanceTimersByTimeAsync(2500);
+    await expectation;
+  });
+
+  it('T-15b uploadWorld should reject with import_timeout after the default 5 min', async () => {
+    const mod = await import('../../src/api-client/index');
+    expect(mod.DEFAULT_IMPORT_TIMEOUT_MS).toBe(300_000);
+
+    const fetchMock = vi.fn().mockResolvedValue(jobResponse(200, PROCESSING_JOB));
+    const client = createApiClient({
+      fetchImpl: asFetch(fetchMock),
+      xhrFactory: () => makeJobXhr('job-1'),
+    });
+
+    const promise = client.uploadWorld(new File(['x'], 'w.wld'), { onProgress: () => {} });
+    const expectation = expect(promise).rejects.toMatchObject({ code: 'import_timeout' });
+    await vi.advanceTimersByTimeAsync(300_000 + 1000);
+    await expectation;
+  });
+
+  it('T-15c uploadWorld should reject with import_error when the job poll returns 404', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jobResponse(404, {
+        error: { code: 'job_not_found', message: "Import job 'job-1' not found." },
+      })
+    );
+    const client = createApiClient({
+      fetchImpl: asFetch(fetchMock),
+      xhrFactory: () => makeJobXhr('job-1'),
+    });
+
+    await expect(
+      client.uploadWorld(new File(['x'], 'w.wld'), { onProgress: () => {} })
+    ).rejects.toMatchObject({
+      code: 'import_error',
+      status: 404,
+      details: { cause: 'job_not_found' },
+    });
+    // Error inmediato: un solo poll, sin reintentos.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('T-15d uploadWorld should reject with import_error after 3 consecutive network failures', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const client = createApiClient({
+      fetchImpl: asFetch(fetchMock),
+      xhrFactory: () => makeJobXhr('job-1'),
+    });
+
+    const promise = client.uploadWorld(new File(['x'], 'w.wld'), { onProgress: () => {} });
+    const expectation = expect(promise).rejects.toMatchObject({ code: 'import_error' });
+    await vi.advanceTimersByTimeAsync(5000);
+    await expectation;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('T-15e uploadWorld should recover when network errors are not consecutive', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(jobResponse(200, PROCESSING_JOB))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(jobResponse(200, DONE_JOB));
+    const client = createApiClient({
+      fetchImpl: asFetch(fetchMock),
+      xhrFactory: () => makeJobXhr('job-1'),
+    });
+
+    const promise = client.uploadWorld(new File(['x'], 'w.wld'), { onProgress: () => {} });
+    const expectation = expect(promise).resolves.toMatchObject({ worldId: 'wid-1' });
+    await vi.advanceTimersByTimeAsync(5000);
+    await expectation;
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 });
 

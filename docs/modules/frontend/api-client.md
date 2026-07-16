@@ -34,9 +34,16 @@ class InternalApiError    extends ApiError  // code: "internal_error"
 // Usa ERROR_CODE_MAP en errors.ts para despachar a la subclase correcta.
 async function parseError(response: Response): Promise<ApiError>;
 
+// ── Upload options (IT-02) ─────────────────────────────────────────
+interface UploadOptions {
+  onProgress?: (pct: number) => void;
+  timeoutMs?: number; // timeout global de la fase de polling; default DEFAULT_IMPORT_TIMEOUT_MS
+}
+const DEFAULT_IMPORT_TIMEOUT_MS = 300_000; // 5 min, exportado
+
 // ── Client interface ───────────────────────────────────────────────
 interface ApiClient {
-  uploadWorld(file: File): Promise<{ worldId: string; metadata: WorldMetadata }>;
+  uploadWorld(file: File, opts?: UploadOptions): Promise<{ worldId: string; metadata: WorldMetadata }>;
   getWorldMetadata(worldId: string): Promise<WorldMetadata>;
   getTilesChunk(worldId: string, chunkX: number, chunkY: number, chunkSize?: number): Promise<TilesChunk>;
   searchItems(query: string, limit?: number): Promise<ItemSummary[]>;
@@ -65,6 +72,25 @@ No hay manejo ad-hoc por función. `parseError` es el único punto de conversió
 
 El cliente valida `X-API-Version` en `checkApiVersion()` (constante `EXPECTED_API_VERSION = '0.2'`); si el header presente difiere, lanza `ApiVersionMismatchError` (subclase de `ApiError`). El header también se expone en `ApiError.apiVersion` para diagnóstico cuando aparece en respuestas de error.
 
+### Polling de import jobs (`uploadWorld` con `onProgress`) — IT-02
+
+El bucle de polling de `pollImportJob` está **acotado** (E03). Contrato:
+
+- **Timeout global**: si el job no alcanza estado terminal en `timeoutMs`
+  (default `DEFAULT_IMPORT_TIMEOUT_MS = 300 000` ms = 5 min desde el inicio del
+  polling), rechaza con `ApiError`, `code: "import_timeout"`, `status: 0`.
+- **Errores de red**: un fallo de red en el GET del job se reintenta tras el
+  intervalo; **3 fallos consecutivos** rechazan con `ApiError`,
+  `code: "import_error"`. Un poll exitoso resetea el contador.
+- **Job desaparecido / error HTTP**: cualquier respuesta de error HTTP del poll
+  (p. ej. 404 `job_not_found` — retención de 15 min del servidor, api-contract §2)
+  rechaza **inmediatamente** con `ApiError`, `code: "import_error"`,
+  `details.cause` = código original. `ApiVersionMismatchError` se propaga tal cual.
+- **Job en `status:"error"`**: sin cambios — rechaza con el `error_code` del job
+  (`invalid_wld`, `unsupported_version`, `import_failed`, …).
+- `timeoutMs` solo aplica a la ruta con `onProgress` (import job); la ruta simple
+  `POST /worlds` no hace polling.
+
 ## 4. Regeneración de tipos
 
 ```bash
@@ -90,6 +116,9 @@ Salida: `src/api-client/__generated__/schema.d.ts` — **no editar a mano**.
 - **SP-04** `baseUrl` por defecto es `/api`; configurable via opts o env `VITE_API_BASE_URL`.
 - **SP-05** `uploadWorld` usa `multipart/form-data` y reporta progreso opcional (v2).
 - **SP-06** `deleteWorld` tolera 404 sin lanzar (`idempotente`) — decisión UX.
+- **SP-07** El polling de import job rechaza con `import_timeout` al agotar `timeoutMs` (default 5 min) (IT-02).
+- **SP-08** 3 errores de red consecutivos en el polling rechazan con `import_error`; un poll exitoso resetea el contador (IT-02).
+- **SP-09** Una respuesta de error HTTP del poll (p. ej. 404 `job_not_found`) rechaza inmediatamente con `import_error` (IT-02).
 
 ## 8. Códigos de error canónicos (api-contract.md v0.2)
 
@@ -104,6 +133,8 @@ Salida: `src/api-client/__generated__/schema.d.ts` — **no editar a mano**.
 | `invalid_encoding` | `InvalidEncodingError` | 400 |
 | `coordinates_out_of_bounds` / `invalid_coordinates` | `CoordinatesOutOfBoundsError` | 400 |
 | `api_version_mismatch` (cliente) | `ApiVersionMismatchError` | * |
+| `import_timeout` (cliente, IT-02) | `ApiError` (base) | 0 |
+| `import_error` (cliente, IT-02) | `ApiError` (base) | 0 o status del poll |
 | otros | `ApiError` (base) | variable |
 
 Map vive en `src/api-client/errors.ts → ERROR_CODE_MAP`.
@@ -134,6 +165,13 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 - [x] `test_generated_types_have_error_dto_shape`
 - [x] `test_get_items_happy_path_returns_typed_array` (regresión)
 
+### IT-02 (cerrados, 2026-07-16)
+- [x] `T-15a uploadWorld should reject with import_timeout when polling exceeds timeoutMs`
+- [x] `T-15b uploadWorld should reject with import_timeout after the default 5 min`
+- [x] `T-15c uploadWorld should reject with import_error when the job poll returns 404`
+- [x] `T-15d uploadWorld should reject with import_error after 3 consecutive network failures`
+- [x] `T-15e uploadWorld should recover when network errors are not consecutive`
+
 ## 10. Verificación manual (iter-031)
 - Upload > límite → `UploadTooLargeError` en consola del navegador (pendiente: docker up).
 - Mundo inexistente → `WorldNotFoundError` en consola del navegador (pendiente: docker up).
@@ -147,9 +185,9 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 - Evitar leer `response.text()` antes del JSON para no doblar memoria con payloads grandes (tiles).
 
 ## 13. Estado
-- **Versión del contrato consumida**: api-contract.md v0.2
+- **Versión del contrato consumida**: api-contract.md v0.2 (incl. retención de import jobs, IT-01)
 - **Versión OpenAPI**: snapshot v0.2 en `docs/contracts/openapi.json` (actualizado 2026-06-11 con `TilesChunkDto.surface_y`)
-- **Último cierre**: 2026-05-10 (iter-14)
+- **Último cierre**: 2026-07-16 (IT-02 remediación — E03 polling acotado: `timeoutMs`, `import_timeout`/`import_error`)
 - **Iteración actual**: cerrada
 
 ## 14. Decisiones tomadas
@@ -169,9 +207,25 @@ Tipo canónico vive en `src/api-client/errorCodes.ts → CanonicalCode`.
 - `ERROR_CODE_MAP` usa `Partial<Record<CanonicalCode, ApiErrorCtor>>` para que `noUncheckedIndexedAccess` obligue a manejar el caso `undefined` (→ fallback a `ApiError`).
 - `makeFetch` en tests actualizado para incluir `headers.get()` mock, necesario tras centralizar el parseo en `parseError`.
 
+### IT-02 (2026-07-16)
+- `pollImportJob` acotado (cierra E03): deadline con `Date.now()` (compatible con los
+  fake timers de Vitest, que también mockean `Date`), contador de errores de red
+  consecutivos con reset en poll exitoso, y rechazo inmediato ante error HTTP del poll.
+- `import_timeout` / `import_error` añadidos a `CanonicalCode` como códigos de cliente
+  (misma categoría que `network_error`): nunca viajan por el wire, no tocan
+  `api-contract.md` ni el OpenAPI. Sin subclase propia en `ERROR_CODE_MAP` (base
+  `ApiError`), igual que `network_error`.
+- `DEFAULT_IMPORT_TIMEOUT_MS` (300 000) exportado desde `index.ts` para que los
+  consumidores (F2) puedan mostrar mensajes coherentes.
+- El error HTTP original del poll se conserva en `details.cause` del `import_error`.
+
 ## 15. Deuda / follow-ups
 - `npm install --legacy-peer-deps`: cerrado fijando `typescript@~5.9.3`, compatible con `openapi-typescript@7.13.0`.
 - `searchInWorld` admite `frameX/frameY` opcionales mediante `SearchInWorldOptions`; conserva compatibilidad temporal con el tercer argumento booleano.
+- **IT-02**: `uploadWorld` aún no admite `AbortSignal` para cancelar la fase de polling
+  (el plan lo marca como opcional; `searchItems` ya tiene el patrón). Si F2/F6 necesitan
+  cancelación de subida, añadir `signal?: AbortSignal` a `UploadOptions` en una iteración
+  futura de F1.
 
 ### Evolución propuesta para paridad con TerraMap (estado)
 

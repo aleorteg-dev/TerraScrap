@@ -16,4 +16,6 @@ export type CanonicalCode =
   | 'internal_error'
   | 'network_error'
   | 'api_version_mismatch'
+  | 'import_timeout'
+  | 'import_error'
   | 'unknown_error';

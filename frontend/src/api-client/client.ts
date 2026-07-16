@@ -21,10 +21,17 @@ type ImportJobStatusDto = components['schemas']['ImportJobStatusDto'];
 
 export const EXPECTED_API_VERSION = '0.2';
 
+/** Timeout global por defecto de la fase de polling de un import job (IT-02). */
+export const DEFAULT_IMPORT_TIMEOUT_MS = 300_000;
+
+const MAX_CONSECUTIVE_POLL_NETWORK_ERRORS = 3;
+
 // ── Contrato público ──────────────────────────────────────────────────────────
 
 export interface UploadOptions {
   onProgress?: (pct: number) => void;
+  /** Timeout global del polling del import job; default DEFAULT_IMPORT_TIMEOUT_MS. */
+  timeoutMs?: number;
 }
 
 export interface SearchInWorldOptions {
@@ -186,29 +193,55 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
   async function pollImportJob(
     jobId: string,
     onJobProgress: (pct: number) => void,
-    intervalMs = 500
+    intervalMs = 500,
+    timeoutMs = DEFAULT_IMPORT_TIMEOUT_MS
   ): Promise<{ worldId: string; metadata: WorldMetadata }> {
+    const deadline = Date.now() + timeoutMs;
+    let consecutiveNetworkErrors = 0;
     let lastReported = 49;
     for (;;) {
-      const dto = await doRequest<ImportJobStatusDto>(
-        fetchImpl,
-        `${baseUrl}/world-imports/${jobId}`
-      );
-      if (dto.status === 'error') {
-        throw new ApiError(
-          dto.error_code ?? 'import_error',
-          0,
-          dto.error_message ?? 'Import failed'
-        );
+      let dto: ImportJobStatusDto | undefined;
+      try {
+        dto = await doRequest<ImportJobStatusDto>(fetchImpl, `${baseUrl}/world-imports/${jobId}`);
+        consecutiveNetworkErrors = 0;
+      } catch (err) {
+        if (err instanceof ApiVersionMismatchError || !(err instanceof ApiError)) {
+          throw err;
+        }
+        if (err.code !== 'network_error') {
+          // Respuesta HTTP de error del poll (p. ej. 404 job_not_found tras la
+          // retención de 15 min del servidor): irrecuperable, error inmediato.
+          throw new ApiError('import_error', err.status, err.message, { cause: err.code });
+        }
+        consecutiveNetworkErrors += 1;
+        if (consecutiveNetworkErrors >= MAX_CONSECUTIVE_POLL_NETWORK_ERRORS) {
+          throw new ApiError('import_error', 0, 'Import polling failed: network unavailable.', {
+            cause: 'network_error',
+          });
+        }
       }
-      // Map job pct (0-100) to 50-99%
-      const scaled = 50 + Math.min(49, Math.floor((dto.pct * 49) / 100));
-      if (scaled > lastReported) {
-        lastReported = scaled;
-        onJobProgress(scaled);
+      if (dto !== undefined) {
+        if (dto.status === 'error') {
+          throw new ApiError(
+            dto.error_code ?? 'import_error',
+            0,
+            dto.error_message ?? 'Import failed'
+          );
+        }
+        // Map job pct (0-100) to 50-99%
+        const scaled = 50 + Math.min(49, Math.floor((dto.pct * 49) / 100));
+        if (scaled > lastReported) {
+          lastReported = scaled;
+          onJobProgress(scaled);
+        }
+        if (dto.status === 'done' && dto.world_id != null && dto.metadata != null) {
+          return { worldId: dto.world_id, metadata: dto.metadata as WorldMetadata };
+        }
       }
-      if (dto.status === 'done' && dto.world_id != null && dto.metadata != null) {
-        return { worldId: dto.world_id, metadata: dto.metadata as WorldMetadata };
+      if (Date.now() >= deadline) {
+        throw new ApiError('import_timeout', 0, `Import did not finish within ${timeoutMs} ms.`, {
+          timeoutMs,
+        });
       }
       await new Promise<void>((r) => setTimeout(r, intervalMs));
     }
@@ -221,7 +254,12 @@ export function createApiClient(opts?: ApiClientOptions): ApiClient {
         // Phase 1: upload (0-49%)
         const jobDto = await uploadViaXhrForJob(file, onProgress);
         // Phase 2: server processing (50-99%)
-        const result = await pollImportJob(jobDto.job_id, onProgress);
+        const result = await pollImportJob(
+          jobDto.job_id,
+          onProgress,
+          undefined,
+          uploadOpts.timeoutMs
+        );
         // 100% only when world_id received
         onProgress(100);
         return result;
