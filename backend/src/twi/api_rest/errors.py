@@ -26,8 +26,10 @@ INTERNAL_ERROR_CODE: Final = "internal_error"
 
 ERROR_CODE_HEADER: Final = "X-Error-Code"
 
+# 404 genérico: "not_found". El código de dominio "world_not_found" queda
+# reservado a los handlers de /worlds/*, que lo emiten explícitamente (IT-03, E10).
 STATUS_CODE_TO_ERROR_CODE: Final[Mapping[int, str]] = {
-    404: "world_not_found",
+    404: "not_found",
     413: UPLOAD_TOO_LARGE_CODE,
     422: VALIDATION_ERROR_CODE,
     500: INTERNAL_ERROR_CODE,
@@ -86,12 +88,6 @@ def register_error_handlers(app: FastAPI) -> None:
             "Request validation failed.",
             _normalize_validation_errors(exc.errors()),
         )
-
-    @app.exception_handler(UploadTooLargeError)
-    async def upload_too_large_exception_handler(
-        _request: Request, exc: UploadTooLargeError
-    ) -> JSONResponse:
-        return _upload_too_large_response(exc)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(

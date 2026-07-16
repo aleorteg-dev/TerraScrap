@@ -26,12 +26,12 @@ class XApiVersionMiddleware(BaseHTTPMiddleware): ...
 
 DTOs (pydantic v2) definidos en `src/twi/api_rest/schemas.py`:
 - `WorldCreatedDto`, `WorldMetadataDto` (v0.2: `spawn_x`, `spawn_y`, `world_surface_y`, `rock_layer_y`, `hell_layer_y`), `TilesChunkDto` (v0.2: `encoding: Literal["base64-rle-v1", "base64-rle-v2"]`, `surface_y?: list[int]`), `SearchResultDto`, `SearchMatchDto`, `ItemSummaryDto`, `ItemDetailDto`, `ErrorDto`.
-- v0.2 nuevos: `NpcDto`, `NpcListDto`, `TileEntityDto`, `TileDetailDto`. Aún no expuestos por endpoints (ver iter 09–10).
+- v0.2 nuevos: `NpcDto`, `NpcListDto`, `TileDetailDto`. (`TileEntityDto` retirado en IT-03: nunca servido por ningún endpoint; reservado para v0.3 en api-contract §5.3.)
 
 Contrato transversal de errores HTTP:
 - `register_error_handlers(app)` registra handlers publicos para que `app-bootstrap` los monte.
 - `RequestValidationError` -> 422 `ErrorDto`, `code:"validation_error"`, `details` es una lista normalizada de errores.
-- `StarletteHTTPException` -> `ErrorDto` usando codigos de dominio cuando el status tiene canon definido (`413 -> upload_too_large`, `404 -> world_not_found` cuando aplique); si no hay canon, usa `http_error`.
+- `StarletteHTTPException` -> `ErrorDto` usando codigos de dominio cuando el status tiene canon definido (`413 -> upload_too_large`, `404 -> not_found` generico desde IT-03 — `world_not_found` lo emiten explicitamente los handlers de `/worlds/*`); si no hay canon, usa `http_error`.
 - `Exception` no controlada -> 500 `ErrorDto`, `code:"internal_error"`, sin traza ni detalles internos.
 - `XApiVersionMiddleware` añade `X-API-Version: 0.2` a toda respuesta, incluidas validacion, errores de framework y limite de upload.
 
@@ -89,6 +89,8 @@ Contrato vigente de import jobs (`POST /api/world-imports` + `GET /api/world-imp
 - **SP-19** Una excepción inesperada durante un import job deja el job en `status:"error"` con `error_code:"import_failed"` y mensaje genérico sin traza (IT-01).
 - **SP-20** Un import job en estado terminal expira a los `job_ttl_seconds` (default 900 s); consultarlo tras expirar devuelve 404 `job_not_found` (IT-01).
 - **SP-21** El almacén interno de jobs queda acotado: los jobs terminales expirados se purgan en cada acceso (IT-01).
+- **SP-22** Un 404 de ruta inexistente responde `code:"not_found"`; `world_not_found` solo lo emiten los handlers de `/worlds/*` (IT-03).
+- **SP-23** `TileEntityDto` no forma parte del contrato público (`twi.api_rest.__all__`) (IT-03).
 
 ## 6. Plan de tests (TDD)
 Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
@@ -131,6 +133,8 @@ Usar `TestClient` de FastAPI con repos/catálogos *fake* (in-memory, sin red).
 - [x] `test_import_job_unexpected_exception_marks_job_error` (IT-01)
 - [x] `test_import_jobs_expire_after_terminal_ttl` (IT-01)
 - [x] `test_import_jobs_purge_bounded` (IT-01)
+- [x] `test_unknown_route_returns_generic_not_found_code` (IT-03)
+- [x] `test_tile_entity_dto_removed_from_public_contract` (IT-03)
 
 ## 7. Notas de implementación
 - Usa un `APIRouter` con prefijo `/api`. El montaje ocurre en `app-bootstrap`.
@@ -153,8 +157,8 @@ Validacion FastAPI: 422 `validation_error` con `details` como lista normalizada.
 Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
-- **Versión del contrato**: v0.2 (cerrada — DELETE estricto, search con `frame_x/frame_y`, `X-API-Version: 0.2`, OpenAPI snapshot regenerado) + retención de import jobs (IT-01).
-- **Último cierre**: 2026-07-16 (IT-01 remediación — E01 purga de jobs, E02 catch-all `import_failed`)
+- **Versión del contrato**: v0.2 (cerrada — DELETE estricto, search con `frame_x/frame_y`, `X-API-Version: 0.2`, OpenAPI snapshot regenerado) + retención de import jobs (IT-01) + 404 genérico `not_found` y retirada de `TileEntityDto` (IT-03).
+- **Último cierre**: 2026-07-16 (IT-03 remediación — E10 mapa 404, M01/M04/M19 código muerto, D03 dedup handlers)
 - **Iteración actual**: cerrada
 
 ## 11. Decisiones tomadas en iter-005
@@ -261,3 +265,28 @@ OpenAPI y tipos frontend se regeneran en esa iteración.
   Callable[[], datetime] | None = None` (inyección para tests, mismo patrón que B2).
 - Sin cambios en el schema OpenAPI (`ImportJobStatusDto.error_code` ya era `str | None`),
   por lo que no se regeneran `openapi.json`/snapshot/tipos frontend.
+
+## 19. Decisiones tomadas (IT-03 remediación, 2026-07-16)
+
+- **E10**: `STATUS_CODE_TO_ERROR_CODE[404]` pasa de `"world_not_found"` a `"not_found"`.
+  Los handlers de `/worlds/*` no se ven afectados: emiten `world_not_found`
+  explícitamente vía `_get_world_or_404`/`delete_world`.
+- **M01**: `TileEntityDto` eliminado de `schemas.py`, `__init__.py` y del contrato
+  (marcado "reservado v0.3" en api-contract §5.3). No aparecía en el OpenAPI (ningún
+  endpoint lo referenciaba), así que el schema no cambia.
+- **M04**: eliminado el handler registrado de `UploadTooLargeError`: era inalcanzable
+  porque `XApiVersionMiddleware.dispatch` captura la excepción antes de que llegue a los
+  exception handlers. El 413 canónico lo sigue produciendo el middleware
+  (`_upload_too_large_response`), verificado por T-19..T-21.
+- **M19**: `_err` (alias trivial) eliminado; los handlers llaman a `error_response`
+  directamente.
+- **D03**: deduplicaciones sin cambio de comportamiento (protegidas por los tests
+  existentes):
+  - `_get_world_or_404(repo, world_id)` — lanza `HTTPException(404)` con detail
+    estructurado `{code:"world_not_found", ...}` que `register_error_handlers` convierte
+    en el mismo `ErrorDto` de siempre; sustituye el patrón try/except repetido ×5.
+  - `_check_upload_size(data, max_upload_mb)` — check 413 único para `/worlds` y
+    `/world-imports` (IT-05 lo reemplazará por lectura capada en streaming).
+  - `_match_dto(m)` — constructor único de `SearchMatchDto` (antes ×2 en `search_world`).
+  - `get_tiles` construye un único `TilesChunkDto` (encoder elegido por variable
+    `Literal`) y llama a `_chunk_surface_y` una sola vez (antes duplicada en ambas ramas).

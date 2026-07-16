@@ -19,7 +19,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from twi.api_rest import (
     NpcDto,
     TileDetailDto,
-    TileEntityDto,
     TilesChunkDto,
     UploadTooLargeError,
     WorldMetadataDto,
@@ -1196,11 +1195,6 @@ def test_npc_dto_validates() -> None:
         NpcDto(id=17, name="X", type="evil", x=0, y=0)  # type: ignore[arg-type]
 
 
-def test_tile_entity_dto_validates() -> None:
-    dto = TileEntityDto(id=7, type="item_frame", x=10, y=20)
-    assert dto.type == "item_frame"
-
-
 def test_tile_detail_dto_optional_fields_default_to_none() -> None:
     dto = TileDetailDto(
         x=1, y=2, tile_id=213, wall_id=2, liquid_type="water", liquid_amount=128
@@ -2120,3 +2114,26 @@ def test_import_jobs_purge_bounded() -> None:
     assert store.get("job-0") is None
     assert store.get("stuck") is stuck
     assert store.get("fresh") is fresh
+
+
+# ---------------------------------------------------------------------------
+# IT-03: 404 genérico y contrato público sin TileEntityDto
+# ---------------------------------------------------------------------------
+
+
+def test_unknown_route_returns_generic_not_found_code(
+    repo: _FakeRepo,
+    catalog: _FakeCatalog,
+    search_engine: _FakeSearch,
+) -> None:
+    client = _make_client(repo, catalog, search_engine)
+    resp = client.get("/api/route-that-does-not-exist")
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "not_found"
+
+
+def test_tile_entity_dto_removed_from_public_contract() -> None:
+    import twi.api_rest as api_rest
+
+    assert "TileEntityDto" not in api_rest.__all__
+    assert not hasattr(api_rest, "TileEntityDto")

@@ -381,10 +381,12 @@ La negociación ocurre via query param `?encoding=` (sin valor → servidor devu
 Todos los campos opcionales (`chest_id`, `sign_id`, `tile_entity_id`, `frame_x`, `frame_y`) son
 `int | null`.
 
-#### `TileEntityDto` (provisional, iter-012+)
-No contrato hasta la iteración de implementación. Referenciado por `tile_entity_id` (int) en v0.2.
+#### `TileEntityDto` (reservado v0.3 — retirado del contrato en IT-03)
+**Retirado del contrato v0.2 y de los exports públicos de B5 (IT-03, 2026-07-16)**: ningún
+endpoint lo sirve y mantenerlo exportado era código muerto (hallazgo M01). Las tile
+entities siguen referenciadas por `tile_entity_id` (int) en `TileDetailDto`.
 
-Estructura provisional:
+Estructura reservada para cuando v0.3 exponga un endpoint que la sirva:
 ```json
 { "id": 7, "type": "item_frame | weapon_rack | mannequin | hat_rack | plate", "x": 1234, "y": 405 }
 ```
@@ -414,6 +416,12 @@ Además de los códigos transversales del encabezado:
 | Coordenadas inválidas o fuera de grid | 400 | `invalid_coordinates` |
 | Tile entity no encontrada (futuro) | 404 | `tile_entity_not_found` |
 | Catálogo no disponible | 503 | `catalog_unavailable` |
+| 404 genérico (ruta inexistente, IT-03) | 404 | `not_found` |
+
+`world_not_found` queda **reservado a los recursos `/worlds/*`** (lo emiten sus handlers
+explícitamente). Un 404 sin código de dominio propio (p. ej. una ruta que no existe)
+responde `code:"not_found"` desde 2026-07-16 (IT-03; antes respondía incorrectamente
+`world_not_found`, hallazgo E10).
 
 ### 5.5. Header `X-API-Version: 0.2`
 

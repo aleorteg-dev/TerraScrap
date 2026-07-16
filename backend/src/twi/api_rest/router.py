@@ -13,11 +13,11 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Final, Literal
 
-from fastapi import APIRouter, Query, Response, UploadFile
+from fastapi import APIRouter, HTTPException, Query, Response, UploadFile
 from fastapi.responses import JSONResponse
 
 from twi.item_catalog import ItemCatalog, ItemCatalogUnavailableError, ItemNotFoundError
-from twi.tile_search import TileSearchEngine
+from twi.tile_search import SearchMatch, TileSearchEngine
 from twi.wld_parser import (
     Tile,
     TileGrid,
@@ -32,7 +32,6 @@ from twi.world_repository import WorldNotFoundError, WorldRepository
 from .errors import API_VERSION_HEADERS, UPLOAD_TOO_LARGE_CODE, error_response
 from .schemas import (
     BackgroundStylesDto,
-    ErrorDetails,
     ErrorDto,
     ImportJobCreatedDto,
     ImportJobStatusDto,
@@ -121,13 +120,33 @@ def _sync_runner(fn: Callable[[], None]) -> None:
     fn()
 
 
-def _err(
-    status: int,
-    code: str,
-    message: str,
-    details: ErrorDetails | None = None,
-) -> JSONResponse:
-    return error_response(status, code, message, details)
+def _get_world_or_404(repo: WorldRepository, world_id: str) -> World:
+    """Resolve a world or raise the canonical 404 (handled by errors.py)."""
+    try:
+        return repo.get(world_id)
+    except WorldNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "world_not_found",
+                "message": f"World '{world_id}' not found.",
+            },
+        ) from exc
+
+
+def _check_upload_size(data: bytes, max_upload_mb: int) -> JSONResponse | None:
+    """Return the canonical 413 response when data exceeds the limit."""
+    if len(data) > max_upload_mb * 1024 * 1024:
+        return error_response(
+            413, UPLOAD_TOO_LARGE_CODE, f"File exceeds {max_upload_mb} MB limit."
+        )
+    return None
+
+
+def _match_dto(m: SearchMatch) -> SearchMatchDto:
+    return SearchMatchDto(
+        x=m.x, y=m.y, source=m.source, chest_id=m.chest_id, stack=m.stack
+    )
 
 
 _OkDto = (
@@ -511,14 +530,13 @@ def create_router(
     )
     async def upload_world(file: UploadFile) -> Response:
         data = await file.read()
-        if len(data) > max_upload_mb * 1024 * 1024:
-            return _err(
-                413, UPLOAD_TOO_LARGE_CODE, f"File exceeds {max_upload_mb} MB limit."
-            )
+        too_large = _check_upload_size(data, max_upload_mb)
+        if too_large is not None:
+            return too_large
         try:
             world = parser(data)
         except UnsupportedWorldVersionError as exc:
-            return _err(
+            return error_response(
                 422,
                 "unsupported_version",
                 str(exc),
@@ -530,7 +548,7 @@ def create_router(
                 exc.code,
                 exc.details,
             )
-            return _err(
+            return error_response(
                 400,
                 "invalid_wld",
                 "File is not a valid .wld file.",
@@ -553,10 +571,9 @@ def create_router(
     )
     async def create_import_job(file: UploadFile) -> Response:
         data = await file.read()
-        if len(data) > max_upload_mb * 1024 * 1024:
-            return _err(
-                413, UPLOAD_TOO_LARGE_CODE, f"File exceeds {max_upload_mb} MB limit."
-            )
+        too_large = _check_upload_size(data, max_upload_mb)
+        if too_large is not None:
+            return too_large
         job_id = str(uuid.uuid4())
         job = _ImportJob(job_id=job_id, status="queued", pct=0)
         jobs.add(job)
@@ -617,7 +634,9 @@ def create_router(
     async def get_import_job(job_id: str) -> Response:
         job = jobs.get(job_id)
         if job is None:
-            return _err(404, "job_not_found", f"Import job '{job_id}' not found.")
+            return error_response(
+                404, "job_not_found", f"Import job '{job_id}' not found."
+            )
         return JSONResponse(
             status_code=200,
             content=ImportJobStatusDto(
@@ -638,10 +657,7 @@ def create_router(
         responses={200: {"model": WorldMetadataDto}, 404: {"model": ErrorDto}},
     )
     async def get_world(world_id: str) -> Response:
-        try:
-            world = repo.get(world_id)
-        except WorldNotFoundError:
-            return _err(404, "world_not_found", f"World '{world_id}' not found.")
+        world = _get_world_or_404(repo, world_id)
         return _ok(_meta_dto(world.metadata))
 
     @router.delete(
@@ -653,7 +669,9 @@ def create_router(
         try:
             repo.delete_strict(world_id)
         except WorldNotFoundError:
-            return _err(404, "world_not_found", f"World '{world_id}' not found.")
+            return error_response(
+                404, "world_not_found", f"World '{world_id}' not found."
+            )
         return Response(status_code=204, headers=API_VERSION_HEADERS)
 
     @router.get(
@@ -673,44 +691,34 @@ def create_router(
         encoding: str = Query(default="base64-rle-v1"),
     ) -> Response:
         if encoding not in _SUPPORTED_ENCODINGS:
-            return _err(
+            return error_response(
                 400,
                 "invalid_encoding",
                 f"Unsupported encoding '{encoding}'.",
                 {"supported": sorted(_SUPPORTED_ENCODINGS)},
             )
-        try:
-            world = repo.get(world_id)
-        except WorldNotFoundError:
-            return _err(404, "world_not_found", f"World '{world_id}' not found.")
+        world = _get_world_or_404(repo, world_id)
         wsurface = (
             world.metadata.world_surface_y
             if world.metadata.world_surface_y is not None
             else 0.0
         )
-        if encoding == "base64-rle-v2":
-            w, h, payload = _encode_chunk_v2(world.tiles, chunk_x, chunk_y, chunk_size)
-            enc: TilesChunkDto = TilesChunkDto(
+        enc_name: Literal["base64-rle-v1", "base64-rle-v2"] = (
+            "base64-rle-v2" if encoding == "base64-rle-v2" else "base64-rle-v1"
+        )
+        encode = _encode_chunk_v2 if enc_name == "base64-rle-v2" else _encode_chunk
+        w, h, payload = encode(world.tiles, chunk_x, chunk_y, chunk_size)
+        return _ok(
+            TilesChunkDto(
                 chunk_x=chunk_x,
                 chunk_y=chunk_y,
                 width=w,
                 height=h,
-                encoding="base64-rle-v2",
+                encoding=enc_name,
                 payload=payload,
                 surface_y=_chunk_surface_y(world.tiles, chunk_x, chunk_size, wsurface),
             )
-        else:
-            w, h, payload = _encode_chunk(world.tiles, chunk_x, chunk_y, chunk_size)
-            enc = TilesChunkDto(
-                chunk_x=chunk_x,
-                chunk_y=chunk_y,
-                width=w,
-                height=h,
-                encoding="base64-rle-v1",
-                payload=payload,
-                surface_y=_chunk_surface_y(world.tiles, chunk_x, chunk_size, wsurface),
-            )
-        return _ok(enc)
+        )
 
     @router.get(
         "/worlds/{world_id}/tile",
@@ -722,13 +730,10 @@ def create_router(
         },
     )
     async def get_tile(world_id: str, x: int, y: int) -> Response:
-        try:
-            world = repo.get(world_id)
-        except WorldNotFoundError:
-            return _err(404, "world_not_found", f"World '{world_id}' not found.")
+        world = _get_world_or_404(repo, world_id)
         w, h = world.tiles.width, world.tiles.height
         if x < 0 or y < 0 or x >= w or y >= h:
-            return _err(
+            return error_response(
                 400,
                 "coordinates_out_of_bounds",
                 f"Coordinates ({x}, {y}) are out of bounds for world {w}x{h}.",
@@ -778,10 +783,7 @@ def create_router(
         world_id: str,
         town_only: bool = Query(default=False),
     ) -> Response:
-        try:
-            world = repo.get(world_id)
-        except WorldNotFoundError:
-            return _err(404, "world_not_found", f"World '{world_id}' not found.")
+        world = _get_world_or_404(repo, world_id)
         npcs = [
             NpcDto(
                 id=n.id,
@@ -813,13 +815,10 @@ def create_router(
         frame_y: int | None = Query(default=None),
     ) -> Response:
         if item_id is None:
-            return _err(
+            return error_response(
                 400, "invalid_item_id", "Query parameter 'item_id' is required."
             )
-        try:
-            world = repo.get(world_id)
-        except WorldNotFoundError:
-            return _err(404, "world_not_found", f"World '{world_id}' not found.")
+        world = _get_world_or_404(repo, world_id)
         result = search.search(world, item_id, include_containers)
         matches = result.matches
         if frame_x is not None or frame_y is not None:
@@ -832,15 +831,7 @@ def create_router(
                     if (frame_x is None or t.frame_x == frame_x) and (
                         frame_y is None or t.frame_y == frame_y
                     ):
-                        filtered.append(
-                            SearchMatchDto(
-                                x=m.x,
-                                y=m.y,
-                                source=m.source,
-                                chest_id=m.chest_id,
-                                stack=m.stack,
-                            )
-                        )
+                        filtered.append(_match_dto(m))
             return _ok(
                 SearchResultDto(
                     item_id=result.item_id,
@@ -852,16 +843,7 @@ def create_router(
             SearchResultDto(
                 item_id=result.item_id,
                 total=result.total,
-                matches=[
-                    SearchMatchDto(
-                        x=m.x,
-                        y=m.y,
-                        source=m.source,
-                        chest_id=m.chest_id,
-                        stack=m.stack,
-                    )
-                    for m in result.matches
-                ],
+                matches=[_match_dto(m) for m in result.matches],
             )
         )
 
@@ -881,7 +863,7 @@ def create_router(
         try:
             summaries = catalog.search(q, limit)
         except ItemCatalogUnavailableError:
-            return _err(
+            return error_response(
                 503,
                 "catalog_unavailable",
                 "Item catalog is not available. Try again later.",
@@ -914,9 +896,11 @@ def create_router(
         try:
             detail = catalog.get(item_id)
         except ItemNotFoundError:
-            return _err(404, "item_not_found", f"Item {item_id} not found in catalog.")
+            return error_response(
+                404, "item_not_found", f"Item {item_id} not found in catalog."
+            )
         except ItemCatalogUnavailableError:
-            return _err(
+            return error_response(
                 503,
                 "catalog_unavailable",
                 "Item catalog is not available. Try again later.",

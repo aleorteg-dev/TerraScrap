@@ -67,13 +67,6 @@ class NpcListDto(BaseModel):
     npcs: list[NpcDto]
 
 
-class TileEntityDto(BaseModel):
-    id: int
-    type: Literal["item_frame", "weapon_rack", "mannequin", "hat_rack", "plate"]
-    x: int
-    y: int
-
-
 class TileDetailDto(BaseModel):
     x: int
     y: int
