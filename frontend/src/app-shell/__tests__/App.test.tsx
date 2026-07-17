@@ -10,16 +10,20 @@ import type { WorldCanvasProps } from '../../world-canvas';
 import type { SearchPanelProps } from '../../search-panel';
 import type { SearchMatch, WorldMetadata, TileDetail, Npc, ApiClient } from '../../api-client';
 import { WorldNotFoundError } from '../../api-client';
-import { INITIAL_ZOOM, ZOOM_STEP } from '../appState';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 vi.mock('../../ui-upload', () => ({ UploadWorld: vi.fn() }));
-vi.mock('../../world-canvas', () => ({ WorldCanvas: vi.fn() }));
+// Se conserva el módulo real (ZOOM_LIMITS lo consume appState) y solo se
+// mockea el componente.
+vi.mock('../../world-canvas', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../world-canvas')>()),
+  WorldCanvas: vi.fn(),
+}));
 vi.mock('../../search-panel', () => ({ SearchPanel: vi.fn() }));
 vi.mock('../../highlight-overlay', () => ({ HighlightOverlay: vi.fn() }));
 
 import { UploadWorld } from '../../ui-upload';
-import { WorldCanvas } from '../../world-canvas';
+import { WorldCanvas, ZOOM_LIMITS } from '../../world-canvas';
 import { SearchPanel } from '../../search-panel';
 import { HighlightOverlay } from '../../highlight-overlay';
 import { App } from '../index';
@@ -201,7 +205,19 @@ beforeEach(() => {
   // Never resolves by default — prevents unexpected state updates in other tests
   mockGetTileDetail.mockReturnValue(new Promise<TileDetail>(() => {}));
   mockListNpcs.mockReturnValue(new Promise<Npc[]>(() => {}));
-  mockZoomToFit.mockReturnValue(0.5);
+  // Como el canvas real: todo cambio de zoom interno notifica onZoomChange
+  // (IT-07); el estado de app-shell es un espejo de esa notificación (IT-09).
+  mockSetZoom.mockImplementation((zoom: number) => {
+    act(() => {
+      capturedCanvasProps?.onZoomChange?.(zoom);
+    });
+  });
+  mockZoomToFit.mockImplementation(() => {
+    act(() => {
+      capturedCanvasProps?.onZoomChange?.(0.5);
+    });
+    return 0.5;
+  });
   mockExportToPng.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
 
   vi.mocked(UploadWorld).mockImplementation((props: UploadProps) => {
@@ -263,7 +279,6 @@ function renderAppInRoot(): HTMLElement {
 
 async function renderLoadedAppInRoot(): Promise<HTMLElement> {
   sessionStorage.setItem('terra_world_id', WORLD_ID);
-  sessionStorage.setItem('terra_world_metadata', JSON.stringify(mockMetadata));
   mockGetWorldMetadata.mockResolvedValue(mockMetadata);
 
   const root = renderAppInRoot();
@@ -327,7 +342,6 @@ describe('App', () => {
 
   it('T-06 recovers worldId from sessionStorage on mount', async () => {
     sessionStorage.setItem('terra_world_id', WORLD_ID);
-    sessionStorage.setItem('terra_world_metadata', JSON.stringify(mockMetadata));
     mockGetWorldMetadata.mockResolvedValue(mockMetadata);
 
     render(<App apiClient={mockApiClient} />);
@@ -339,7 +353,6 @@ describe('App', () => {
 
   it('T-06b does not mount WorldCanvas while getWorldMetadata is pending', () => {
     sessionStorage.setItem('terra_world_id', WORLD_ID);
-    sessionStorage.setItem('terra_world_metadata', JSON.stringify(mockMetadata));
     mockGetWorldMetadata.mockReturnValue(new Promise<WorldMetadata>(() => {}));
 
     render(<App apiClient={mockApiClient} />);
@@ -354,7 +367,6 @@ describe('App', () => {
 
   it('T-06c clears session and shows toast when restore hits world_not_found', async () => {
     sessionStorage.setItem('terra_world_id', WORLD_ID);
-    sessionStorage.setItem('terra_world_metadata', JSON.stringify(mockMetadata));
     mockGetWorldMetadata.mockRejectedValue(
       new WorldNotFoundError('world_not_found', 404, 'world_not_found')
     );
@@ -364,18 +376,19 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByTestId('upload-world')).toBeInTheDocument());
     expect(screen.queryByTestId('world-canvas')).not.toBeInTheDocument();
     expect(sessionStorage.getItem('terra_world_id')).toBeNull();
-    expect(sessionStorage.getItem('terra_world_metadata')).toBeNull();
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(/ya no está disponible/i)
     );
   });
 
-  it('T-06d handleUploaded persists worldId and metadata to sessionStorage', () => {
+  it('T-06d handleUploaded persists only worldId to sessionStorage (M10)', () => {
     render(<App apiClient={mockApiClient} />);
     triggerUpload();
 
     expect(sessionStorage.getItem('terra_world_id')).toBe(WORLD_ID);
-    expect(sessionStorage.getItem('terra_world_metadata')).toBe(JSON.stringify(mockMetadata));
+    // La metadata no se persiste: era write-only y siempre se revalida
+    // contra el backend al restaurar.
+    expect(sessionStorage.getItem('terra_world_metadata')).toBeNull();
   });
 
   it('T-07 shows toast on API error', async () => {
@@ -492,7 +505,7 @@ describe('App', () => {
     const zoomInBtn = screen.getByRole('button', { name: /zoom in/i });
     await user.click(zoomInBtn);
 
-    expect(mockSetZoom).toHaveBeenCalledWith(INITIAL_ZOOM + ZOOM_STEP);
+    expect(mockSetZoom).toHaveBeenCalledWith(ZOOM_LIMITS.initial + ZOOM_LIMITS.step);
   });
 
   it('toolbar zoom to fit calls canvas handle and updates zoom label', async () => {
@@ -519,7 +532,113 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /toggle walls/i }));
 
     await waitFor(() => expect(capturedCanvasProps).toMatchObject({ showWalls: false }));
-    expect(capturedCanvasProps).toMatchObject({ showLiquids: true, showWires: true });
+    expect(capturedCanvasProps).toMatchObject({ showLiquids: true, showWires: false });
+  });
+
+  it('wires layer defaults off and its toggle is disabled (E14 corto)', async () => {
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).toMatchObject({ showWires: false }));
+
+    const wiresBtn = screen.getByRole('button', { name: /toggle wires/i });
+    expect(wiresBtn).toBeDisabled();
+    expect(wiresBtn).toHaveAttribute('title', 'Disponible en v0.3');
+  });
+
+  it('HUD zoom in twice advances the shared zoom state (E06)', async () => {
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    const hudZoomIn = screen.getByLabelText('HUD zoom in');
+    act(() => {
+      hudZoomIn.click();
+    });
+    act(() => {
+      hudZoomIn.click();
+    });
+
+    // Con state.zoom desincronizado (bug E06) ambos clicks pedirían 2.5.
+    expect(mockSetZoom).toHaveBeenNthCalledWith(1, ZOOM_LIMITS.initial + ZOOM_LIMITS.step);
+    expect(mockSetZoom).toHaveBeenNthCalledWith(2, ZOOM_LIMITS.initial + 2 * ZOOM_LIMITS.step);
+  });
+
+  it('onZoomChange from canvas updates the toolbar zoom label (E05 consumidor)', async () => {
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    act(() => {
+      capturedCanvasProps?.onZoomChange?.(4);
+    });
+    expect(screen.getByText('400%')).toBeInTheDocument();
+
+    // zoomToFit puede quedar bajo ZOOM_LIMITS.min (IT-07): el estado es un
+    // espejo del canvas y no clampa.
+    act(() => {
+      capturedCanvasProps?.onZoomChange?.(0.1);
+    });
+    expect(screen.getByText('10%')).toBeInTheDocument();
+  });
+
+  it('rapid double tile selection keeps only the last detail (E16)', async () => {
+    let resolveFirst!: (d: TileDetail) => void;
+    let resolveSecond!: (d: TileDetail) => void;
+    mockGetTileDetail
+      .mockImplementationOnce(
+        () =>
+          new Promise<TileDetail>((res) => {
+            resolveFirst = res;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<TileDetail>((res) => {
+            resolveSecond = res;
+          })
+      );
+
+    render(<App apiClient={mockApiClient} />);
+    triggerUpload();
+
+    await waitFor(() => expect(capturedCanvasProps).not.toBeNull());
+
+    act(() => {
+      capturedCanvasProps?.onTileSelected?.({ x: 10, y: 20 });
+    });
+    act(() => {
+      capturedCanvasProps?.onTileSelected?.({ x: 30, y: 40 });
+    });
+
+    // La respuesta vigente llega primero; la obsoleta después e intenta pisarla.
+    await act(async () => {
+      resolveSecond({ ...mockTileDetail, x: 30, y: 40 });
+    });
+    await act(async () => {
+      resolveFirst({ ...mockTileDetail, x: 10, y: 20 });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('tile-detail-panel')).toBeInTheDocument());
+    expect(screen.getByText('30, 40')).toBeInTheDocument();
+    expect(screen.queryByText('10, 20')).not.toBeInTheDocument();
+  });
+
+  it('sessionStorage failure does not crash the upload flow (E18)', () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+
+    try {
+      render(<App apiClient={mockApiClient} />);
+      triggerUpload();
+
+      expect(screen.getByTestId('world-canvas')).toBeInTheDocument();
+    } finally {
+      setItemSpy.mockRestore();
+    }
   });
 
   it('toolbar export PNG calls exportToPng and createObjectURL', async () => {

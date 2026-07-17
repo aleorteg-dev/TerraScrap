@@ -31,7 +31,10 @@ Flujo principal (máquina de estados implícita):
 - **SP-05** Un botón "Cerrar mundo" vuelve a `NoWorld` tras llamar `apiClient.deleteWorld`.
 - **SP-06** Errores de la API muestran un toast no bloqueante.
 - **SP-07** Layout raiz fluido: `#root` ocupa el 100 % del viewport y el mundo cargado usa una rejilla estable de dos columnas.
-- **SP-08** Persiste `worldId` en `sessionStorage` para recuperar la sesión al recargar.
+- **SP-08** Persiste `worldId` en `sessionStorage` para recuperar la sesión al recargar. Solo `terra_world_id`: la metadata se revalida siempre contra el backend (IT-09, M10). Un `sessionStorage` que lanza (cuota, modo privado) nunca rompe el flujo de subida (E18).
+- **SP-09** (IT-09, E06/D04) `state.zoom` es un **espejo** del zoom real del canvas: la única vía de actualización es `WorldCanvas.onZoomChange → dispatch SET_ZOOM` (sin clamp en el reducer; el canvas ya clampa donde corresponde y `zoomToFit` puede legitimamente quedar bajo `ZOOM_LIMITS.min`). Toolbar y HUD calculan el siguiente paso con `ZOOM_LIMITS` de `world-canvas` (fuente única) y solo llaman `canvasHandle.setZoom/zoomToFit`; no despachan `SET_ZOOM` directamente.
+- **SP-10** (IT-09, E16) La carga de detalle de tile se cancela al cambiar la selección: una respuesta obsoleta nunca pisa a la de la selección vigente.
+- **SP-11** (IT-09, E14 corto) La capa "Cables" arranca **OFF** y su botón queda deshabilitado con `title="Disponible en v0.3"` (el backend v0.2 no emite bits de wires; rehabilitación real en IT-OPT-2..5).
 
 ### Layout raiz
 - `#root` debe ocupar `width: 100%` del viewport, sin `max-width`, sin `margin: 0 auto`, sin padding inducido por la plantilla Vite y sin `text-align: center`.
@@ -65,6 +68,16 @@ Flujo principal (máquina de estados implícita):
 - [x] `tile selection triggers getTileDetail and shows tile detail panel`
 - [x] `NPC list click centers canvas on NPC coords`
 - [x] `mobile: sidebar has data-open=false at viewport <768px`
+
+IT-09 (E06, E14 corto, E16, E18, M10, M11, D02, D04 resto):
+- [x] `HUD zoom in twice advances the shared zoom state (E06)`
+- [x] `onZoomChange from canvas updates the toolbar zoom label (E05 consumidor)` — incluye zoom < min sin clamp
+- [x] `rapid double tile selection keeps only the last detail (E16)`
+- [x] `sessionStorage failure does not crash the upload flow (E18)`
+- [x] `wires layer defaults off and its toggle is disabled (E14 corto)`
+- [x] `T-06d handleUploaded persists only worldId to sessionStorage (M10)` (adaptado)
+- [x] `layer toggles are passed to WorldCanvas` (adaptado: `showWires: false`)
+- [x] `toolbar zoom in calls setZoom with incremented value` (adaptado a `ZOOM_LIMITS`)
 
 ## 6b. Desarrollo local
 
@@ -102,9 +115,31 @@ Esta verificación queda pendiente de confirmación con `.wld` real (ver Deuda).
 - Gestionados por un `ErrorBoundary` sencillo en la raíz.
 
 ## 10. Estado
-- **Versión del contrato**: v2.0
-- **Último cierre**: 2026-05-11 (toolbar, NPC panel, tile detail panel, layout móvil — iter-19; proxy dev Vite — iter-20b)
+- **Versión del contrato**: v2.1 (IT-09: reducer sin `panels.tile`; `state.zoom` espejo de `onZoomChange`; el contrato público `AppProps` no cambia)
+- **Último cierre**: 2026-07-17 — IT-09 (PLAN_REMEDIACION E06+E14corto+E16+E18+M10+M11+D02+D04resto)
 - **Iteración actual**: cerrada
+
+### Cambios IT-09
+
+- E06/D04 — el canvas es la fuente única del zoom: `onZoomChange → dispatch
+  SET_ZOOM` (el reducer ya no clampa; espeja el valor real, que puede quedar
+  bajo `ZOOM_LIMITS.min` tras `zoomToFit`). Toolbar y HUD calculan el paso con
+  `ZOOM_LIMITS` importado de `world-canvas` y solo llaman
+  `canvasHandle.setZoom/zoomToFit`; eliminadas las constantes duplicadas
+  `INITIAL_ZOOM/ZOOM_STEP/MIN_ZOOM/MAX_ZOOM` de `appState.ts` y los límites
+  hardcodeados del HUD de `App.tsx`.
+- E16 — el efecto de carga de detalle de tile marca la petición como obsoleta
+  en su cleanup: dos clicks rápidos siempre muestran el detalle del último.
+- E18 — `handleUploaded` envuelve `sessionStorage.setItem` en try/catch: sin
+  persistencia la sesión no sobrevive al reload, pero el mundo carga.
+- E14 corto — `layers.wires` arranca `false` y el botón "Cables" queda
+  `disabled` con `title="Disponible en v0.3"` (rehabilitación: IT-OPT-2..5).
+- M10 — eliminado `SK_META` (`terra_world_metadata`): era write-only, la
+  metadata siempre se revalida contra el backend al restaurar.
+- M11 — eliminados `panels.tile` y la variante `'tile'` de `TOGGLE_PANEL`
+  (el panel de detalle ya se muestra por `tileDetail !== null`).
+- D02 — `TILE_NAMES`/`WALL_NAMES` extraídas de `TileDetailPanel.tsx` a
+  `components/tileNames.ts` (misma organización que la paleta de F3).
 
 ### Decisiones tomadas
 - `useReducer` con `AppState = NoWorld | WorldLoaded` (tipo discriminado).

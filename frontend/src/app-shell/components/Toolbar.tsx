@@ -1,6 +1,6 @@
 import { type FC } from 'react';
 import { useAppContext } from '../AppContext';
-import { ZOOM_STEP, MAX_ZOOM, MIN_ZOOM, INITIAL_ZOOM } from '../appState';
+import { ZOOM_LIMITS } from '../../world-canvas';
 
 export const Toolbar: FC = () => {
   const { state, dispatch, canvasHandle } = useAppContext();
@@ -9,8 +9,9 @@ export const Toolbar: FC = () => {
 
   const { zoom, layers, maskMode } = state;
 
+  // El canvas es la fuente única del zoom: setZoom dispara onZoomChange y
+  // App lo espeja en state.zoom (E06/D04); aquí no se despacha SET_ZOOM.
   function applyZoom(next: number): void {
-    dispatch({ type: 'SET_ZOOM', zoom: next });
     canvasHandle?.setZoom(next);
   }
 
@@ -49,10 +50,7 @@ export const Toolbar: FC = () => {
   }
 
   function handleZoomToFit(): void {
-    const next = canvasHandle?.zoomToFit();
-    if (typeof next === 'number') {
-      dispatch({ type: 'SET_ZOOM', zoom: next });
-    }
+    canvasHandle?.zoomToFit();
   }
 
   const layerLabels: Record<keyof typeof layers, string> = {
@@ -68,8 +66,8 @@ export const Toolbar: FC = () => {
         <button
           aria-label="Zoom in"
           className="tool-btn app-toolbar-btn icon-only"
-          onClick={() => applyZoom(Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
-          disabled={zoom >= MAX_ZOOM}
+          onClick={() => applyZoom(Math.min(ZOOM_LIMITS.max, zoom + ZOOM_LIMITS.step))}
+          disabled={zoom >= ZOOM_LIMITS.max}
         >
           +
         </button>
@@ -79,15 +77,15 @@ export const Toolbar: FC = () => {
         <button
           aria-label="Zoom out"
           className="tool-btn app-toolbar-btn icon-only"
-          onClick={() => applyZoom(Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
-          disabled={zoom <= MIN_ZOOM}
+          onClick={() => applyZoom(Math.max(ZOOM_LIMITS.min, zoom - ZOOM_LIMITS.step))}
+          disabled={zoom <= ZOOM_LIMITS.min}
         >
           −
         </button>
         <button
           aria-label="Reset view"
           className="tool-btn app-toolbar-btn"
-          onClick={() => applyZoom(INITIAL_ZOOM)}
+          onClick={() => applyZoom(ZOOM_LIMITS.initial)}
         >
           Reset
         </button>
@@ -102,17 +100,24 @@ export const Toolbar: FC = () => {
       </div>
 
       <div className="tool-group app-toolbar-group">
-        {(Object.keys(layers) as Array<keyof typeof layers>).map((layer) => (
-          <button
-            key={layer}
-            aria-label={`Toggle ${layer}`}
-            aria-pressed={layers[layer]}
-            className={`tool-btn app-toolbar-btn${layers[layer] ? ' active' : ''}`}
-            onClick={() => dispatch({ type: 'TOGGLE_LAYER', layer })}
-          >
-            {layerLabels[layer]}
-          </button>
-        ))}
+        {(Object.keys(layers) as Array<keyof typeof layers>).map((layer) => {
+          // El backend v0.2 no emite bits de cables: la capa no pinta nada,
+          // así que el toggle queda deshabilitado (E14 corto; IT-OPT-2..5).
+          const unavailable = layer === 'wires';
+          return (
+            <button
+              key={layer}
+              aria-label={`Toggle ${layer}`}
+              aria-pressed={layers[layer]}
+              className={`tool-btn app-toolbar-btn${layers[layer] ? ' active' : ''}`}
+              onClick={() => dispatch({ type: 'TOGGLE_LAYER', layer })}
+              disabled={unavailable}
+              title={unavailable ? 'Disponible en v0.3' : undefined}
+            >
+              {layerLabels[layer]}
+            </button>
+          );
+        })}
       </div>
 
       <div className="tool-group app-toolbar-group">

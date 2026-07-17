@@ -3,7 +3,7 @@ import { createApiClient, WorldNotFoundError } from '../api-client';
 import type { ApiClient, SearchMatch, SearchResult } from '../api-client';
 import { UploadWorld } from '../ui-upload';
 import type { UploadResult } from '../ui-upload';
-import { WorldCanvas } from '../world-canvas';
+import { WorldCanvas, ZOOM_LIMITS } from '../world-canvas';
 import type { WorldCanvasHandle } from '../world-canvas';
 import { SearchPanel } from '../search-panel';
 import { HighlightOverlay } from '../highlight-overlay';
@@ -21,8 +21,9 @@ export interface AppProps {
 
 // ── sessionStorage helpers ────────────────────────────────────────────────────
 
+// Solo se persiste el world_id (M10): la metadata se revalida siempre contra
+// el backend al restaurar, así que guardarla era write-only.
 const SK_ID = 'terra_world_id';
-const SK_META = 'terra_world_metadata';
 
 function readPersistedWorldId(): string | null {
   try {
@@ -35,7 +36,6 @@ function readPersistedWorldId(): string | null {
 function clearPersistedSession(): void {
   try {
     sessionStorage.removeItem(SK_ID);
-    sessionStorage.removeItem(SK_META);
   } catch {
     // ignore
   }
@@ -101,11 +101,6 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
       .getWorldMetadata(persistedId)
       .then((metadata) => {
         if (cancelled) return;
-        try {
-          sessionStorage.setItem(SK_META, JSON.stringify(metadata));
-        } catch {
-          // ignore
-        }
         dispatch({ type: 'UPLOAD_SUCCESS', worldId: persistedId, metadata });
         setRestoring(false);
       })
@@ -127,9 +122,19 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
   // ── Upload ────────────────────────────────────────────────────────────────
 
   const handleUploaded = useCallback((r: UploadResult) => {
-    sessionStorage.setItem(SK_ID, r.worldId);
-    sessionStorage.setItem(SK_META, JSON.stringify(r.metadata));
+    try {
+      sessionStorage.setItem(SK_ID, r.worldId);
+    } catch {
+      // Sin persistencia (cuota, modo privado): la sesión no sobrevive a un
+      // reload, pero el mundo recién subido debe cargar igualmente (E18).
+    }
     dispatch({ type: 'UPLOAD_SUCCESS', worldId: r.worldId, metadata: r.metadata });
+  }, []);
+
+  // ── Zoom: el canvas es la fuente única; el estado lo espeja (E06/D04) ─────
+
+  const handleZoomChange = useCallback((zoom: number) => {
+    dispatch({ type: 'SET_ZOOM', zoom });
   }, []);
 
   // ── Search results ────────────────────────────────────────────────────────
@@ -208,12 +213,21 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
   useEffect(() => {
     if (!selectedTile || !activeWorldId) return;
     const { x, y } = selectedTile;
+    // La cleanup marca la petición como obsoleta al cambiar la selección:
+    // una respuesta tardía nunca pisa el detalle de la selección vigente (E16).
+    let stale = false;
     void client
       .getTileDetail(activeWorldId, x, y)
-      .then((detail) => dispatch({ type: 'SET_TILE_DETAIL', detail }))
+      .then((detail) => {
+        if (!stale) dispatch({ type: 'SET_TILE_DETAIL', detail });
+      })
       .catch((err: unknown) => {
-        showToast(err instanceof Error ? err.message : 'Error cargando detalle del tile');
+        if (!stale)
+          showToast(err instanceof Error ? err.message : 'Error cargando detalle del tile');
       });
+    return () => {
+      stale = true;
+    };
   }, [selectedTile, activeWorldId, client, showToast]);
 
   // ── NPC center ────────────────────────────────────────────────────────────
@@ -373,6 +387,7 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                     apiClient={client}
                     onReady={setCanvasHandle}
                     onTileSelected={handleTileSelected}
+                    onZoomChange={handleZoomChange}
                     onError={handleCanvasError}
                     showLayerLines={state.layers.grid}
                     showWalls={state.layers.walls}
@@ -399,7 +414,11 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                       <button
                         className="hud-btn"
                         type="button"
-                        onClick={() => canvasHandle?.setZoom(Math.min(8, state.zoom + 0.5))}
+                        onClick={() =>
+                          canvasHandle?.setZoom(
+                            Math.min(ZOOM_LIMITS.max, state.zoom + ZOOM_LIMITS.step)
+                          )
+                        }
                         aria-label="HUD zoom in"
                       >
                         +
@@ -407,7 +426,11 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                       <button
                         className="hud-btn"
                         type="button"
-                        onClick={() => canvasHandle?.setZoom(Math.max(0.25, state.zoom - 0.5))}
+                        onClick={() =>
+                          canvasHandle?.setZoom(
+                            Math.max(ZOOM_LIMITS.min, state.zoom - ZOOM_LIMITS.step)
+                          )
+                        }
                         aria-label="HUD zoom out"
                       >
                         −
@@ -415,10 +438,7 @@ export const App: React.FC<AppProps> = ({ apiClient: apiClientProp }) => {
                       <button
                         className="hud-btn"
                         type="button"
-                        onClick={() => {
-                          const next = canvasHandle?.zoomToFit();
-                          if (typeof next === 'number') dispatch({ type: 'SET_ZOOM', zoom: next });
-                        }}
+                        onClick={() => canvasHandle?.zoomToFit()}
                         aria-label="HUD center"
                       >
                         ◎

@@ -1,9 +1,5 @@
 import type { SearchMatch, WorldMetadata, TileDetail, Npc } from '../api-client';
-
-export const INITIAL_ZOOM = 2;
-export const ZOOM_STEP = 0.5;
-export const MIN_ZOOM = 0.25;
-export const MAX_ZOOM = 8;
+import { ZOOM_LIMITS } from '../world-canvas';
 
 export interface LayerState {
   walls: boolean;
@@ -25,7 +21,7 @@ export type AppState =
       layers: LayerState;
       maskMode: boolean;
       sidebarOpen: boolean;
-      panels: { npcs: boolean; tile: boolean };
+      panels: { npcs: boolean };
       zoom: number;
     };
 
@@ -39,7 +35,7 @@ export type AppAction =
   | { type: 'SET_NPCS'; npcs: Npc[] }
   | { type: 'TOGGLE_LAYER'; layer: keyof LayerState }
   | { type: 'TOGGLE_MASK_MODE' }
-  | { type: 'TOGGLE_PANEL'; panel: 'npcs' | 'tile' }
+  | { type: 'TOGGLE_PANEL'; panel: 'npcs' }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_ZOOM'; zoom: number };
 
@@ -54,11 +50,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         selectedTile: null,
         tileDetail: null,
         npcs: null,
-        layers: { walls: true, liquids: true, wires: true, grid: false },
+        // wires OFF por defecto (E14 corto): el backend v0.2 no emite bits de
+        // cables, la capa no pinta nada hasta IT-OPT-2..5.
+        layers: { walls: true, liquids: true, wires: false, grid: false },
         maskMode: false,
         sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
-        panels: { npcs: false, tile: false },
-        zoom: INITIAL_ZOOM,
+        panels: { npcs: false },
+        zoom: ZOOM_LIMITS.initial,
       };
     case 'SET_MATCHES':
       if (state.kind !== 'WorldLoaded') return state;
@@ -67,19 +65,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { kind: 'NoWorld' };
     case 'SELECT_TILE':
       if (state.kind !== 'WorldLoaded') return state;
-      return {
-        ...state,
-        selectedTile: { x: action.x, y: action.y },
-        panels: { ...state.panels, tile: true },
-      };
+      return { ...state, selectedTile: { x: action.x, y: action.y } };
     case 'CLEAR_TILE_SELECTION':
       if (state.kind !== 'WorldLoaded') return state;
-      return {
-        ...state,
-        selectedTile: null,
-        tileDetail: null,
-        panels: { ...state.panels, tile: false },
-      };
+      return { ...state, selectedTile: null, tileDetail: null };
     case 'SET_TILE_DETAIL':
       if (state.kind !== 'WorldLoaded') return state;
       return { ...state, tileDetail: action.detail };
@@ -100,6 +89,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, sidebarOpen: !state.sidebarOpen };
     case 'SET_ZOOM':
       if (state.kind !== 'WorldLoaded') return state;
-      return { ...state, zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, action.zoom)) };
+      // Espejo del zoom real del canvas (vía onZoomChange): sin clamp aquí.
+      // El canvas ya clampa donde corresponde y zoomToFit puede quedar
+      // legítimamente por debajo de ZOOM_LIMITS.min (IT-07, E15).
+      return { ...state, zoom: action.zoom };
   }
 }
