@@ -132,6 +132,18 @@ def _encode_flags4_air_tile(flags4: int) -> bytes:
     return bytes([0x01, 0x01, 0x01, flags4])
 
 
+def _encode_wired_air_tile(flags2_bits: int, flags3_bits: int) -> bytes:
+    """Encode an air tile carrying wiring bits in headers 2/3 (IT-OPT-2).
+
+    flags2 bits 1-3 = red/blue/green wire; flags3 bit 1 = actuator,
+    bit 5 = yellow wire. Bit 0 of each header means "next header present".
+    """
+    flags1 = 0x01  # has flags2
+    if flags3_bits:
+        return bytes([flags1, flags2_bits | 0x01, flags3_bits])
+    return bytes([flags1, flags2_bits])
+
+
 def _encode_liquid_tile(liquid_type: str, amount: int) -> bytes:
     """Encode an air tile that contains liquid (no active block, no wall).
 
@@ -360,6 +372,7 @@ def _build_section1(
     wall_id_at: dict[tuple[int, int], int] | None = None,
     liquid_at: dict[tuple[int, int], tuple[str, int]] | None = None,
     flags4_at: dict[tuple[int, int], int] | None = None,
+    wires_at: dict[tuple[int, int], tuple[int, int]] | None = None,
 ) -> bytes:
     overrides = tile_id_at or {}
     frames = tile_frame_at or {}
@@ -367,9 +380,10 @@ def _build_section1(
     walls = wall_id_at or {}
     liquids = liquid_at or {}
     flags4s = flags4_at or {}
+    wires = wires_at or {}
     # All positions that are non-air (block override or liquid)
     special: set[tuple[int, int]] = (
-        set(overrides) | set(walls) | set(liquids) | set(flags4s)
+        set(overrides) | set(walls) | set(liquids) | set(flags4s) | set(wires)
     )
     buf = bytearray()
     for x in range(width):
@@ -395,6 +409,10 @@ def _build_section1(
                 y += 1
             elif pos in flags4s:
                 buf += _encode_flags4_air_tile(flags4s[pos])
+                y += 1
+            elif pos in wires:
+                flags2_bits, flags3_bits = wires[pos]
+                buf += _encode_wired_air_tile(flags2_bits, flags3_bits)
                 y += 1
             else:
                 # Find run of consecutive plain-air in this column
@@ -568,6 +586,7 @@ def build_world(
     wall_id_at: dict[tuple[int, int], int] | None = None,
     liquid_at: dict[tuple[int, int], tuple[str, int]] | None = None,
     flags4_at: dict[tuple[int, int], int] | None = None,
+    wires_at: dict[tuple[int, int], tuple[int, int]] | None = None,
     extra_sections: int = 0,
 ) -> bytes:
     """Return bytes of a valid synthetic .wld file.
@@ -598,6 +617,7 @@ def build_world(
         wall_id_at=wall_id_at,
         liquid_at=liquid_at,
         flags4_at=flags4_at,
+        wires_at=wires_at,
     )
     s2 = _build_section2(version=version, chests=chests)
     s3 = _build_section3(signs)

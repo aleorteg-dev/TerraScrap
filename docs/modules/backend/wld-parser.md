@@ -225,8 +225,27 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `UnsupportedWorldVersionError`: fuera de rango soportado. Expone `version`, `detected_version`, `supported_range` y `details`.
 
 ## 10. Estado
-- **Versión del contrato**: v2.7 (IT-15 🔶: `TileGrid` no hashable/sin eq estructural; decodificación de strings garantizada sin excepción)
-- **Último cierre**: 2026-07-17 — IT-15 (PLAN_REMEDIACION E11+E19+M08+D06+G08)
+- **Versión del contrato**: v2.8 (IT-OPT-2 🔶: propiedades de wiring en `Tile`; antes v2.7 de IT-15)
+- **Último cierre**: 2026-07-17 — IT-OPT-2 (PLAN_REMEDIACION cadena E14, primer eslabón)
+
+### Cambios IT-OPT-2 🔶 (contrato v2.8 — wiring expuesto en Tile)
+
+`Tile` descompone su bitmask `flags` en propiedades booleanas de solo lectura
+(sin coste de memoria por tile: derivadas del raw ya almacenado
+`flags2 | flags3 << 8 | flags4 << 16`):
+
+```python
+@property wire_red: bool     # flags2 bit 1 (0x0002)
+@property wire_blue: bool    # flags2 bit 2 (0x0004)
+@property wire_green: bool   # flags2 bit 3 (0x0008)
+@property actuator: bool     # flags3 bit 1 (0x0200)
+@property wire_yellow: bool  # flags3 bit 5 (0x2000)
+```
+
+Mapeo tomado de los headers de tile del formato .wld (WorldLoader): header2
+bits 1–3 = wires rojo/azul/verde; header3 bit 1 = actuator, bit 5 = wire
+amarillo. `flags` se mantiene tal cual (compat). Consumidor siguiente: B5
+emitirá estos bits en el byte `flags` del encoding v2 (IT-OPT-3).
 
 ### Cambios IT-15 🔶
 

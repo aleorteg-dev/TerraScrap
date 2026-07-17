@@ -281,6 +281,61 @@ def test_parse_sign_with_cp1252_undefined_byte_falls_back_to_latin1() -> None:
     assert world.signs[0].text == raw_text.decode("latin-1")
 
 
+# ── IT-OPT-2: wiring properties on Tile (contract v2.8) ───────────────────────
+
+
+def test_tile_wiring_properties_decode_flags_bitmask() -> None:
+    """wire_red/blue/green live in flags2 bits 1-3; actuator/wire_yellow in
+    flags3 bits 1 and 5 (Tile.flags packs flags2 | flags3<<8 | flags4<<16)."""
+    wired = Tile(
+        tile_id=None,
+        wall_id=None,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0x0E | (0x22 << 8),
+    )
+    assert wired.wire_red
+    assert wired.wire_blue
+    assert wired.wire_green
+    assert wired.actuator
+    assert wired.wire_yellow
+
+    plain = Tile(
+        tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0
+    )
+    assert not plain.wire_red
+    assert not plain.wire_blue
+    assert not plain.wire_green
+    assert not plain.actuator
+    assert not plain.wire_yellow
+
+
+def test_parse_reads_wiring_bits_from_tile_headers() -> None:
+    data = build_world(
+        width=4,
+        height=4,
+        wires_at={
+            (1, 1): (0x02, 0x00),  # red wire only (no flags3)
+            (2, 2): (0x0C, 0x22),  # blue+green wires + actuator+yellow
+        },
+    )
+    world = parse_wld_bytes(data)
+
+    red_only = world.tiles[1][1]
+    assert red_only.wire_red
+    assert not red_only.wire_blue
+    assert not red_only.actuator
+
+    full = world.tiles[2][2]
+    assert full.wire_blue
+    assert full.wire_green
+    assert full.actuator
+    assert full.wire_yellow
+    assert not full.wire_red
+
+    assert not world.tiles[0][0].wire_red
+
+
 # ── IT-15 (E19): TileGrid must not be hashable ────────────────────────────────
 
 

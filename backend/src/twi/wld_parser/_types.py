@@ -54,9 +54,34 @@ class Tile:
     wall_id: int | None
     liquid_type: Literal["none", "water", "lava", "honey", "shimmer"]
     liquid_amount: int  # 0..255; 0 when liquid_type == "none"
-    flags: int  # raw bitmask for wires / slope / actuator
+    flags: int  # raw bitmask: flags2 | flags3 << 8 | flags4 << 16
     frame_x: int | None = None  # U; only set when tfi[tile_id] is true
     frame_y: int | None = None  # V; forced to 0 when tile_id == 144 (Timers)
+
+    # Wiring accessors (IT-OPT-2, contract v2.8). Derived from the raw
+    # bitmask so they cost no memory per tile. Bit layout mirrors the .wld
+    # tile headers (WorldLoader): header2 bits 1-3 = red/blue/green wire;
+    # header3 bit 1 = actuator, bit 5 = yellow wire.
+
+    @property
+    def wire_red(self) -> bool:
+        return bool(self.flags & 0x0002)
+
+    @property
+    def wire_blue(self) -> bool:
+        return bool(self.flags & 0x0004)
+
+    @property
+    def wire_green(self) -> bool:
+        return bool(self.flags & 0x0008)
+
+    @property
+    def actuator(self) -> bool:
+        return bool(self.flags & 0x0200)
+
+    @property
+    def wire_yellow(self) -> bool:
+        return bool(self.flags & 0x2000)
 
 
 @dataclass(frozen=True)
