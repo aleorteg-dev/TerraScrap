@@ -1003,6 +1003,149 @@ def test_tiles_endpoint_surface_y_uses_world_metadata_surface_y() -> None:
 
 
 # ---------------------------------------------------------------------------
+# IT-13 (P01) – surface_y cache: one full-world scan per world, LRU bounded
+# ---------------------------------------------------------------------------
+
+
+_AIR = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+_DIRT = Tile(tile_id=0, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+
+
+def _surface_world(
+    columns: list[list[Tile]],
+    world_surface_y: float | None = None,
+    name: str = "surface-cache",
+) -> World:
+    grid = TileGrid(columns)
+    meta = WorldMetadata(
+        name=name,
+        width=grid.width,
+        height=grid.height,
+        version=269,
+        seed="0",
+        size="small",
+        hardmode=False,
+        world_surface_y=world_surface_y,
+    )
+    return World(metadata=meta, tiles=grid, chests=(), signs=())
+
+
+def _count_surface_scans(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    """Wrap the full-world surface scan with a call counter."""
+    import twi.api_rest.router as router_module
+
+    calls = {"n": 0}
+    original = router_module._world_surface_y_by_column
+
+    def counting(tiles: TileGrid, world_surface_y: float) -> list[int]:
+        calls["n"] += 1
+        return original(tiles, world_surface_y)
+
+    monkeypatch.setattr(router_module, "_world_surface_y_by_column", counting)
+    return calls
+
+
+def test_tiles_surface_y_scanned_once_per_world(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated GET /tiles on the same world must not rescan its columns."""
+    calls = _count_surface_scans(monkeypatch)
+    repo = _FakeRepo()
+    world_id = repo.store(_surface_world([[_AIR, _AIR, _DIRT], [_AIR, _DIRT, _DIRT]]))
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    for params in (
+        {"chunk_x": 0, "chunk_y": 0, "chunk_size": 2},
+        {"chunk_x": 0, "chunk_y": 0, "chunk_size": 2},
+        {"chunk_x": 0, "chunk_y": 1, "chunk_size": 2},
+        {"chunk_x": 1, "chunk_y": 0, "chunk_size": 1},
+    ):
+        resp = client.get(f"/api/worlds/{world_id}/tiles", params=params)
+        assert resp.status_code == 200
+
+    assert calls["n"] == 1
+
+
+def test_tiles_surface_y_cached_equals_direct_compute() -> None:
+    """Cached responses stay byte-identical to the direct per-chunk compute."""
+    # Column 0: floating island (y=2..3) over terrain (y=8..10); column 1:
+    # canyon terrain starting below world_surface_y=7.
+    col_island = [_AIR, _AIR, _DIRT, _DIRT, _AIR, _AIR, _AIR, _AIR, _DIRT, _DIRT, _DIRT]
+    col_canyon = [_AIR] * 9 + [_DIRT] * 2
+    world = _surface_world([col_island, col_canyon], world_surface_y=7.0)
+    repo = _FakeRepo()
+    world_id = repo.store(world)
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    expected = _chunk_surface_y(
+        world.tiles, chunk_x=0, chunk_size=2, world_surface_y=7.0
+    )
+    first = client.get(
+        f"/api/worlds/{world_id}/tiles",
+        params={"chunk_x": 0, "chunk_y": 0, "chunk_size": 2},
+    )
+    second = client.get(
+        f"/api/worlds/{world_id}/tiles",
+        params={"chunk_x": 0, "chunk_y": 0, "chunk_size": 2},
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["surface_y"] == expected
+    assert second.json()["surface_y"] == expected
+
+
+def test_tiles_surface_cache_invalidated_on_world_delete() -> None:
+    """DELETE must drop the cached surface so a reused id is recomputed."""
+    repo = _FakeRepo()
+    world_id = repo.store(_surface_world([[_AIR, _AIR, _AIR]]))
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/tiles",
+        params={"chunk_x": 0, "chunk_y": 0, "chunk_size": 1},
+    )
+    assert resp.json()["surface_y"] == [3]
+
+    assert client.delete(f"/api/worlds/{world_id}").status_code == 204
+    # Same id, different terrain (only possible via the fake repo — real ids
+    # are one-shot UUIDs; this guards the cache-invalidation path itself).
+    repo._worlds[world_id] = _surface_world([[_AIR, _DIRT, _DIRT]])
+
+    resp = client.get(
+        f"/api/worlds/{world_id}/tiles",
+        params={"chunk_x": 0, "chunk_y": 0, "chunk_size": 1},
+    )
+    assert resp.json()["surface_y"] == [1]
+
+
+def test_tiles_surface_cache_lru_evicts_least_recently_used(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cache holds 4 worlds; the 5th evicts the least recently used."""
+    calls = _count_surface_scans(monkeypatch)
+    repo = _FakeRepo()
+    world_ids = [
+        repo.store(_surface_world([[_AIR, _DIRT]], name=f"w{i}")) for i in range(5)
+    ]
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+    params = {"chunk_x": 0, "chunk_y": 0, "chunk_size": 1}
+
+    for world_id in world_ids:
+        assert (
+            client.get(f"/api/worlds/{world_id}/tiles", params=params).status_code
+            == 200
+        )
+    assert calls["n"] == 5
+
+    # world 5 is still cached…
+    client.get(f"/api/worlds/{world_ids[4]}/tiles", params=params)
+    assert calls["n"] == 5
+    # …but world 1 was evicted by the 5th insert and must rescan.
+    client.get(f"/api/worlds/{world_ids[0]}/tiles", params=params)
+    assert calls["n"] == 6
+
+
+# ---------------------------------------------------------------------------
 # T-14 – Chunk index (1, 0) maps to correct tiles, not absolute coords
 # ---------------------------------------------------------------------------
 

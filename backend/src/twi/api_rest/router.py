@@ -8,7 +8,8 @@ import math
 import struct
 import threading
 import uuid
-from collections.abc import Callable, Mapping
+from collections import OrderedDict
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Final, Literal
@@ -345,6 +346,26 @@ def _chunk_bounds(
     return start_x, start_y, w, h
 
 
+def _column_surface_y(column: Sequence[Tile], world_h: int, threshold: int) -> int:
+    """Terrain surface Y for one column (see _chunk_surface_y for the rules)."""
+    result = world_h
+    in_run = False
+    run_start = 0
+    for y, tile in enumerate(column):
+        blocking = _is_surface_blocking_tile(tile)
+        if blocking and not in_run:
+            in_run = True
+            run_start = y
+        elif not blocking and in_run:
+            run_end = y - 1
+            if run_end >= threshold:
+                return run_start
+            in_run = False
+    if in_run and (world_h - 1) >= threshold:
+        result = run_start
+    return result
+
+
 def _chunk_surface_y(
     tiles: TileGrid,
     chunk_x: int,
@@ -363,28 +384,29 @@ def _chunk_surface_y(
     start_x = chunk_x * chunk_size
     w = min(chunk_size, max(0, tiles.width - start_x))
     threshold = max(0, int(math.floor(world_surface_y)))
-    surface_y: list[int] = []
-    for x in range(start_x, start_x + w):
-        column = tiles[x]
-        result = tiles.height
-        in_run = False
-        run_start = 0
-        for y, tile in enumerate(column):
-            blocking = _is_surface_blocking_tile(tile)
-            if blocking and not in_run:
-                in_run = True
-                run_start = y
-            elif not blocking and in_run:
-                run_end = y - 1
-                if run_end >= threshold:
-                    result = run_start
-                    break
-                in_run = False
-        else:
-            if in_run and (tiles.height - 1) >= threshold:
-                result = run_start
-        surface_y.append(result)
-    return surface_y
+    return [
+        _column_surface_y(tiles[x], tiles.height, threshold)
+        for x in range(start_x, start_x + w)
+    ]
+
+
+def _world_surface_y_by_column(tiles: TileGrid, world_surface_y: float) -> list[int]:
+    """Surface Y for every column of the world in a single w*h pass (IT-13).
+
+    The world is immutable for its session lifetime, so the result is cached
+    per world_id in the router closure; chunks slice it instead of rescanning
+    their columns on every GET /tiles.
+    """
+    threshold = max(0, int(math.floor(world_surface_y)))
+    return [
+        _column_surface_y(tiles[x], tiles.height, threshold) for x in range(tiles.width)
+    ]
+
+
+# Worlds whose full-column surface profile stays cached in the router closure.
+# Small on purpose: one large world is ~8400 ints; 4 worlds bound the memory
+# while covering the single-session usage pattern (IT-13, P01).
+_SURFACE_CACHE_MAX_WORLDS: Final = 4
 
 
 def _encode_chunk(
@@ -528,6 +550,32 @@ def create_router(
     router = APIRouter(prefix="/api")
     clock: Callable[[], datetime] = _clock if _clock is not None else _utcnow
     jobs = _ImportJobStore(ttl_seconds=job_ttl_seconds, clock=clock)
+
+    # Caché LRU del surface_y por columna del mundo entero (IT-13, P01).
+    # world_id → list[int] de longitud world.width; el mundo es inmutable en
+    # sesión, así que la entrada solo se invalida en DELETE o por desalojo.
+    surface_cache: OrderedDict[str, list[int]] = OrderedDict()
+    surface_cache_lock = threading.Lock()
+
+    def _cached_surface(world_id: str, world: World) -> list[int]:
+        with surface_cache_lock:
+            cached = surface_cache.get(world_id)
+            if cached is not None:
+                surface_cache.move_to_end(world_id)
+                return cached
+        wsurface = (
+            world.metadata.world_surface_y
+            if world.metadata.world_surface_y is not None
+            else 0.0
+        )
+        computed = _world_surface_y_by_column(world.tiles, wsurface)
+        with surface_cache_lock:
+            surface_cache[world_id] = computed
+            surface_cache.move_to_end(world_id)
+            while len(surface_cache) > _SURFACE_CACHE_MAX_WORLDS:
+                surface_cache.popitem(last=False)
+        return computed
+
     import_parser: _ImportParserFn = (
         _import_parser
         if _import_parser is not None
@@ -687,6 +735,8 @@ def create_router(
             return error_response(
                 404, "world_not_found", f"World '{world_id}' not found."
             )
+        with surface_cache_lock:
+            surface_cache.pop(world_id, None)
         return Response(status_code=204, headers=API_VERSION_HEADERS)
 
     @router.get(
@@ -713,16 +763,13 @@ def create_router(
                 {"supported": sorted(_SUPPORTED_ENCODINGS)},
             )
         world = _get_world_or_404(repo, world_id)
-        wsurface = (
-            world.metadata.world_surface_y
-            if world.metadata.world_surface_y is not None
-            else 0.0
-        )
         enc_name: Literal["base64-rle-v1", "base64-rle-v2"] = (
             "base64-rle-v2" if encoding == "base64-rle-v2" else "base64-rle-v1"
         )
         encode = _encode_chunk_v2 if enc_name == "base64-rle-v2" else _encode_chunk
         w, h, payload = encode(world.tiles, chunk_x, chunk_y, chunk_size)
+        full_surface = _cached_surface(world_id, world)
+        start_x = chunk_x * chunk_size
         return _ok(
             TilesChunkDto(
                 chunk_x=chunk_x,
@@ -731,7 +778,7 @@ def create_router(
                 height=h,
                 encoding=enc_name,
                 payload=payload,
-                surface_y=_chunk_surface_y(world.tiles, chunk_x, chunk_size, wsurface),
+                surface_y=full_surface[start_x : start_x + w],
             )
         )
 

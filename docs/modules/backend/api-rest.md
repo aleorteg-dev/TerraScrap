@@ -162,8 +162,23 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 
 ## 10. Estado
 - **Versión del contrato**: v0.2 (cerrada — DELETE estricto, search con `frame_x/frame_y`, `X-API-Version: 0.2`, OpenAPI snapshot regenerado) + retención de import jobs (IT-01) + 404 genérico `not_found` y retirada de `TileEntityDto` (IT-03).
-- **Último cierre**: 2026-07-16 (IT-05 remediación — E12 lectura de uploads en streaming)
+- **Último cierre**: 2026-07-17 (IT-13 remediación — P01 caché de `surface_y`)
 - **Iteración actual**: cerrada
+
+### 10.-1. Cambios IT-13 (P01, sin cambio de contrato)
+
+- `GET /tiles` ya no recorre la columna completa del mundo en cada petición:
+  el `surface_y` por columna se computa **una vez por mundo** con
+  `_world_surface_y_by_column(tiles, world_surface_y)` (una pasada w·h) y se
+  cachea en el closure del router (`OrderedDict[world_id, list[int]]`, LRU de
+  `_SURFACE_CACHE_MAX_WORLDS = 4` mundos). Cada chunk toma su slice
+  `[start_x : start_x + w]`. El mundo es inmutable en sesión → cacheable 100 %.
+- `DELETE /worlds/{id}` invalida la entrada de la caché (además del desalojo
+  LRU). Los payloads de `surface_y` son byte a byte idénticos a los previos
+  (test de equivalencia contra `_chunk_surface_y` directo).
+- `_chunk_surface_y` se conserva como función pura (tests unitarios de la
+  heurística de islas/cañones); tanto ella como la versión mundo-entero
+  delegan en `_column_surface_y` (fuente única del algoritmo por columna).
 
 ### 10.0. Cambios IT-05 (E12, sin cambio de contrato)
 
