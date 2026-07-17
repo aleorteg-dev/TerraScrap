@@ -19,15 +19,17 @@ class WorldNotFoundError(Exception):
 
 
 class WorldRepository(Protocol):
+    """Contract v2.0 (IT-16): touch() and lenient delete() were removed.
+
+    get() is the single TTL-refresh path; deletion is delete_strict only
+    (the router migrated in iter-032 and nothing else called them).
+    """
+
     def store(self, world: World) -> str: ...
 
     def get(self, world_id: str) -> World: ...
 
-    def delete(self, world_id: str) -> None: ...
-
     def delete_strict(self, world_id: str) -> None: ...
-
-    def touch(self, world_id: str) -> None: ...
 
     def purge_expired(self, now: datetime | None = None) -> int: ...
 
@@ -47,9 +49,13 @@ class _InMemoryRepository:
         self,
         ttl_seconds: int,
         clock: Callable[[], datetime],
+        max_worlds: int | None = None,
     ) -> None:
+        if max_worlds is not None and max_worlds < 1:
+            raise ValueError("max_worlds must be >= 1 (or None for no cap)")
         self._ttl = ttl_seconds
         self._clock = clock
+        self._max_worlds = max_worlds
         self._data: dict[str, _Entry] = {}
         self._lock = RLock()
 
@@ -59,7 +65,18 @@ class _InMemoryRepository:
     def store(self, world: World) -> str:
         world_id = str(uuid.uuid4())
         with self._lock:
-            self._data[world_id] = _Entry(world=world, last_accessed=self._clock())
+            now = self._clock()
+            self._data[world_id] = _Entry(world=world, last_accessed=now)
+            if self._max_worlds is not None and len(self._data) > self._max_worlds:
+                # Reclaim expired sessions first; only then evict the least
+                # recently accessed live world (IT-16, P10 — worlds are
+                # 200-600 MB each, the cap bounds resident memory).
+                self.purge_expired(now)
+                while len(self._data) > self._max_worlds:
+                    lru_id = min(
+                        self._data, key=lambda wid: self._data[wid].last_accessed
+                    )
+                    del self._data[lru_id]
         return world_id
 
     def get(self, world_id: str) -> World:
@@ -74,10 +91,6 @@ class _InMemoryRepository:
             entry.last_accessed = now
             return entry.world
 
-    def delete(self, world_id: str) -> None:
-        with self._lock:
-            self._data.pop(world_id, None)
-
     def delete_strict(self, world_id: str) -> None:
         with self._lock:
             entry = self._data.get(world_id)
@@ -88,17 +101,6 @@ class _InMemoryRepository:
                 del self._data[world_id]
                 raise WorldNotFoundError(world_id)
             del self._data[world_id]
-
-    def touch(self, world_id: str) -> None:
-        with self._lock:
-            entry = self._data.get(world_id)
-            if entry is None:
-                raise WorldNotFoundError(world_id)
-            now = self._clock()
-            if self._expired(entry, now):
-                del self._data[world_id]
-                raise WorldNotFoundError(world_id)
-            entry.last_accessed = now
 
     def purge_expired(self, now: datetime | None = None) -> int:
         effective_now = now if now is not None else self._clock()
@@ -116,5 +118,8 @@ class _InMemoryRepository:
 def create_in_memory_repository(
     ttl_seconds: int = 1800,
     clock: Callable[[], datetime] = _utcnow,
+    max_worlds: int | None = None,
 ) -> WorldRepository:
-    return _InMemoryRepository(ttl_seconds=ttl_seconds, clock=clock)
+    return _InMemoryRepository(
+        ttl_seconds=ttl_seconds, clock=clock, max_worlds=max_worlds
+    )

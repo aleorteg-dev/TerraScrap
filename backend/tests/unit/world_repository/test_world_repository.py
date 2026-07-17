@@ -102,39 +102,36 @@ def test_get_after_ttl_expires_raises_world_not_found_error() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_touch_extends_ttl() -> None:
+def test_get_extends_ttl() -> None:
+    """get() is the single TTL-refresh path since touch() was removed (IT-16)."""
     clock_ref = _frozen_clock(datetime(2000, 1, 1, 0, 0, 0))
     repo = create_in_memory_repository(ttl_seconds=60, clock=lambda: clock_ref[0])
 
     world = _make_world()
     world_id = repo.store(world)
 
-    # Advance to 59 s (just before expiry) and touch
+    # Advance to 59 s (just before expiry) and access the world
     clock_ref[0] = datetime(2000, 1, 1, 0, 0, 59)
-    repo.touch(world_id)
+    assert repo.get(world_id) is world
 
-    # Advance another 59 s from touch (118 s from store, only 59 s from touch)
+    # Advance another 59 s from the access (118 s from store)
     clock_ref[0] = datetime(2000, 1, 1, 0, 1, 58)
 
-    # Should still be alive (only 59 s elapsed since touch)
+    # Should still be alive (only 59 s elapsed since last access)
     assert repo.get(world_id) is world
 
 
 # ---------------------------------------------------------------------------
-# T-06
+# T-06 (IT-16, M02): touch/delete removed from the Protocol
 # ---------------------------------------------------------------------------
 
 
-def test_delete_is_idempotent() -> None:
+def test_repository_has_no_touch_or_lenient_delete() -> None:
+    """v2.0 removes touch() (get refreshes TTL) and non-strict delete()."""
     repo = create_in_memory_repository()
-    world = _make_world()
-    world_id = repo.store(world)
-
-    repo.delete(world_id)
-    repo.delete(world_id)  # must not raise
-
-    with pytest.raises(WorldNotFoundError):
-        repo.get(world_id)
+    assert not hasattr(repo, "touch")
+    assert not hasattr(repo, "delete")
+    assert hasattr(repo, "delete_strict")
 
 
 # ---------------------------------------------------------------------------
@@ -149,9 +146,9 @@ def test_purge_expired_removes_only_expired_entries() -> None:
     id_alive = repo.store(_make_world("alive"))
     id_expired = repo.store(_make_world("expired"))
 
-    # Touch "alive" at 59 s so its TTL resets; "expired" stays at t=0
+    # Access "alive" at 59 s so its TTL resets; "expired" stays at t=0
     clock_ref[0] = datetime(2000, 1, 1, 0, 0, 59)
-    repo.touch(id_alive)
+    repo.get(id_alive)
 
     # Now at 61 s: "expired" is 61 s old (expired), "alive" is only 2 s from touch
     clock_ref[0] = datetime(2000, 1, 1, 0, 1, 1)
@@ -264,3 +261,64 @@ def test_delete_strict_concurrent_deletes_no_race_condition() -> None:
 
     assert len(successes) == 1
     assert len(not_found) == 9
+
+
+# ---------------------------------------------------------------------------
+# T-10 (IT-16, P10) – max_worlds cap with LRU eviction
+# ---------------------------------------------------------------------------
+
+
+def test_store_beyond_max_worlds_evicts_least_recently_accessed() -> None:
+    clock_ref = _frozen_clock(datetime(2000, 1, 1, 0, 0, 0))
+    repo = create_in_memory_repository(
+        ttl_seconds=3600, clock=lambda: clock_ref[0], max_worlds=2
+    )
+
+    id_a = repo.store(_make_world("A"))
+    clock_ref[0] = datetime(2000, 1, 1, 0, 0, 1)
+    id_b = repo.store(_make_world("B"))
+
+    # Access A so B becomes the least recently accessed world.
+    clock_ref[0] = datetime(2000, 1, 1, 0, 0, 2)
+    repo.get(id_a)
+
+    clock_ref[0] = datetime(2000, 1, 1, 0, 0, 3)
+    id_c = repo.store(_make_world("C"))
+
+    with pytest.raises(WorldNotFoundError):
+        repo.get(id_b)
+    assert repo.get(id_a).metadata.name == "A"
+    assert repo.get(id_c).metadata.name == "C"
+
+
+def test_store_beyond_max_worlds_prefers_purging_expired_entries() -> None:
+    """An expired world is reclaimed before evicting a live LRU world."""
+    clock_ref = _frozen_clock(datetime(2000, 1, 1, 0, 0, 0))
+    repo = create_in_memory_repository(
+        ttl_seconds=60, clock=lambda: clock_ref[0], max_worlds=2
+    )
+
+    id_expired = repo.store(_make_world("expired"))
+    clock_ref[0] = datetime(2000, 1, 1, 0, 0, 59)
+    id_alive = repo.store(_make_world("alive"))
+
+    # id_expired ages out (61 s without access); id_alive is 2 s old.
+    clock_ref[0] = datetime(2000, 1, 1, 0, 1, 1)
+    id_new = repo.store(_make_world("new"))
+
+    assert repo.get(id_alive).metadata.name == "alive"
+    assert repo.get(id_new).metadata.name == "new"
+    with pytest.raises(WorldNotFoundError):
+        repo.get(id_expired)
+
+
+def test_store_without_cap_keeps_all_worlds() -> None:
+    repo = create_in_memory_repository()
+    ids = [repo.store(_make_world(f"w{i}")) for i in range(5)]
+    for i, world_id in enumerate(ids):
+        assert repo.get(world_id).metadata.name == f"w{i}"
+
+
+def test_max_worlds_below_one_raises_value_error() -> None:
+    with pytest.raises(ValueError):
+        create_in_memory_repository(max_worlds=0)
