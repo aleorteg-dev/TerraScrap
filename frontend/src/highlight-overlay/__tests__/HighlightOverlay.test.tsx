@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { computeHaloRadius, pulsePhase } from '../math';
+import { computeHaloRadius, pulsePhase, colorWithAlpha } from '../math';
 import { HighlightOverlay } from '../HighlightOverlay';
 import { DEFAULT_SOURCE_COLORS, resolveMatchColor } from '../math';
 import type { WorldCanvasHandle } from '../../world-canvas/index';
@@ -112,6 +112,26 @@ describe('resolveMatchColor', () => {
   it('T-10g unknown source falls back to prop', () => {
     expect(resolveMatchColor('unknown_source', undefined, '#aabbcc')).toBe('#aabbcc');
   });
+
+  it('T-14 DEFAULT_SOURCE_COLORS only covers contract v0.2 sources (M14)', () => {
+    expect(Object.keys(DEFAULT_SOURCE_COLORS).sort()).toEqual(['block', 'chest', 'object', 'wall']);
+  });
+});
+
+describe('colorWithAlpha', () => {
+  it('T-13 parses each hex color only once thanks to the module cache (P05)', () => {
+    const execSpy = vi.spyOn(RegExp.prototype, 'exec');
+    colorWithAlpha('#1a2b3c', 0.1);
+    colorWithAlpha('#1a2b3c', 0.5);
+    colorWithAlpha('#1a2b3c', 0.9);
+    expect(execSpy).toHaveBeenCalledTimes(1);
+    execSpy.mockRestore();
+  });
+
+  it('T-13b formats rgba from the cached parse and passes through non-hex input', () => {
+    expect(colorWithAlpha('#ff0000', 0.5)).toBe('rgba(255,0,0,0.500)');
+    expect(colorWithAlpha('not-a-hex', 0.5)).toBe('not-a-hex');
+  });
 });
 
 // ── Component tests ───────────────────────────────────────────────────────────
@@ -178,17 +198,6 @@ describe('HighlightOverlay', () => {
 
   // ── New tests (iter-17) ─────────────────────────────────────────────────────
 
-  it('T-08 viewport zoom=2 draws highlights at viewport-computed coords', () => {
-    // handle.worldToScreen returns garbage — should NOT be used when viewport provided
-    const handle = makeHandle(() => ({ px: 999, py: 999 }));
-    const viewport = { zoom: 2, panX: 0, panY: 0 };
-    render(
-      <HighlightOverlay canvasHandle={handle} matches={[makeMatch(5, 8)]} viewport={viewport} />
-    );
-    // tileToScreen(5, 8, 2, 0, 0) => {px: 10, py: 16}
-    expect(mockCtx.arc).toHaveBeenCalledWith(10, 16, expect.any(Number), 0, Math.PI * 2);
-  });
-
   it('T-09 mask mode sets globalCompositeOperation to destination-out', () => {
     const assigned: string[] = [];
     Object.defineProperty(mockCtx, 'globalCompositeOperation', {
@@ -223,23 +232,28 @@ describe('HighlightOverlay', () => {
     expect(mockCtx.strokeRect).toHaveBeenCalledWith(6, 8, 2, 2);
   });
 
-  it('T-11b selectedTile with viewport uses viewport coords', () => {
-    const handle = makeHandle(() => ({ px: 999, py: 999 }));
-    const viewport = { zoom: 4, panX: 10, panY: 20 };
-    render(
-      <HighlightOverlay
-        canvasHandle={handle}
-        matches={[]}
-        selectedTile={{ x: 2, y: 3 }}
-        viewport={viewport}
-      />
-    );
-    // tileToScreen(2, 3, 4, 10, 20) = {px: 18, py: 32}
-    expect(mockCtx.strokeRect).toHaveBeenCalledWith(18, 32, 4, 4);
-  });
-
   it('T-11c null selectedTile draws nothing when matches empty', () => {
     render(<HighlightOverlay canvasHandle={makeHandle()} matches={[]} selectedTile={null} />);
     expect(mockCtx.strokeRect).not.toHaveBeenCalled();
+  });
+
+  // ── IT-11: modo reposo (P05) ────────────────────────────────────────────────
+
+  it('T-12 idle mode clears once and schedules no rAF loop when nothing to draw (P05)', () => {
+    const raf = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', raf);
+    render(<HighlightOverlay canvasHandle={makeHandle()} matches={[]} selectedTile={null} />);
+    expect(mockCtx.clearRect).toHaveBeenCalledTimes(1);
+    expect(raf).not.toHaveBeenCalled();
+  });
+
+  it('T-12b resumes drawing when a match arrives after idle', () => {
+    const handle = makeHandle();
+    const { rerender } = render(<HighlightOverlay canvasHandle={handle} matches={[]} />);
+    expect(mockCtx.arc).not.toHaveBeenCalled();
+
+    rerender(<HighlightOverlay canvasHandle={handle} matches={[makeMatch(1, 1)]} />);
+
+    expect(mockCtx.arc).toHaveBeenCalled();
   });
 });

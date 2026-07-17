@@ -1,15 +1,9 @@
 import { useRef, useEffect, type FC } from 'react';
 import type { WorldCanvasHandle } from '../world-canvas/index';
 import type { SearchMatch } from '../api-client/index';
-import { computeHaloRadius, pulsePhase, tileToScreen, resolveMatchColor } from './math';
+import { computeHaloRadius, pulsePhase, resolveMatchColor, colorWithAlpha } from './math';
 
 // ── Public types ──────────────────────────────────────────────────────────────
-
-export interface Viewport {
-  zoom: number;
-  panX: number;
-  panY: number;
-}
 
 type Source = SearchMatch['source'];
 
@@ -18,9 +12,8 @@ export interface HighlightOverlayProps {
   matches: SearchMatch[];
   style?: 'pulse' | 'outline' | 'ping' | 'mask';
   color?: string;
-  colorBySource?: Partial<Record<Source | 'liquid' | 'tile_entity', string>>;
+  colorBySource?: Partial<Record<Source, string>>;
   selectedTile?: { x: number; y: number } | null;
-  viewport?: Viewport;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -31,33 +24,10 @@ const FALLBACK_COLOR = '#FFEB3B';
 
 // ── Drawing helpers ───────────────────────────────────────────────────────────
 
-function colorWithAlpha(hex: string, alpha: number): string {
-  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
-  if (m) {
-    const r = parseInt(m[1] ?? '0', 16);
-    const g = parseInt(m[2] ?? '0', 16);
-    const b = parseInt(m[3] ?? '0', 16);
-    return `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
-  }
-  return hex;
-}
-
-function resolveZoom(viewport: Viewport | undefined, handle: WorldCanvasHandle): number {
-  if (viewport) return viewport.zoom;
+function resolveZoom(handle: WorldCanvasHandle): number {
   const a = handle.worldToScreen(0, 0);
   const b = handle.worldToScreen(1, 0);
   return b.px - a.px;
-}
-
-function resolvePos(
-  tile: { x: number; y: number },
-  viewport: Viewport | undefined,
-  handle: WorldCanvasHandle
-): { px: number; py: number } {
-  if (viewport) {
-    return tileToScreen(tile.x, tile.y, viewport.zoom, viewport.panX, viewport.panY);
-  }
-  return handle.worldToScreen(tile.x, tile.y);
 }
 
 function drawHaloMatch(
@@ -114,7 +84,6 @@ function drawMaskMode(
   canvasHeight: number,
   matches: SearchMatch[],
   zoom: number,
-  viewport: Viewport | undefined,
   handle: WorldCanvasHandle,
   colorBySource: Partial<Record<string, string>> | undefined,
   fallbackColor: string,
@@ -129,7 +98,7 @@ function drawMaskMode(
   ctx.globalCompositeOperation = 'destination-out';
   ctx.fillStyle = 'rgba(255,255,255,1)';
   for (const match of matches) {
-    const { px, py } = resolvePos(match, viewport, handle);
+    const { px, py } = handle.worldToScreen(match.x, match.y);
     ctx.fillRect(px, py, zoom, zoom);
   }
 
@@ -137,7 +106,7 @@ function drawMaskMode(
   const pulse = Math.sin(phase * Math.PI * 2);
   const alpha = 0.7 + 0.3 * ((pulse + 1) / 2);
   for (const match of matches) {
-    const { px, py } = resolvePos(match, viewport, handle);
+    const { px, py } = handle.worldToScreen(match.x, match.y);
     const color = resolveMatchColor(match.source, colorBySource, fallbackColor);
     ctx.strokeStyle = colorWithAlpha(color, alpha);
     ctx.lineWidth = 2;
@@ -168,13 +137,21 @@ export const HighlightOverlay: FC<HighlightOverlayProps> = ({
   color = FALLBACK_COLOR,
   colorBySource,
   selectedTile,
-  viewport,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvasHandle) return;
+
+    // Modo reposo (P05): sin matches ni selección no hay nada que animar.
+    // Se limpia una vez y NO se arranca el bucle rAF; el efecto se
+    // re-suscribe cuando cambie cualquier prop y reanuda el dibujo.
+    if (matches.length === 0 && selectedTile == null) {
+      const ctx = canvas.getContext('2d');
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
 
     let rafId = 0;
 
@@ -193,10 +170,10 @@ export const HighlightOverlay: FC<HighlightOverlayProps> = ({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const phase = pulsePhase(timestamp, HALO_PERIOD);
-      const zoom = resolveZoom(viewport, canvasHandle);
+      const zoom = resolveZoom(canvasHandle);
 
       if (selectedTile != null) {
-        const pos = resolvePos(selectedTile, viewport, canvasHandle);
+        const pos = canvasHandle.worldToScreen(selectedTile.x, selectedTile.y);
         drawSelectedTile(ctx, pos.px, pos.py, zoom, phase);
       }
 
@@ -211,7 +188,6 @@ export const HighlightOverlay: FC<HighlightOverlayProps> = ({
             canvas.height,
             matches,
             zoom,
-            viewport,
             canvasHandle,
             colorBySource,
             color,
@@ -220,7 +196,7 @@ export const HighlightOverlay: FC<HighlightOverlayProps> = ({
         } else {
           const haloR = computeHaloRadius(zoom);
           for (const match of matches) {
-            const { px, py } = resolvePos(match, viewport, canvasHandle);
+            const { px, py } = canvasHandle.worldToScreen(match.x, match.y);
             const matchColor = resolveMatchColor(match.source, colorBySource, color);
             drawHaloMatch(ctx, px, py, match.source, haloR, phase, matchColor, effectiveStyle);
           }
@@ -234,7 +210,7 @@ export const HighlightOverlay: FC<HighlightOverlayProps> = ({
     return () => {
       cancelAnimationFrame(rafId);
     };
-  }, [canvasHandle, matches, style, color, colorBySource, selectedTile, viewport]);
+  }, [canvasHandle, matches, style, color, colorBySource, selectedTile]);
 
   return (
     <canvas
