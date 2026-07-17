@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { SearchPanel } from '../SearchPanel';
+import { SOURCE_LABEL } from '../sourceLabels';
 import type { ApiClient, ItemSummary, SearchResult, SearchMatch } from '../../api-client';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -405,5 +406,103 @@ describe('SearchPanel', () => {
     for (const opt of options) {
       expect(opt).toHaveAttribute('aria-selected');
     }
+  });
+
+  it('T-18 stale searchInWorld response never overwrites the latest search (E17)', async () => {
+    let resolveFirst!: (r: SearchResult) => void;
+    let resolveSecond!: (r: SearchResult) => void;
+    const onResults = vi.fn();
+    const { client, searchInWorld } = makeClient();
+    searchInWorld
+      .mockImplementationOnce(
+        () =>
+          new Promise<SearchResult>((res) => {
+            resolveFirst = res;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<SearchResult>((res) => {
+            resolveSecond = res;
+          })
+      );
+
+    vi.useFakeTimers();
+    render(
+      <SearchPanel worldId="w1" apiClient={client} onResults={onResults} onMatchFocus={vi.fn()} />
+    );
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'zen' } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    vi.useRealTimers();
+    await screen.findByRole('option');
+    fireEvent.click(screen.getByRole('option'));
+
+    // Segunda búsqueda mientras la primera sigue en vuelo (toggle contenedores).
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(searchInWorld).toHaveBeenCalledTimes(2);
+
+    const staleResult: SearchResult = { item_id: 1, total: 1, matches: [mockMatch] };
+    const latestResult: SearchResult = {
+      item_id: 1,
+      total: 3,
+      matches: [
+        { x: 1, y: 2, source: 'block' },
+        { x: 3, y: 4, source: 'block' },
+        { x: 5, y: 6, source: 'block' },
+      ],
+    };
+
+    // La búsqueda vigente resuelve primero; la obsoleta llega después.
+    await act(async () => {
+      resolveSecond(latestResult);
+    });
+    await act(async () => {
+      resolveFirst(staleResult);
+    });
+
+    expect(screen.getByText('3 coincidencias')).toBeInTheDocument();
+    expect(screen.queryByText('1 coincidencia')).not.toBeInTheDocument();
+    const lastResults = onResults.mock.calls.at(-1)?.[0] as SearchResult;
+    expect(lastResults.total).toBe(3);
+  });
+
+  it('T-18b a search resolving after Limpiar does not repopulate results (E17)', async () => {
+    let resolveSearch!: (r: SearchResult) => void;
+    const onResults = vi.fn();
+    const { client, searchInWorld } = makeClient();
+    searchInWorld.mockImplementationOnce(
+      () =>
+        new Promise<SearchResult>((res) => {
+          resolveSearch = res;
+        })
+    );
+
+    vi.useFakeTimers();
+    render(
+      <SearchPanel worldId="w1" apiClient={client} onResults={onResults} onMatchFocus={vi.fn()} />
+    );
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'zen' } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    vi.useRealTimers();
+    await screen.findByRole('option');
+    fireEvent.click(screen.getByRole('option'));
+
+    fireEvent.click(screen.getByRole('button', { name: /limpiar búsqueda/i }));
+    onResults.mockClear();
+
+    await act(async () => {
+      resolveSearch(mockResult);
+    });
+
+    expect(screen.queryByText(/coincidencia/)).not.toBeInTheDocument();
+    expect(onResults).not.toHaveBeenCalled();
+  });
+
+  it('T-19 SOURCE_LABEL only covers the contract v0.2 sources (M13)', () => {
+    expect(Object.keys(SOURCE_LABEL).sort()).toEqual(['block', 'chest', 'object', 'wall']);
   });
 });

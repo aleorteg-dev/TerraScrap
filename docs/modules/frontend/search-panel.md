@@ -43,6 +43,8 @@ Contrato de búsqueda:
 - **SP-06** Botón "Limpiar" resetea resultados y llama `onResults(null)`.
 - **SP-07** Si `searchInWorld` devuelve 0 matches, mensaje explícito "Sin coincidencias".
 - **SP-08** Accesibilidad: combobox ARIA para autocomplete, lista con roles correctos.
+- **SP-09** (IT-10, E17) `runSearch` usa un contador de generación (mismo patrón que el autocompletado): una respuesta de `searchInWorld` obsoleta —por una búsqueda más reciente o por un "Limpiar" posterior— nunca pisa el estado vigente.
+- **SP-10** (IT-10, M13) `SOURCE_LABEL` cubre exactamente los `source` del contrato v0.2: `block | wall | chest | object`. Las etiquetas reservadas para v0.3 (`tile: 'Tile'`, `liquid: 'Líquido'`, `tile_entity: 'Entidad'`) se conservan aquí como referencia y se reintroducirán cuando el contrato las emita.
 
 ## 6. Plan de tests (TDD)
 - [x] `T-01 renders search input and empty state`
@@ -65,6 +67,11 @@ Contrato de búsqueda:
 - [x] `T-16 two keystrokes under 200ms produce one autocomplete request`
 - [x] `T-17 matches listbox has role listbox and items have aria-selected attribute`
 
+IT-10 (E17, M13):
+- [x] `T-18 stale searchInWorld response never overwrites the latest search (E17)`
+- [x] `T-18b a search resolving after Limpiar does not repopulate results (E17)`
+- [x] `T-19 SOURCE_LABEL only covers the contract v0.2 sources (M13)`
+
 ## 7. Notas de implementación
 - Debounce sencillo con `useEffect` + `setTimeout`, o util interna (no lodash).
 - La lista de matches puede ser larga (miles). Usar virtualización manual o `react-window` si es imprescindible; intentar primero sin dependencias.
@@ -76,9 +83,19 @@ Contrato de búsqueda:
 - Errores de API muestran una banda de error en el panel, reintentables.
 
 ## 10. Estado
-- **Versión del contrato**: v2.0
-- **Último cierre**: 2026-05-11
-- **Iteración actual**: iter-018
+- **Versión del contrato**: v2.0 (IT-10 no cambia el contrato público)
+- **Último cierre**: 2026-07-17 — IT-10 (PLAN_REMEDIACION E17+M13)
+- **Iteración actual**: cerrada
+- **Cambios IT-10**:
+  - E17 — `runSearch` incorpora `worldSearchGenRef` (mismo patrón de generación
+    que el autocompletado): una respuesta de `searchInWorld` obsoleta —por una
+    búsqueda más nueva o por un "Limpiar" posterior (`handleClear` también
+    invalida)— se descarta sin tocar el estado.
+  - M13 — `SOURCE_LABEL` reducido a los 4 `source` del contrato v0.2 y tipado
+    `Record<SearchMatch['source'], string>`; extraído junto a `SOURCE_VAR` a
+    `sourceLabels.ts` (fichero de datos, exportable a tests sin romper la regla
+    `react-refresh/only-export-components`). Etiquetas reservadas v0.3:
+    `tile: 'Tile'`, `liquid: 'Líquido'`, `tile_entity: 'Entidad'` (SP-10).
 - **Decisiones**:
   - `UiState` no incluye `loading-suggest`; la sugerencia es un estado efímero del dropdown sin reflejo en UiState para evitar `setState` síncrono en el efecto (regla `react-hooks/set-state-in-effect`). La limpieza de sugerencias cuando el input se vacía se delega al handler `handleInputChange`.
   - Debounce implementado con `useEffect` + `setTimeout` + ref `isUserTypingRef` + contador de generación `searchGenRef` para ignorar respuestas obsoletas sin necesidad de `AbortController` (ApiClient no expone `AbortSignal`).

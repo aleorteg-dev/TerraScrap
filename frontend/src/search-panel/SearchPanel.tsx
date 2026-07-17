@@ -1,27 +1,11 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ApiClient, ItemSummary, SearchMatch, SearchResult } from '../api-client';
 import { ApiError } from '../api-client';
+import { SOURCE_LABEL, SOURCE_VAR } from './sourceLabels';
 import './SearchPanel.css';
 
 const ROW_HEIGHT = 40;
 const OVERSCAN = 10;
-
-const SOURCE_LABEL: Record<string, string> = {
-  block: 'Bloque',
-  wall: 'Pared',
-  chest: 'Cofre',
-  object: 'Objeto',
-  tile: 'Tile',
-  liquid: 'Líquido',
-  tile_entity: 'Entidad',
-};
-
-const SOURCE_VAR: Record<string, string> = {
-  block: 'var(--src-block)',
-  wall: 'var(--src-wall)',
-  chest: 'var(--src-chest)',
-  object: 'var(--src-object)',
-};
 
 function formatMatchLabel(match: SearchMatch): string {
   const src = SOURCE_LABEL[match.source] ?? match.source;
@@ -62,6 +46,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
   const isUserTypingRef = useRef(false);
   const searchGenRef = useRef(0);
+  // Generación de la búsqueda en mundo (E17): mismo patrón que el
+  // autocompletado; una respuesta obsoleta (búsqueda más nueva o Limpiar
+  // posterior) se descarta sin tocar el estado.
+  const worldSearchGenRef = useRef(0);
   const autocompleteAbortRef = useRef<AbortController | null>(null);
   const focusedMatchIndexRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -144,6 +132,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
   const runSearch = useCallback(
     (item: ItemSummary, containers: boolean): void => {
+      const gen = ++worldSearchGenRef.current;
       focusedMatchIndexRef.current = null;
       setFocusedMatchIndex(null);
       setHiddenSources(new Set());
@@ -153,10 +142,12 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       apiClient
         .searchInWorld(worldId, item.id, containers)
         .then((result) => {
+          if (gen !== worldSearchGenRef.current) return;
           setResults(result);
           setUiState(result.total === 0 ? 'empty' : 'idle');
         })
         .catch((err: unknown) => {
+          if (gen !== worldSearchGenRef.current) return;
           const apiErr =
             err instanceof ApiError ? err : new ApiError('unknown_error', 0, 'Error desconocido');
           setError(apiErr);
@@ -189,6 +180,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const handleClear = useCallback((): void => {
     isUserTypingRef.current = false;
     searchGenRef.current++;
+    worldSearchGenRef.current++;
     autocompleteAbortRef.current?.abort();
     focusedMatchIndexRef.current = null;
     setQuery('');
