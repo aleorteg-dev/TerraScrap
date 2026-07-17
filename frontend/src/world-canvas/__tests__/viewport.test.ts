@@ -5,6 +5,7 @@ import {
   clampZoom,
   zoomAroundCursor,
   visibleChunks,
+  chunkSizeForZoom,
 } from '../viewport';
 
 describe('T-01 screenToWorld maps correctly at zoom=1 and no pan', () => {
@@ -109,5 +110,25 @@ describe('T-05 visibleChunks returns only chunks intersecting viewport', () => {
       expect(cx).toBeLessThanOrEqual(maxCX);
       expect(cy).toBeLessThanOrEqual(maxCY);
     }
+  });
+});
+
+describe('T-25 chunkSizeForZoom picks the chunk size for the current zoom', () => {
+  it('should return 128 for zoom >= 1', () => {
+    expect(chunkSizeForZoom(1)).toBe(128);
+    expect(chunkSizeForZoom(2)).toBe(128);
+    expect(chunkSizeForZoom(8)).toBe(128);
+  });
+
+  it('should return 256 for 0.5 < zoom < 1', () => {
+    expect(chunkSizeForZoom(0.99)).toBe(256);
+    expect(chunkSizeForZoom(0.75)).toBe(256);
+    expect(chunkSizeForZoom(0.51)).toBe(256);
+  });
+
+  it('should return 512 for zoom <= 0.5', () => {
+    expect(chunkSizeForZoom(0.5)).toBe(512);
+    expect(chunkSizeForZoom(0.25)).toBe(512);
+    expect(chunkSizeForZoom(0.095)).toBe(512);
   });
 });

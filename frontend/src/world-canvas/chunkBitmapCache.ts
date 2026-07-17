@@ -6,6 +6,7 @@ import {
   resolveBackgroundBreakpoints,
 } from './tileColors';
 import { computeChunkDimensions } from './chunkDimensions';
+import { createLruCache } from './lruCache';
 import type { DecodedChunkV2 } from './rleDecoder';
 
 // ── Color cache (hex string → [r, g, b]) ────────────────────────────────────
@@ -38,79 +39,39 @@ export interface RenderedChunk {
   worldId: string;
   cx: number;
   cy: number;
+  chunkSize: number;
 }
 
 export interface ChunkBitmapCache {
-  get(worldId: string, cx: number, cy: number): RenderedChunk | undefined;
+  get(worldId: string, chunkSize: number, cx: number, cy: number): RenderedChunk | undefined;
   set(chunk: RenderedChunk): void;
   clearWorld(worldId: string): void;
   size(): number;
 }
 
-export function createChunkBitmapCache(): ChunkBitmapCache {
-  const store = new Map<string, RenderedChunk>();
+// Tope por defecto de bitmaps cacheados (IT-08, P07). A 128px son ~64 KB por
+// canvas y a 512px ~1 MB: el peor caso queda acotado en vez de crecer sin
+// límite al recorrer un mundo grande.
+export const BITMAP_CACHE_MAX_ENTRIES = 256;
+
+export function createChunkBitmapCache(
+  maxEntries: number = BITMAP_CACHE_MAX_ENTRIES
+): ChunkBitmapCache {
+  const store = createLruCache<RenderedChunk>(maxEntries);
   return {
-    get(worldId: string, cx: number, cy: number): RenderedChunk | undefined {
-      return store.get(`${worldId}:${cx}:${cy}`);
+    get(worldId: string, chunkSize: number, cx: number, cy: number): RenderedChunk | undefined {
+      return store.get(`${worldId}:${chunkSize}:${cx}:${cy}`);
     },
     set(chunk: RenderedChunk): void {
-      store.set(`${chunk.worldId}:${chunk.cx}:${chunk.cy}`, chunk);
+      store.set(`${chunk.worldId}:${chunk.chunkSize}:${chunk.cx}:${chunk.cy}`, chunk);
     },
     clearWorld(worldId: string): void {
-      const prefix = `${worldId}:`;
-      for (const key of store.keys()) {
-        if (key.startsWith(prefix)) store.delete(key);
-      }
+      store.clearPrefix(`${worldId}:`);
     },
     size(): number {
-      return store.size;
+      return store.size();
     },
   };
-}
-
-export function renderChunkBitmap(
-  worldId: string,
-  cx: number,
-  cy: number,
-  tiles: Int16Array,
-  chunkSize: number,
-  worldW: number,
-  worldH: number,
-  worldSurfaceY: number,
-  rockLayerY: number,
-  hellLayerY: number,
-  surfaceYByColumn?: readonly number[]
-): RenderedChunk {
-  const dimensions = computeChunkDimensions(cx, cy, chunkSize, worldW, worldH);
-  const canvas = document.createElement('canvas');
-  canvas.width = dimensions.w;
-  canvas.height = dimensions.h;
-  const ctx = canvas.getContext('2d');
-  if (ctx !== null) {
-    // Backdrop matching TerraMap's banding, with per-column open sky when the
-    // backend provides terrain height for irregular surface chunks.
-    paintBackdrop(
-      ctx,
-      cy,
-      chunkSize,
-      dimensions.w,
-      dimensions.h,
-      worldH,
-      worldSurfaceY,
-      rockLayerY,
-      hellLayerY,
-      surfaceYByColumn
-    );
-    for (let ty = 0; ty < dimensions.h; ty++) {
-      for (let tx = 0; tx < dimensions.w; tx++) {
-        const tileId = tiles[ty * dimensions.w + tx] ?? -1;
-        if (tileId < 0) continue;
-        ctx.fillStyle = getTileColor(tileId);
-        ctx.fillRect(tx, ty, 1, 1);
-      }
-    }
-  }
-  return { canvas, worldId, cx, cy };
 }
 
 // Renders a v2 decoded chunk to a bitmap canvas using a single ImageData pass.
@@ -192,44 +153,5 @@ export function renderChunkBitmapV2(
 
     ctx.putImageData(imageData, 0, 0);
   }
-  return { canvas, worldId, cx, cy };
-}
-
-function paintBackdrop(
-  ctx: CanvasRenderingContext2D,
-  cy: number,
-  chunkSize: number,
-  width: number,
-  height: number,
-  worldH: number,
-  worldSurfaceY: number,
-  rockLayerY: number,
-  hellLayerY: number,
-  surfaceYByColumn?: readonly number[]
-): void {
-  const bp = resolveBackgroundBreakpoints(worldH, worldSurfaceY, rockLayerY, hellLayerY);
-  const hasColumnSurface = surfaceYByColumn !== undefined && surfaceYByColumn.length > 0;
-  for (let ty = 0; ty < height; ty++) {
-    const worldY = cy * chunkSize + ty;
-    // Per-column surface_y only refines the sky↔dirt boundary. At or below
-    // bp.rock every column shares the same band (rock or hell), so a single
-    // row fill is correct — and guarantees caves/hell are never repainted as
-    // sky by a bogus per-column value.
-    if (!hasColumnSurface || worldY >= bp.rock) {
-      ctx.fillStyle = getBackgroundColor(worldY, worldSurfaceY, rockLayerY, hellLayerY, worldH);
-      ctx.fillRect(0, ty, width, 1);
-      continue;
-    }
-    for (let tx = 0; tx < width; tx++) {
-      ctx.fillStyle = getBackgroundColor(
-        worldY,
-        worldSurfaceY,
-        rockLayerY,
-        hellLayerY,
-        worldH,
-        surfaceYByColumn[tx] ?? Number.NaN
-      );
-      ctx.fillRect(tx, ty, 1, 1);
-    }
-  }
+  return { canvas, worldId, cx, cy, chunkSize };
 }

@@ -57,9 +57,9 @@ function makeApiClientForMetadata(metadata: WorldMetadata): ApiClient {
 
 function getDrawImageContexts(): Array<{ drawImage: ReturnType<typeof vi.fn> }> {
   const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
-  return mockCtxGet.mock.results.map(
-    (result) => result.value as { drawImage: ReturnType<typeof vi.fn> }
-  );
+  return mockCtxGet.mock.results
+    .map((result) => result.value as { drawImage?: ReturnType<typeof vi.fn> })
+    .filter((ctx): ctx is { drawImage: ReturnType<typeof vi.fn> } => ctx.drawImage !== undefined);
 }
 
 function hasDrawImageCall(
@@ -208,9 +208,17 @@ describe('WorldCanvas', () => {
       fillRect: vi.fn(),
       drawImage: vi.fn() as unknown as CanvasRenderingContext2D['drawImage'],
     };
+    // El renderer unificado v2 (IT-08) rasteriza chunks vía ImageData.
     const chunkCtx = {
       fillStyle: '' as string | CanvasGradient | CanvasPattern,
       fillRect: vi.fn(),
+      createImageData: vi
+        .fn()
+        .mockImplementation(
+          (w: number, h: number): ImageData =>
+            ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }) as ImageData
+        ),
+      putImageData: vi.fn(),
     };
     mockCtxGet.mockImplementation(function (this: HTMLCanvasElement) {
       return (
@@ -285,6 +293,58 @@ describe('WorldCanvas', () => {
         (apiClient.getTilesChunk as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[0] === 'w2')
       ).toBe(true);
     });
+  });
+
+  it('T-23 world change triggers exactly one fetch per visible chunk (E08)', async () => {
+    const apiClient = makeApiClient();
+    const { rerender } = render(
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} />
+    );
+    await waitFor(() => {
+      expect(apiClient.getTilesChunk).toHaveBeenCalled();
+    });
+    (apiClient.getTilesChunk as ReturnType<typeof vi.fn>).mockClear();
+
+    rerender(<WorldCanvas worldId="w2" metadata={mockMeta} apiClient={apiClient} />);
+
+    await waitFor(() => {
+      expect(
+        (apiClient.getTilesChunk as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[0] === 'w2')
+      ).toBe(true);
+    });
+    const calls = (apiClient.getTilesChunk as ReturnType<typeof vi.fn>).mock.calls;
+    const seen = new Map<string, number>();
+    for (const call of calls) {
+      const key = `${String(call[0])}:${String(call[1])}:${String(call[2])}:${String(call[3])}`;
+      seen.set(key, (seen.get(key) ?? 0) + 1);
+    }
+    for (const [key, count] of seen) {
+      expect(count, `chunk ${key} fetched ${String(count)} times`).toBe(1);
+    }
+  });
+
+  it('T-24 layer toggle re-renders without network (E09)', async () => {
+    const apiClient = makeApiClient();
+    const { rerender } = render(
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} showWalls={true} />
+    );
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    await waitFor(() => {
+      const ctx = mockCtxGet.mock.results[0]?.value as { drawImage: ReturnType<typeof vi.fn> };
+      expect(ctx.drawImage).toHaveBeenCalled();
+    });
+    (apiClient.getTilesChunk as ReturnType<typeof vi.fn>).mockClear();
+    const ctx = mockCtxGet.mock.results[0]?.value as { drawImage: ReturnType<typeof vi.fn> };
+    ctx.drawImage.mockClear();
+
+    rerender(
+      <WorldCanvas worldId="w1" metadata={mockMeta} apiClient={apiClient} showWalls={false} />
+    );
+
+    await waitFor(() => {
+      expect(ctx.drawImage).toHaveBeenCalled();
+    });
+    expect(apiClient.getTilesChunk).not.toHaveBeenCalled();
   });
 
   it('T-15 setZoom clamps to minimum 0.25', () => {

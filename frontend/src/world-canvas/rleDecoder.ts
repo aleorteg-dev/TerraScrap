@@ -24,6 +24,26 @@ export function decodeBase64RleV1(payload: string, width: number, height: number
   return tiles;
 }
 
+// Compat v1 → formato unificado (IT-08, M09 / DEC-2): decodifica un payload
+// base64-rle-v1 a un DecodedChunkV2 parcial con solo tileId poblado, de modo
+// que todo chunk se rasterice con el único renderer (renderChunkBitmapV2).
+export function decodeBase64RleV1AsV2(
+  payload: string,
+  width: number,
+  height: number
+): DecodedChunkV2 {
+  const total = width * height;
+  return {
+    tileId: decodeBase64RleV1(payload, width, height),
+    wallId: new Uint16Array(total),
+    liquidType: new Uint8Array(total),
+    liquidAmount: new Uint8Array(total),
+    frameX: new Uint16Array(total),
+    frameY: new Uint16Array(total),
+    flags: new Uint8Array(total),
+  };
+}
+
 // Parallel arrays for a decoded v2 chunk — one entry per tile, row-major order.
 export interface DecodedChunkV2 {
   tileId: Int16Array; // -1 = air

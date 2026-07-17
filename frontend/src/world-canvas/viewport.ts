@@ -47,6 +47,15 @@ export function zoomAroundCursor(
   };
 }
 
+// Tamaño de chunk adaptativo según zoom (IT-08, P03): a menos zoom se ve más
+// mundo, así que se piden chunks más grandes (el backend admite hasta 512)
+// para reducir el número de requests (~1 254 → ~85 en un zoom-to-fit large).
+export function chunkSizeForZoom(zoom: number): 128 | 256 | 512 {
+  if (zoom >= 1) return 128;
+  if (zoom > 0.5) return 256;
+  return 512;
+}
+
 export function visibleChunks(
   view: ViewState,
   canvasW: number,

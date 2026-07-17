@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decodeBase64RleV1, decodeBase64RleV2 } from '../rleDecoder';
+import { decodeBase64RleV1, decodeBase64RleV1AsV2, decodeBase64RleV2 } from '../rleDecoder';
 
 function encodeV2(
   runs: Array<{
@@ -138,5 +138,40 @@ describe('decodeBase64RleV1 compat', () => {
     const payload = btoa(String.fromCharCode(...bytes));
     const result = decodeBase64RleV1(payload, 2, 2);
     expect(Array.from(result)).toEqual([1, 1, -1, -1]);
+  });
+});
+
+describe('decodeBase64RleV1AsV2 (IT-08, M09: unified render path)', () => {
+  function encodeV1Runs(runs: Array<{ tileId: number; count: number }>): string {
+    const bytes = new Uint8Array(runs.length * 4);
+    const dv = new DataView(bytes.buffer);
+    for (let i = 0; i < runs.length; i++) {
+      dv.setInt16(i * 4, runs[i]!.tileId, true);
+      dv.setUint16(i * 4 + 2, runs[i]!.count, true);
+    }
+    return btoa(String.fromCharCode(...bytes));
+  }
+
+  it('should produce a DecodedChunkV2 whose tileId matches the v1 decoder output', () => {
+    const payload = encodeV1Runs([
+      { tileId: 1, count: 2 },
+      { tileId: -1, count: 2 },
+    ]);
+    const result = decodeBase64RleV1AsV2(payload, 2, 2);
+    expect(Array.from(result.tileId)).toEqual(Array.from(decodeBase64RleV1(payload, 2, 2)));
+  });
+
+  it('should leave walls, liquids, frames and flags zeroed with the expected lengths', () => {
+    const payload = encodeV1Runs([{ tileId: 7, count: 4 }]);
+    const result = decodeBase64RleV1AsV2(payload, 2, 2);
+    expect(result.wallId).toHaveLength(4);
+    expect(result.liquidType).toHaveLength(4);
+    expect(result.liquidAmount).toHaveLength(4);
+    expect(result.frameX).toHaveLength(4);
+    expect(result.frameY).toHaveLength(4);
+    expect(result.flags).toHaveLength(4);
+    expect(result.wallId.every((v) => v === 0)).toBe(true);
+    expect(result.liquidType.every((v) => v === 0)).toBe(true);
+    expect(result.flags.every((v) => v === 0)).toBe(true);
   });
 });

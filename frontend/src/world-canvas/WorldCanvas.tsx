@@ -8,18 +8,27 @@ import {
   clampZoom,
   zoomAroundCursor,
   visibleChunks,
+  chunkSizeForZoom,
 } from './viewport';
-import { decodeBase64RleV1, decodeBase64RleV2 } from './rleDecoder';
+import { decodeBase64RleV1AsV2, decodeBase64RleV2, type DecodedChunkV2 } from './rleDecoder';
 import {
   createChunkBitmapCache,
-  renderChunkBitmap,
   renderChunkBitmapV2,
   type ChunkBitmapCache,
-  type RenderedChunk,
 } from './chunkBitmapCache';
 import { computeChunkDimensions } from './chunkDimensions';
+import { createLruCache } from './lruCache';
 
-const CHUNK_SIZE = 128;
+// Tope de chunks decodificados retenidos (IT-08, E09/P07): permite
+// re-rasterizar al togglear capas sin volver a la red, con memoria acotada.
+const DECODED_CACHE_MAX_ENTRIES = 128;
+
+// Chunk decodificado + surface_y por columna del backend, necesario para
+// repintar el backdrop al re-rasterizar sin red.
+interface DecodedChunkEntry {
+  data: DecodedChunkV2;
+  surfaceY?: readonly number[];
+}
 
 // Un click precedido de un drag con más de este desplazamiento acumulado (px)
 // no selecciona tile: terminar un pan no es una selección (IT-07, E07).
@@ -72,6 +81,7 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   const viewRef = useRef<ViewState>({ panX: 0, panY: 0, zoom: ZOOM_LIMITS.initial });
   const viewInitializedRef = useRef(false);
   const bitmapCacheRef = useRef<ChunkBitmapCache>(createChunkBitmapCache());
+  const decodedCacheRef = useRef(createLruCache<DecodedChunkEntry>(DECODED_CACHE_MAX_ENTRIES));
   const pendingRef = useRef(new Set<string>());
   const rafRef = useRef(0);
   const isDraggingRef = useRef(false);
@@ -124,21 +134,22 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = false;
 
+      const chunkSize = chunkSizeForZoom(view.zoom);
       const chunks = visibleChunks(
         view,
         canvas.width,
         canvas.height,
         meta.width,
         meta.height,
-        CHUNK_SIZE
+        chunkSize
       );
 
       for (const { cx, cy } of chunks) {
-        const rendered = bitmapCacheRef.current.get(worldIdRef.current, cx, cy);
+        const rendered = bitmapCacheRef.current.get(worldIdRef.current, chunkSize, cx, cy);
         if (!rendered) continue;
-        const dimensions = computeChunkDimensions(cx, cy, CHUNK_SIZE, meta.width, meta.height);
-        const pixelX = Math.round((cx * CHUNK_SIZE - view.panX) * view.zoom);
-        const pixelY = Math.round((cy * CHUNK_SIZE - view.panY) * view.zoom);
+        const dimensions = computeChunkDimensions(cx, cy, chunkSize, meta.width, meta.height);
+        const pixelX = Math.round((cx * chunkSize - view.panX) * view.zoom);
+        const pixelY = Math.round((cy * chunkSize - view.panY) * view.zoom);
         const pixelWidth = Math.ceil(dimensions.w * view.zoom);
         const pixelHeight = Math.ceil(dimensions.h * view.zoom);
         ctx.drawImage(rendered.canvas, pixelX, pixelY, pixelWidth, pixelHeight);
@@ -172,53 +183,59 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
   // ─── Chunk loading ────────────────────────────────────────────────────────────
 
   const loadChunk = useCallback(
-    (cx: number, cy: number) => {
-      const key = `${cx}:${cy}`;
-      const hasBitmap = bitmapCacheRef.current.get(worldIdRef.current, cx, cy) !== undefined;
-      if (hasBitmap || pendingRef.current.has(key)) return;
+    (cx: number, cy: number, chunkSize: number) => {
+      // worldId y metadata se capturan al lanzar la petición: si el mundo
+      // cambia con el fetch en vuelo, el resultado se archiva bajo el mundo
+      // antiguo (ya purgado) en vez de contaminar el nuevo.
+      const wid = worldIdRef.current;
+      const meta = metadataRef.current;
+      const key = `${wid}:${chunkSize}:${cx}:${cy}`;
+      if (bitmapCacheRef.current.get(wid, chunkSize, cx, cy) !== undefined) return;
+
+      const rasterize = (entry: DecodedChunkEntry): void => {
+        bitmapCacheRef.current.set(
+          renderChunkBitmapV2(
+            wid,
+            cx,
+            cy,
+            entry.data,
+            chunkSize,
+            meta.width,
+            meta.height,
+            meta.world_surface_y,
+            meta.rock_layer_y,
+            meta.hell_layer_y,
+            {
+              showWalls: showWallsRef.current,
+              showLiquids: showLiquidsRef.current,
+              showWires: showWiresRef.current,
+            },
+            entry.surfaceY
+          )
+        );
+      };
+
+      // Camino local (E09): si el chunk ya está decodificado, re-rasterizar
+      // sin tocar la red (p. ej. tras togglear una capa).
+      const cachedEntry = decodedCacheRef.current.get(key);
+      if (cachedEntry !== undefined) {
+        rasterize(cachedEntry);
+        scheduleRedraw();
+        return;
+      }
+
+      if (pendingRef.current.has(key)) return;
       pendingRef.current.add(key);
       apiClientRef.current
-        .getTilesChunk(worldIdRef.current, cx, cy, CHUNK_SIZE, 'base64-rle-v2')
+        .getTilesChunk(wid, cx, cy, chunkSize, 'base64-rle-v2')
         .then((chunk: TilesChunk) => {
-          const meta = metadataRef.current;
-          let rendered: RenderedChunk;
-          if (chunk.encoding === 'base64-rle-v2') {
-            const decoded = decodeBase64RleV2(chunk.payload, chunk.width, chunk.height);
-            rendered = renderChunkBitmapV2(
-              worldIdRef.current,
-              cx,
-              cy,
-              decoded,
-              CHUNK_SIZE,
-              meta.width,
-              meta.height,
-              meta.world_surface_y,
-              meta.rock_layer_y,
-              meta.hell_layer_y,
-              {
-                showWalls: showWallsRef.current,
-                showLiquids: showLiquidsRef.current,
-                showWires: showWiresRef.current,
-              },
-              chunk.surface_y ?? undefined
-            );
-          } else {
-            const tiles = decodeBase64RleV1(chunk.payload, chunk.width, chunk.height);
-            rendered = renderChunkBitmap(
-              worldIdRef.current,
-              cx,
-              cy,
-              tiles,
-              CHUNK_SIZE,
-              meta.width,
-              meta.height,
-              meta.world_surface_y,
-              meta.rock_layer_y,
-              meta.hell_layer_y,
-              chunk.surface_y ?? undefined
-            );
-          }
-          bitmapCacheRef.current.set(rendered);
+          const data =
+            chunk.encoding === 'base64-rle-v2'
+              ? decodeBase64RleV2(chunk.payload, chunk.width, chunk.height)
+              : decodeBase64RleV1AsV2(chunk.payload, chunk.width, chunk.height);
+          const entry: DecodedChunkEntry = { data, surfaceY: chunk.surface_y ?? undefined };
+          decodedCacheRef.current.set(key, entry);
+          rasterize(entry);
           pendingRef.current.delete(key);
           scheduleRedraw();
         })
@@ -236,39 +253,49 @@ export const WorldCanvas: FC<WorldCanvasProps> = ({
     if (!canvas) return;
     const view = viewRef.current;
     const meta = metadataRef.current;
+    const chunkSize = chunkSizeForZoom(view.zoom);
     const chunks = visibleChunks(
       view,
       canvas.width,
       canvas.height,
       meta.width,
       meta.height,
-      CHUNK_SIZE
+      chunkSize
     );
     for (const { cx, cy } of chunks) {
-      loadChunk(cx, cy);
+      loadChunk(cx, cy, chunkSize);
     }
   }, [loadChunk]);
 
-  // ─── worldId change: clear stale caches and reload ───────────────────────────
+  // ─── worldId change: único camino de recarga (E08) ───────────────────────────
+  // La carga inicial la dispara el ResizeObserver al dimensionar el canvas;
+  // aquí solo se reacciona a un cambio real de mundo, purgando las cachés del
+  // anterior sin vaciar pendingRef con fetches del nuevo mundo en vuelo.
 
   const prevWorldIdRef = useRef(worldId);
   useEffect(() => {
     const prevId = prevWorldIdRef.current;
-    if (prevId !== worldId) {
-      bitmapCacheRef.current.clearWorld(prevId);
-      pendingRef.current.clear();
-      prevWorldIdRef.current = worldId;
-      loadVisibleChunks();
-      scheduleRedraw();
-    }
-  }, [worldId, loadVisibleChunks, scheduleRedraw]);
-
-  useEffect(() => {
-    bitmapCacheRef.current.clearWorld(worldId);
+    if (prevId === worldId) return;
+    prevWorldIdRef.current = worldId;
+    bitmapCacheRef.current.clearWorld(prevId);
+    decodedCacheRef.current.clearPrefix(`${prevId}:`);
     pendingRef.current.clear();
     loadVisibleChunks();
     scheduleRedraw();
-  }, [worldId, showWalls, showLiquids, showWires, loadVisibleChunks, scheduleRedraw]);
+  }, [worldId, loadVisibleChunks, scheduleRedraw]);
+
+  // ─── Layer toggles: re-rasterizar desde la caché decodificada (E09) ──────────
+
+  const layersInitializedRef = useRef(false);
+  useEffect(() => {
+    if (!layersInitializedRef.current) {
+      layersInitializedRef.current = true;
+      return;
+    }
+    bitmapCacheRef.current.clearWorld(worldIdRef.current);
+    loadVisibleChunks();
+    scheduleRedraw();
+  }, [showWalls, showLiquids, showWires, loadVisibleChunks, scheduleRedraw]);
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────────
 

@@ -66,6 +66,11 @@ export const WorldCanvas: React.FC<WorldCanvasProps>;
 - **SP-12** (IT-07) Todo cambio de zoom interno (rueda, `setZoom`, `zoomToFit`) notifica al host vía `onZoomChange(zoom)` para que el estado externo no se desincronice.
 - **SP-13** (IT-07) Un click precedido de un drag con desplazamiento acumulado > 5 px NO dispara `onTileClick`/`onTileSelected` (terminar un pan no selecciona tile).
 - **SP-14** (IT-07) `zoomToFit` no clampa por debajo de `ZOOM_LIMITS.min`: en mundos grandes devuelve `min(viewportW/worldW, viewportH/worldH)` aunque sea < min (solo clampa al máximo).
+- **SP-15** (IT-08, E08) Cambiar de mundo dispara **exactamente un fetch por chunk visible**: un único camino de recarga limpia cachés del mundo anterior y relanza; no hay efectos solapados que vacíen `pendingRef` con fetches en vuelo.
+- **SP-16** (IT-08, E09) Togglear capas (paredes/líquidos/cables) re-rasteriza los chunks desde la caché de `DecodedChunkV2` ya descargados; **no** vuelve a la red.
+- **SP-17** (IT-08, P03) El tamaño de chunk pedido al backend es adaptativo según zoom vía `chunkSizeForZoom(zoom)`: `zoom ≥ 1 → 128`, `0.5 < zoom < 1 → 256`, `zoom ≤ 0.5 → 512` (el backend admite hasta 512). Las cachés se indexan por `(worldId, chunkSize, cx, cy)`.
+- **SP-18** (IT-08, P07) Las cachés de bitmaps y de chunks decodificados están acotadas con política LRU (al superar el tope se desaloja la entrada menos recientemente usada).
+- **SP-19** (IT-08, M09) Render unificado: todo chunk se rasteriza con `renderChunkBitmapV2`. Un payload `base64-rle-v1` se decodifica a un `DecodedChunkV2` parcial (solo `tileId`) vía `decodeBase64RleV1AsV2`; el renderer v1 (`renderChunkBitmap`/`paintBackdrop`) queda eliminado. La compat v1 vive solo en el decoder (DEC-2).
 
 ## 6. Plan de tests (TDD)
 Combinación de tests de componente + tests de funciones puras (más barato).
@@ -90,20 +95,28 @@ De componente:
 - [x] `T-12 WorldCanvas should call ctx.drawImage when rendering a loaded chunk`
 - [x] `T-13 WorldCanvas should draw clipped dimensions for edge chunks in a non-multiple world`
 
-Caché de bitmaps (unitarias):
-- [x] `T-C1 renderChunkBitmap should return HTMLCanvasElement sized chunkSize×chunkSize`
-- [x] `T-C2 renderChunkBitmap should call fillRect for non-air tiles`
-- [x] `T-C3 renderChunkBitmap should not call fillRect for air tiles (tileId < 0)`
-- [x] `T-C4 renderChunkBitmap should use correct pixel coordinates (tx, ty, 1, 1)`
+Caché de bitmaps (unitarias — desde IT-08 los tests de dimensiones apuntan al
+renderer unificado `renderChunkBitmapV2` y la caché se indexa también por
+`chunkSize`):
+- [x] `T-C1 renderChunkBitmapV2 should return HTMLCanvasElement sized chunkSize×chunkSize` (+ `chunkSize` en `RenderedChunk`)
 - [x] `T-C5 createChunkBitmapCache should return undefined for missing key`
-- [x] `T-C6 createChunkBitmapCache should retrieve a stored RenderedChunk by worldId, cx, cy`
+- [x] `T-C6 createChunkBitmapCache should retrieve a stored RenderedChunk by worldId, chunkSize, cx, cy`
 - [x] `T-C7 createChunkBitmapCache clearWorld should remove only chunks for that worldId`
 - [x] `T-C8 createChunkBitmapCache size should reflect cache count after set and clearWorld`
-- [x] `T-C9 renderChunkBitmap should size right-edge chunk bitmap to clipped world width`
-- [x] `T-C10 renderChunkBitmap should size bottom-edge chunk bitmap to clipped world height`
-- [x] `T-C11 renderChunkBitmap should size bottom-right chunk bitmap to both clipped dimensions`
-- [x] `T-C12 renderChunkBitmap should keep full chunk dimensions when world dimensions are multiples of chunkSize`
-- [x] `T-C13 renderChunkBitmap should use clipped width as row stride for partial chunks`
+- [x] `T-C9 renderChunkBitmapV2 should size right-edge chunk bitmap to clipped world width`
+- [x] `T-C10 renderChunkBitmapV2 should size bottom-edge chunk bitmap to clipped world height`
+- [x] `T-C11 renderChunkBitmapV2 should size bottom-right chunk bitmap to both clipped dimensions`
+- [x] `T-C12 renderChunkBitmapV2 should keep full chunk dimensions when world dimensions are multiples of chunkSize`
+- [x] `T-C13 renderChunkBitmapV2 should use clipped width as row stride for partial chunks`
+- [x] `T-C14 should evict the least recently used chunk when the cap is exceeded (P07)`
+- [x] `T-C15 get should refresh recency so a recently drawn chunk survives eviction`
+- (T-C2/C3/C4 eliminados con el renderer v1: su comportamiento lo cubren los `T-VL-*` del renderer v2)
+
+LRU genérica (`lruCache.ts`, IT-08):
+- [x] `should evict the least recently used entry when the cap is exceeded`
+- [x] `should refresh recency on get so a recently read entry survives eviction`
+- [x] `should refresh recency on set of an existing key without growing`
+- [x] `clearPrefix should remove only entries whose key starts with the prefix`
 
 Decoder v2 (iter-16):
 - [x] `T-V2-1 decodes tile_id, wall_id, liquid_type, liquid_amount from single run`
@@ -115,6 +128,8 @@ Decoder v2 (iter-16):
 - [x] `T-V2-7 multiple runs fill correct indices in row-major order`
 - [x] `T-V2-8 run with no frame entry leaves frameX/Y=0 when has_frame set`
 - [x] `T-V1-COMPAT v1 decoder output unchanged`
+- [x] `decodeBase64RleV1AsV2 should produce a DecodedChunkV2 whose tileId matches the v1 decoder output` (IT-08)
+- [x] `decodeBase64RleV1AsV2 should leave walls, liquids, frames and flags zeroed` (IT-08)
 
 Render por capas v2 (iter-16):
 - [x] `T-VL-1 draws wall color for wall_id > 0`
@@ -140,15 +155,21 @@ Interacción/zoom (IT-07):
 - [x] `T-22 ZOOM_LIMITS exported from index with min/max/initial/step`
 - [x] `T-15c` adaptado: `zoomToFit` en mundo 4200×1200 devuelve ~0.19 (ya sin clamp a 0.25)
 
+Pipeline de datos (IT-08):
+- [x] `T-23 world change triggers exactly one fetch per visible chunk (E08)`
+- [x] `T-24 layer toggle re-renders without network (E09)`
+- [x] `T-25 chunkSizeForZoom picks the chunk size for the current zoom` (≥1→128, <1→256, ≤0.5→512)
+
 ## 7. Notas de implementación
-- Chunk size nominal: 128x128 tiles. En los bordes derecho e inferior, el bitmap usa el tamano real devuelto por `computeChunkDimensions`; no se anade padding hasta 128x128. Cada chunk se pinta a un `HTMLCanvasElement` cacheado; al redibujar, se copia a `ctx.drawImage()` con dimensiones escaladas por zoom.
+- Chunk size **adaptativo** (IT-08, P03): `chunkSizeForZoom(zoom)` en `viewport.ts` decide el tamaño pedido al backend (128/256/512). En los bordes derecho e inferior, el bitmap usa el tamano real devuelto por `computeChunkDimensions`; no se anade padding. Cada chunk se pinta a un `HTMLCanvasElement` cacheado; al redibujar, se copia a `ctx.drawImage()` con dimensiones escaladas por zoom.
 - Paleta: `tileColors.ts` expone `getTileColor`, `getWallColor`, `getLiquidColor`. Sprites detallados pospuestos.
-- `base64-rle-v1`: runs `(tileId: int16, count: uint16)`, decodifica a `Int16Array`.
+- `base64-rle-v1`: runs `(tileId: int16, count: uint16)`, decodifica a `Int16Array` (`decodeBase64RleV1`, se mantiene por DEC-2). `decodeBase64RleV1AsV2` lo adapta a un `DecodedChunkV2` parcial (solo `tileId`) para el renderer unificado.
 - `base64-rle-v2`: header "TWv2" (8 bytes) + runs (10 bytes cada uno) + FRAME_BLOCK (6 bytes/entrada). Implementado en `decodeBase64RleV2` → `DecodedChunkV2`.
-- Render v2 en 3 pasadas: walls → tiles → liquids (función `renderChunkBitmapV2`).
+- Render **unificado** (IT-08, M09): todo chunk pasa por `renderChunkBitmapV2` (backdrop → wall → tile → liquid → wire, una pasada de ImageData). El renderer v1 (`renderChunkBitmap`/`paintBackdrop`) fue eliminado.
+- Cachés acotadas (IT-08, P07): `lruCache.ts` expone `createLruCache` (Map con orden de inserción; get/set refrescan recencia). La caché de bitmaps (`createChunkBitmapCache`, tope 256) y la de chunks decodificados (`DecodedChunkEntry = { data, surfaceY }`, tope 128, en `WorldCanvas`) se indexan por `worldId:chunkSize:cx:cy`.
 - Zoom rango `[0.25, 8]`. Centrado en cursor via `zoomAroundCursor`.
-- Viewport inicial centrado en `spawn_x/spawn_y` de `WorldMetadataDto`.
-- worldId change: limpia `bitmapCacheRef`, `pendingRef` y recarga chunks.
+- Viewport inicial centrado en `spawn_x/spawn_y` de `WorldMetadataDto` (la carga inicial la dispara el ResizeObserver al dimensionar el canvas).
+- worldId change (IT-08, E08): un único efecto purga bitmaps + decodificados + `pendingRef` del mundo anterior y recarga — exactamente un fetch por chunk visible. Toggle de capas (E09): re-rasteriza desde la caché decodificada, sin red. `worldId`/`metadata` se capturan al lanzar cada fetch para no archivar respuestas tardías bajo el mundo nuevo.
 - `exportToPng()`: `canvas.toBlob('image/png')` devuelve `Promise<Blob>`.
 - Tipos migrados de `types.ts` local a `../api-client` (F1). `types.ts` eliminado.
 - El estado de pan/zoom vive en `useRef` para no provocar re-renders; el dibujo se dispara imperativamente.
@@ -161,9 +182,29 @@ Interacción/zoom (IT-07):
 - Fallos de API delegados por `onError` del host (v1.1 opcional).
 
 ## 10. Estado
-- **Versión del contrato**: v2.1 (IT-07: `onZoomChange`, `ZOOM_LIMITS`, `zoomToFit` sin clamp inferior)
-- **Último cierre**: 2026-07-16 — IT-07 (PLAN_REMEDIACION E05+E07+E15+D04 parte): interacción/zoom
+- **Versión del contrato**: v2.1 (IT-07: `onZoomChange`, `ZOOM_LIMITS`, `zoomToFit` sin clamp inferior; IT-08 no cambia el contrato público)
+- **Último cierre**: 2026-07-17 — IT-08 (PLAN_REMEDIACION E08+E09+P03+P07+M09): pipeline de datos
 - **Iteración actual**: cerrada
+
+### 10.-1. Cambios IT-08 (pipeline de datos, sin cambio de contrato)
+
+- E08 — eliminado el efecto solapado que vaciaba `pendingRef` con fetches en
+  vuelo: cambiar de mundo dispara exactamente un fetch por chunk visible
+  (SP-15, test T-23).
+- E09 — nueva caché LRU de `DecodedChunkV2` (+`surface_y` por columna): togglear
+  paredes/líquidos/cables re-rasteriza en local sin volver a la red (SP-16,
+  test T-24).
+- P03 — `chunkSizeForZoom(zoom)`: 128 (zoom ≥ 1), 256 (0.5 < zoom < 1), 512
+  (zoom ≤ 0.5). Un zoom-to-fit de mundo large pasa de ~1 254 requests a ~85
+  (SP-17, test T-25). Cachés y `pendingRef` indexadas por
+  `worldId:chunkSize:cx:cy`.
+- P07 — cachés acotadas con LRU (`lruCache.ts`): bitmaps tope 256, decodificados
+  tope 128 (SP-18, tests T-C14/T-C15 y suite `lruCache`).
+- M09 — renderer v1 (`renderChunkBitmap` + `paintBackdrop`) eliminado; los
+  payloads v1 se adaptan con `decodeBase64RleV1AsV2` y todo se rasteriza con
+  `renderChunkBitmapV2` (SP-19). `decodeBase64RleV1` se conserva (DEC-2).
+- `RenderedChunk` incorpora `chunkSize`; `ChunkBitmapCache.get` pasa a
+  `(worldId, chunkSize, cx, cy)` (módulo interno, no exportado en `index.ts`).
 
 ### 10.0. Cambios v2.1 (IT-07) 🔶
 
@@ -228,7 +269,7 @@ Interacción/zoom (IT-07):
 
 ## 12. Deuda / follow-ups
 
-- **OffscreenCanvas**: `renderChunkBitmap` usa `HTMLCanvasElement`. Migrar a `OffscreenCanvas` para eliminar overhead de DOM en el hilo principal. Requiere feature-detection (`typeof OffscreenCanvas !== 'undefined'`) y actualización del mock en tests.
+- **OffscreenCanvas**: `renderChunkBitmapV2` usa `HTMLCanvasElement`. Migrar a `OffscreenCanvas` para eliminar overhead de DOM en el hilo principal. Requiere feature-detection (`typeof OffscreenCanvas !== 'undefined'`) y actualización del mock en tests.
 - **Eliminar `chunkCacheRef`**: cerrado 2026-05-19; la deduplicación usa `bitmapCacheRef` + `pendingRef`.
 - **Mipmap zoom-out**: SP-08 del doc menciona chunks "mipmap" reducidos para zoom extremo. No implementado en v1.
 - **Pinch-to-zoom táctil**: SP-04. No implementado en v1; requires TouchEvent handling.
