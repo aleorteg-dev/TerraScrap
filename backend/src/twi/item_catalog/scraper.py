@@ -35,6 +35,9 @@ _WIKI_ITEMS_URL = f"{_WIKI_BASE_URL}/wiki/Item_IDs"
 _CACHE_SCHEMA: int = 2
 _MAX_RETRIES: int = 3
 _BACKOFF_SECONDS: tuple[float, ...] = (1.0, 2.0, 4.0)
+# Paralelismo acotado del enrich (IT-OPT-6, P09): ~6k páginas una a una eran
+# horas de CLI; 6 en vuelo mantiene la carga sobre wiki.gg moderada.
+_ENRICH_CONCURRENCY: int = 6
 
 _log = logging.getLogger(__name__)
 
@@ -185,22 +188,31 @@ async def _enrich_items(
     links: dict[int, str],
     client: HttpClient,
 ) -> None:
-    for entry in items:
+    """Enrich each item from its wiki page, _ENRICH_CONCURRENCY pages in flight.
+
+    Semantics match the old sequential loop: 404 → warn + keep empty fields;
+    the first 5xx aborts the whole run with WikiUnavailableError (the cache is
+    never written). Per-request retry/backoff lives in _get_with_retry.
+    """
+    semaphore = asyncio.Semaphore(_ENRICH_CONCURRENCY)
+
+    async def _enrich_one(entry: _ScrapedItem) -> None:
         item_id = int(entry["id"])
         url = links.get(item_id)
         if url is None:
-            continue
-        resp = await _get_with_retry(client, url)
+            return
+        async with semaphore:
+            resp = await _get_with_retry(client, url)
 
         status = resp.status_code
         if status == 404:
             _log.warning("Item %d page 404 (%s); keeping empty fields", item_id, url)
-            continue
+            return
         if 500 <= status < 600:
             raise WikiUnavailableError(f"Wiki returned {status} for item page {url}")
         if status != 200:
             _log.warning("Item %d page status %d (%s); skipping", item_id, status, url)
-            continue
+            return
 
         details = _parse_item_detail(resp.text)
         if "sprite_url" in details:
@@ -211,6 +223,13 @@ async def _enrich_items(
             entry["rarity"] = details["rarity"]
         if "tooltip" in details:
             entry["tooltip"] = details["tooltip"]
+
+    results = await asyncio.gather(
+        *(_enrich_one(entry) for entry in items), return_exceptions=True
+    )
+    for result in results:
+        if isinstance(result, BaseException):
+            raise result
 
 
 def _parse_item_detail(html: str) -> _ItemPatch:

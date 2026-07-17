@@ -24,6 +24,7 @@ T-21  test_search_mixed_alphanumeric_uses_name_branch
 T-22  test_refresh_cli_creates_output_parent_and_runs
 """
 
+import asyncio
 import json
 import logging
 import sys
@@ -662,6 +663,41 @@ def test_bundled_seed_loads(tmp_path: Path) -> None:
     zen = catalog.get(4956)
     assert zen.id == 4956
     assert zen.name == "Zenith"
+
+
+# T-32 (IT-OPT-6) enrich runs page fetches concurrently, bounded by semaphore.
+async def test_enrich_items_fetches_pages_concurrently_with_bounded_parallelism() -> (
+    None
+):
+    in_flight = 0
+    max_in_flight = 0
+
+    class _SlowClient:
+        async def get(self, url: str) -> httpx.Response:
+            nonlocal in_flight, max_in_flight
+            in_flight += 1
+            max_in_flight = max(max_in_flight, in_flight)
+            await asyncio.sleep(0.01)
+            in_flight -= 1
+            return httpx.Response(200, text="<html></html>")
+
+    items: list[scraper_mod._ScrapedItem] = [
+        {
+            "id": i,
+            "name": f"Item {i}",
+            "sprite_url": "",
+            "category": "",
+            "rarity": 0,
+            "tooltip": None,
+        }
+        for i in range(1, 13)
+    ]
+    links = {i: f"https://terraria.wiki.gg/wiki/Item_{i}" for i in range(1, 13)}
+
+    await scraper_mod._enrich_items(items, links, _SlowClient())
+
+    assert max_in_flight > 1, "enrich must overlap page fetches (P09)"
+    assert max_in_flight <= scraper_mod._ENRICH_CONCURRENCY
 
 
 # T-31 (IT-17) duplicate item ids in the source are deduped, first entry wins.

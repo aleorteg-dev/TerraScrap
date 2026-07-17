@@ -139,6 +139,16 @@ Seed bundled: `backend/src/twi/item_catalog/data/items.seed.json` (schema v1, ~1
 - **Último cierre**: 2026-07-17 — IT-17 (PLAN_REMEDIACION M05+M06+M07+G07)
 - **Iteración actual**: cerrada
 
+### Cambios IT-OPT-6 (sin cambio de contrato)
+
+- P09 — `_enrich_items` deja de ser secuencial (6 146 páginas una a una): las
+  peticiones por ítem corren en paralelo acotado con
+  `asyncio.Semaphore(_ENRICH_CONCURRENCY = 6)` + `gather`. El backoff por
+  petición sigue viviendo en `_get_with_retry`. Semántica preservada: 404 →
+  skip con warning; el primer 5xx sigue abortando con `WikiUnavailableError`
+  (se recogen resultados con `return_exceptions=True` y se relanza la primera
+  excepción; la caché no se escribe). Solo afecta al CLI `refresh.py`.
+
 ### Cambios IT-17 (sin cambio de contrato)
 
 - M05 — `_parse_id`: `except (ValueError, OverflowError)` → `except ValueError`
