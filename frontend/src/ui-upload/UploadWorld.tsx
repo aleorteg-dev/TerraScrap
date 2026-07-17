@@ -35,8 +35,10 @@ function friendlyUploadError(err: ApiError): string {
     case 'invalid_wld':
       return 'No pudimos leer ese mundo. Prueba con otro archivo de Terraria.';
     case 'unsupported_version':
-    case 'api_version_mismatch':
       return 'Ese mundo no se puede abrir todavía en TerraScrap.';
+    case 'api_version_mismatch':
+      // Desajuste de despliegue front/back, no un problema del fichero (E21).
+      return 'La aplicación necesita actualizarse. Recarga la página e inténtalo de nuevo.';
     case 'network_error':
       return 'No se pudo conectar. Revisa la conexión e inténtalo de nuevo.';
     default:

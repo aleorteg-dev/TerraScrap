@@ -88,6 +88,21 @@ describe('UploadWorld', () => {
     await waitFor(() => expect(onError).toHaveBeenCalledWith(error));
   });
 
+  it('T-14 api_version_mismatch shows its own update message, not the file one (E21)', async () => {
+    const error = new ApiError('api_version_mismatch', 409, 'Version mismatch');
+    const { client } = makeApiClient(vi.fn().mockRejectedValue(error));
+    render(<UploadWorld onUploaded={vi.fn()} apiClient={client} />);
+    const input = screen.getByLabelText(fileInputLabel);
+    fireEvent.change(input, { target: { files: [makeFile('world.wld', 1024)] } });
+
+    // El problema es de despliegue front/back, no del fichero del usuario:
+    // el mensaje pide recargar la aplicación y no culpa al mundo.
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/necesita actualizarse/i);
+    expect(alert).toHaveTextContent(/recarga la página/i);
+    expect(alert).not.toHaveTextContent(/no se puede abrir/i);
+  });
+
   it('shows loading state while uploading', async () => {
     const neverResolve = new Promise<{ worldId: string; metadata: WorldMetadata }>(() => {});
     const { client } = makeApiClient(vi.fn().mockReturnValue(neverResolve));
