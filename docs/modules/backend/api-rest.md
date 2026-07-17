@@ -165,6 +165,25 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 - **Último cierre**: 2026-07-17 (IT-13 remediación — P01 caché de `surface_y`)
 - **Iteración actual**: cerrada
 
+### 10.-2. Cambios IT-14 (P02 + P06, sin cambio de contrato)
+
+- P02 — `GET /tiles` cachea el chunk codificado: LRU
+  `(world_id, chunk_x, chunk_y, chunk_size, encoding) → (w, h, payload)` con
+  `_CHUNK_CACHE_MAX_ENTRIES = 512` entradas en el closure del router. La 2ª
+  petición del mismo chunk devuelve el payload idéntico sin re-recorrer ni
+  re-encodear los tiles.
+- P06 — `GET /tile` deja de hacer scans lineales de chests/signs/tile_entities
+  por petición: índice por mundo `_WorldPosIndex` (tres
+  `dict[tuple[int,int], int]`, construidos on-demand por
+  `_build_position_index`) cacheado por `world_id` con el mismo tope pequeño
+  que la caché de surface de IT-13 (4 mundos). Semántica preservada: ante
+  posiciones duplicadas gana la **primera** entrada (equivale al `break` del
+  scan anterior).
+- Infra: patrón LRU unificado en la clase módulo-level `_LruCache[K, V]`
+  (OrderedDict + lock; `get` refresca recencia, `put` desaloja el más
+  antiguo, `pop`/`pop_world` invalidan). La caché de surface de IT-13 migra a
+  esta clase. `DELETE /worlds/{id}` invalida las tres cachés.
+
 ### 10.-1. Cambios IT-13 (P01, sin cambio de contrato)
 
 - `GET /tiles` ya no recorre la columna completa del mundo en cada petición:

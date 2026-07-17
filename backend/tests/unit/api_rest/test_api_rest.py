@@ -1146,6 +1146,167 @@ def test_tiles_surface_cache_lru_evicts_least_recently_used(
 
 
 # ---------------------------------------------------------------------------
+# IT-14 (P02) – encoded chunk payload cache
+# ---------------------------------------------------------------------------
+
+
+def _count_chunk_encodes(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    """Wrap both chunk encoders with call counters."""
+    import twi.api_rest.router as router_module
+
+    calls = {"v1": 0, "v2": 0}
+    original_v1 = router_module._encode_chunk
+    original_v2 = router_module._encode_chunk_v2
+
+    def counting_v1(
+        tiles: TileGrid, chunk_x: int, chunk_y: int, chunk_size: int
+    ) -> tuple[int, int, str]:
+        calls["v1"] += 1
+        return original_v1(tiles, chunk_x, chunk_y, chunk_size)
+
+    def counting_v2(
+        tiles: TileGrid, chunk_x: int, chunk_y: int, chunk_size: int
+    ) -> tuple[int, int, str]:
+        calls["v2"] += 1
+        return original_v2(tiles, chunk_x, chunk_y, chunk_size)
+
+    monkeypatch.setattr(router_module, "_encode_chunk", counting_v1)
+    monkeypatch.setattr(router_module, "_encode_chunk_v2", counting_v2)
+    return calls
+
+
+def test_tiles_chunk_encoded_once_per_cache_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The 2nd GET of the same chunk serves the identical payload uncomputed."""
+    calls = _count_chunk_encodes(monkeypatch)
+    repo = _FakeRepo()
+    world_id = repo.store(_surface_world([[_AIR, _AIR, _DIRT], [_AIR, _DIRT, _DIRT]]))
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+    params = {"chunk_x": 0, "chunk_y": 0, "chunk_size": 2}
+
+    first = client.get(f"/api/worlds/{world_id}/tiles", params=params)
+    second = client.get(f"/api/worlds/{world_id}/tiles", params=params)
+    assert first.status_code == second.status_code == 200
+    assert first.json() == second.json()
+    assert calls["v1"] == 1
+
+    # A different cache key (encoding / chunk coords) is a fresh encode.
+    v2_params = {**params, "encoding": "base64-rle-v2"}
+    client.get(f"/api/worlds/{world_id}/tiles", params=v2_params)
+    client.get(f"/api/worlds/{world_id}/tiles", params=v2_params)
+    assert calls["v2"] == 1
+
+    client.get(f"/api/worlds/{world_id}/tiles", params={**params, "chunk_x": 1})
+    assert calls["v1"] == 2
+
+
+def test_tiles_chunk_cache_invalidated_on_world_delete() -> None:
+    """DELETE must drop cached payloads so a reused id is re-encoded."""
+    repo = _FakeRepo()
+    world_id = repo.store(_surface_world([[_AIR, _AIR]]))
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+    params = {"chunk_x": 0, "chunk_y": 0, "chunk_size": 2}
+
+    first = client.get(f"/api/worlds/{world_id}/tiles", params=params)
+    assert first.status_code == 200
+
+    assert client.delete(f"/api/worlds/{world_id}").status_code == 204
+    repo._worlds[world_id] = _surface_world([[_DIRT, _DIRT]])
+
+    second = client.get(f"/api/worlds/{world_id}/tiles", params=params)
+    assert second.status_code == 200
+    assert second.json()["payload"] != first.json()["payload"]
+
+
+# ---------------------------------------------------------------------------
+# IT-14 (P06) – (x, y) position index for chests/signs/tile entities
+# ---------------------------------------------------------------------------
+
+
+def _detail_world() -> World:
+    grid = TileGrid([[_DIRT, _DIRT], [_DIRT, _DIRT]])
+    meta = WorldMetadata(
+        name="detail",
+        width=2,
+        height=2,
+        version=269,
+        seed="0",
+        size="small",
+        hardmode=False,
+    )
+    chests = (
+        Chest(chest_id=7, x=0, y=1, name="first", items=()),
+        Chest(chest_id=9, x=0, y=1, name="duplicate", items=()),
+    )
+    signs = (
+        Sign(x=1, y=0, text="first sign"),
+        Sign(x=1, y=0, text="duplicate sign"),
+    )
+    tile_entities = [
+        TileEntity(id=3, entity_type=1, x=1, y=1, data={}),
+        TileEntity(id=5, entity_type=1, x=1, y=1, data={}),
+    ]
+    return World(
+        metadata=meta,
+        tiles=grid,
+        chests=chests,
+        signs=signs,
+        tile_entities=tile_entities,
+    )
+
+
+def test_tile_detail_first_duplicate_position_wins() -> None:
+    """Index lookups keep the old scan semantics: first entry wins."""
+    repo = _FakeRepo()
+    world_id = repo.store(_detail_world())
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    chest = client.get(f"/api/worlds/{world_id}/tile", params={"x": 0, "y": 1})
+    assert chest.status_code == 200
+    assert chest.json()["chest_id"] == 7
+
+    sign = client.get(f"/api/worlds/{world_id}/tile", params={"x": 1, "y": 0})
+    assert sign.json()["sign_id"] == 0
+
+    entity = client.get(f"/api/worlds/{world_id}/tile", params={"x": 1, "y": 1})
+    assert entity.json()["tile_entity_id"] == 3
+
+    empty = client.get(f"/api/worlds/{world_id}/tile", params={"x": 0, "y": 0})
+    body = empty.json()
+    assert body["chest_id"] is None
+    assert body["sign_id"] is None
+    assert body["tile_entity_id"] is None
+
+
+def test_tile_detail_position_index_built_once_per_world(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated GET /tile must not rescan chests/signs/entities."""
+    import twi.api_rest.router as router_module
+
+    calls = {"n": 0}
+    original = router_module._build_position_index
+
+    def counting(world: World) -> object:
+        calls["n"] += 1
+        return original(world)
+
+    monkeypatch.setattr(router_module, "_build_position_index", counting)
+
+    repo = _FakeRepo()
+    world_id = repo.store(_detail_world())
+    client = _make_client(repo, _FakeCatalog([]), _FakeSearch(_SEARCH_RESULT))
+
+    for coords in ({"x": 0, "y": 1}, {"x": 1, "y": 0}, {"x": 1, "y": 1}):
+        assert (
+            client.get(f"/api/worlds/{world_id}/tile", params=coords).status_code == 200
+        )
+
+    assert calls["n"] == 1
+
+
+# ---------------------------------------------------------------------------
 # T-14 – Chunk index (1, 0) maps to correct tiles, not absolute coords
 # ---------------------------------------------------------------------------
 

@@ -408,6 +408,78 @@ def _world_surface_y_by_column(tiles: TileGrid, world_surface_y: float) -> list[
 # while covering the single-session usage pattern (IT-13, P01).
 _SURFACE_CACHE_MAX_WORLDS: Final = 4
 
+# Encoded chunk payloads kept per router (IT-14, P02). At the default 128-tile
+# chunk size a large world is ~1300 chunks; 512 entries cover the visible
+# viewport plus pan headroom while bounding memory.
+_CHUNK_CACHE_MAX_ENTRIES: Final = 512
+
+
+class _LruCache[K, V]:
+    """Thread-safe LRU used by the router read caches (IT-13/IT-14).
+
+    ``get`` refreshes recency; ``put`` evicts the least recently used entry
+    once ``max_entries`` is exceeded. Worlds are immutable in session, so
+    entries only need invalidation on DELETE (``pop``/``pop_where``).
+    """
+
+    def __init__(self, max_entries: int) -> None:
+        self._data: OrderedDict[K, V] = OrderedDict()
+        self._max = max_entries
+        self._lock = threading.Lock()
+
+    def get(self, key: K) -> V | None:
+        with self._lock:
+            value = self._data.get(key)
+            if value is not None:
+                self._data.move_to_end(key)
+            return value
+
+    def put(self, key: K, value: V) -> None:
+        with self._lock:
+            self._data[key] = value
+            self._data.move_to_end(key)
+            while len(self._data) > self._max:
+                self._data.popitem(last=False)
+
+    def pop(self, key: K) -> None:
+        with self._lock:
+            self._data.pop(key, None)
+
+    def pop_where(self, predicate: Callable[[K], bool]) -> None:
+        with self._lock:
+            for key in [k for k in self._data if predicate(k)]:
+                del self._data[key]
+
+
+@dataclass(frozen=True)
+class _WorldPosIndex:
+    """(x, y) → id lookups for GET /tile (IT-14, P06).
+
+    Built in one pass per world; on duplicate positions the FIRST entry wins,
+    matching the break-on-first-hit semantics of the linear scans it replaces.
+    """
+
+    chest_by_pos: Mapping[tuple[int, int], int]
+    sign_by_pos: Mapping[tuple[int, int], int]
+    tile_entity_by_pos: Mapping[tuple[int, int], int]
+
+
+def _build_position_index(world: World) -> _WorldPosIndex:
+    chest_by_pos: dict[tuple[int, int], int] = {}
+    for chest in world.chests:
+        chest_by_pos.setdefault((chest.x, chest.y), chest.chest_id)
+    sign_by_pos: dict[tuple[int, int], int] = {}
+    for sign_idx, sign in enumerate(world.signs):
+        sign_by_pos.setdefault((sign.x, sign.y), sign_idx)
+    tile_entity_by_pos: dict[tuple[int, int], int] = {}
+    for entity in world.tile_entities:
+        tile_entity_by_pos.setdefault((entity.x, entity.y), entity.id)
+    return _WorldPosIndex(
+        chest_by_pos=chest_by_pos,
+        sign_by_pos=sign_by_pos,
+        tile_entity_by_pos=tile_entity_by_pos,
+    )
+
 
 def _encode_chunk(
     tiles: TileGrid,
@@ -551,30 +623,36 @@ def create_router(
     clock: Callable[[], datetime] = _clock if _clock is not None else _utcnow
     jobs = _ImportJobStore(ttl_seconds=job_ttl_seconds, clock=clock)
 
-    # Caché LRU del surface_y por columna del mundo entero (IT-13, P01).
-    # world_id → list[int] de longitud world.width; el mundo es inmutable en
-    # sesión, así que la entrada solo se invalida en DELETE o por desalojo.
-    surface_cache: OrderedDict[str, list[int]] = OrderedDict()
-    surface_cache_lock = threading.Lock()
+    # Cachés de lectura del router (IT-13/IT-14). Los mundos son inmutables en
+    # sesión: las entradas solo se invalidan en DELETE o por desalojo LRU.
+    surface_cache: _LruCache[str, list[int]] = _LruCache(_SURFACE_CACHE_MAX_WORLDS)
+    pos_index_cache: _LruCache[str, _WorldPosIndex] = _LruCache(
+        _SURFACE_CACHE_MAX_WORLDS
+    )
+    chunk_cache: _LruCache[tuple[str, int, int, int, str], tuple[int, int, str]] = (
+        _LruCache(_CHUNK_CACHE_MAX_ENTRIES)
+    )
 
     def _cached_surface(world_id: str, world: World) -> list[int]:
-        with surface_cache_lock:
-            cached = surface_cache.get(world_id)
-            if cached is not None:
-                surface_cache.move_to_end(world_id)
-                return cached
+        cached = surface_cache.get(world_id)
+        if cached is not None:
+            return cached
         wsurface = (
             world.metadata.world_surface_y
             if world.metadata.world_surface_y is not None
             else 0.0
         )
         computed = _world_surface_y_by_column(world.tiles, wsurface)
-        with surface_cache_lock:
-            surface_cache[world_id] = computed
-            surface_cache.move_to_end(world_id)
-            while len(surface_cache) > _SURFACE_CACHE_MAX_WORLDS:
-                surface_cache.popitem(last=False)
+        surface_cache.put(world_id, computed)
         return computed
+
+    def _cached_pos_index(world_id: str, world: World) -> _WorldPosIndex:
+        cached = pos_index_cache.get(world_id)
+        if cached is not None:
+            return cached
+        built = _build_position_index(world)
+        pos_index_cache.put(world_id, built)
+        return built
 
     import_parser: _ImportParserFn = (
         _import_parser
@@ -735,8 +813,9 @@ def create_router(
             return error_response(
                 404, "world_not_found", f"World '{world_id}' not found."
             )
-        with surface_cache_lock:
-            surface_cache.pop(world_id, None)
+        surface_cache.pop(world_id)
+        pos_index_cache.pop(world_id)
+        chunk_cache.pop_where(lambda key: key[0] == world_id)
         return Response(status_code=204, headers=API_VERSION_HEADERS)
 
     @router.get(
@@ -766,8 +845,13 @@ def create_router(
         enc_name: Literal["base64-rle-v1", "base64-rle-v2"] = (
             "base64-rle-v2" if encoding == "base64-rle-v2" else "base64-rle-v1"
         )
-        encode = _encode_chunk_v2 if enc_name == "base64-rle-v2" else _encode_chunk
-        w, h, payload = encode(world.tiles, chunk_x, chunk_y, chunk_size)
+        cache_key = (world_id, chunk_x, chunk_y, chunk_size, encoding)
+        encoded = chunk_cache.get(cache_key)
+        if encoded is None:
+            encode = _encode_chunk_v2 if enc_name == "base64-rle-v2" else _encode_chunk
+            encoded = encode(world.tiles, chunk_x, chunk_y, chunk_size)
+            chunk_cache.put(cache_key, encoded)
+        w, h, payload = encoded
         full_surface = _cached_surface(world_id, world)
         start_x = chunk_x * chunk_size
         return _ok(
@@ -802,21 +886,10 @@ def create_router(
                 {"x": x, "y": y, "width": w, "height": h},
             )
         tile = world.tiles[x][y]
-        chest_id: int | None = None
-        for c in world.chests:
-            if c.x == x and c.y == y:
-                chest_id = c.chest_id
-                break
-        sign_id: int | None = None
-        for idx, s in enumerate(world.signs):
-            if s.x == x and s.y == y:
-                sign_id = idx
-                break
-        tile_entity_id: int | None = None
-        for te in world.tile_entities:
-            if te.x == x and te.y == y:
-                tile_entity_id = te.id
-                break
+        index = _cached_pos_index(world_id, world)
+        chest_id = index.chest_by_pos.get((x, y))
+        sign_id = index.sign_by_pos.get((x, y))
+        tile_entity_id = index.tile_entity_by_pos.get((x, y))
         return _ok(
             TileDetailDto(
                 x=x,
