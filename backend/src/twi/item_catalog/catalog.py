@@ -6,9 +6,31 @@ import sys
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol, TypedDict
 
 _logger = logging.getLogger(__name__)
+
+
+class _CacheItem(TypedDict, total=False):
+    """Shape of one cache entry as read from disk (IT-17, G07).
+
+    total=False on purpose: real validation stays in the defensive
+    int()/str() conversions when building ItemDetail.
+    """
+
+    id: int
+    name: str
+    sprite_url: str
+    category: str
+    rarity: int
+    tooltip: str | None
+
+
+class _CachePayload(TypedDict, total=False):
+    schema: int
+    version: int
+    items: list[_CacheItem]
+
 
 _SUPPORTED_SCHEMAS: frozenset[int] = frozenset({1, 2})
 _LATEST_SCHEMA: int = 2
@@ -49,7 +71,7 @@ def _normalize(text: str) -> str:
 def _parse_id(query: str) -> int | None:
     try:
         item_id = int(query)
-    except (ValueError, OverflowError):
+    except ValueError:
         return None
 
     if item_id <= 0 or item_id > sys.maxsize:
@@ -59,9 +81,22 @@ def _parse_id(query: str) -> int | None:
 
 class _InMemoryItemCatalog:
     def __init__(self, items: list[ItemDetail]) -> None:
-        self._by_id: dict[int, ItemDetail] = {item.id: item for item in items}
+        # Duplicate ids in the source are deduped keeping the FIRST entry
+        # (IT-17): before, _by_id silently kept the last one while _index
+        # kept both, so get() and search() disagreed about the same id.
+        self._by_id: dict[int, ItemDetail] = {}
+        deduped: list[ItemDetail] = []
+        for item in items:
+            if item.id in self._by_id:
+                _logger.warning(
+                    "Duplicate item id %d in catalog source; keeping first entry",
+                    item.id,
+                )
+                continue
+            self._by_id[item.id] = item
+            deduped.append(item)
         self._index: list[tuple[str, ItemSummary]] = [
-            (_normalize(item.name), item) for item in items
+            (_normalize(item.name), item) for item in deduped
         ]
 
     def search(self, query: str, limit: int = 20) -> list[ItemSummary]:
@@ -108,7 +143,7 @@ def create_catalog_from_cache(cache_path: Path) -> ItemCatalog:
     Raises FileNotFoundError if the file is absent.
     Raises ValueError if the schema version is unsupported.
     """
-    data: dict[str, Any] = json.loads(cache_path.read_text(encoding="utf-8"))
+    data: _CachePayload = json.loads(cache_path.read_text(encoding="utf-8"))
     schema = data.get("schema")
     if schema not in _SUPPORTED_SCHEMAS:
         raise ValueError(
@@ -124,7 +159,7 @@ def create_catalog_from_cache(cache_path: Path) -> ItemCatalog:
             rarity=int(entry["rarity"]),
             tooltip=str(entry["tooltip"]) if entry.get("tooltip") else None,
         )
-        for entry in data["items"]
+        for entry in data.get("items", [])
     ]
     return _InMemoryItemCatalog(items)
 

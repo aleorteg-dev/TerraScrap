@@ -662,3 +662,36 @@ def test_bundled_seed_loads(tmp_path: Path) -> None:
     zen = catalog.get(4956)
     assert zen.id == 4956
     assert zen.name == "Zenith"
+
+
+# T-31 (IT-17) duplicate item ids in the source are deduped, first entry wins.
+def test_duplicate_item_ids_dedupe_first_entry_wins(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Before IT-17 _by_id silently kept the LAST duplicate while _index kept
+    both, so get() and search() disagreed about the same id."""
+    items: list[dict[str, object]] = [
+        {
+            "id": 7,
+            "name": "First Sword",
+            "sprite_url": "",
+            "category": "weapon",
+            "rarity": 0,
+            "tooltip": None,
+        },
+        {
+            "id": 7,
+            "name": "Duplicate Sword",
+            "sprite_url": "",
+            "category": "weapon",
+            "rarity": 1,
+            "tooltip": None,
+        },
+    ]
+    with caplog.at_level(logging.WARNING, logger="twi.item_catalog.catalog"):
+        catalog = _catalog_from_items(tmp_path, items)
+
+    assert catalog.get(7).name == "First Sword"
+    assert [s.name for s in catalog.search("sword")] == ["First Sword"]
+    assert catalog.search("duplicate") == []
+    assert any("uplicate" in r.message for r in caplog.records)

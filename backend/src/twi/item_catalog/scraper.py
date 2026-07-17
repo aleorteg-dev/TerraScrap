@@ -4,10 +4,31 @@ import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol, TypedDict
 
 import httpx
 from bs4 import BeautifulSoup, Tag
+
+
+class _ItemPatch(TypedDict, total=False):
+    """Partial per-item fields parsed from the detail page infobox (IT-17, G07)."""
+
+    sprite_url: str
+    category: str
+    rarity: int
+    tooltip: str | None
+
+
+class _ScrapedItem(TypedDict):
+    """One item row as written to the versioned cache (IT-17, G07)."""
+
+    id: int
+    name: str
+    sprite_url: str
+    category: str
+    rarity: int
+    tooltip: str | None
+
 
 _WIKI_BASE_URL = "https://terraria.wiki.gg"
 _WIKI_ITEMS_URL = f"{_WIKI_BASE_URL}/wiki/Item_IDs"
@@ -36,7 +57,9 @@ async def _get_with_retry(client: HttpClient, url: str) -> httpx.Response:
     for attempt in range(_MAX_RETRIES):
         try:
             return await client.get(url)
-        except (httpx.TimeoutException, httpx.TransportError) as exc:
+        except httpx.TransportError as exc:
+            # httpx.TimeoutException is a TransportError subclass (M08's twin,
+            # M07): a single except covers timeouts and connection errors.
             last_exc = exc
             backoff = _BACKOFF_SECONDS[attempt]
             _log.warning(
@@ -78,7 +101,7 @@ async def refresh_cache_from_wiki(
     if enrich:
         await _enrich_items(items, links, client)
 
-    payload: dict[str, Any] = {
+    payload: dict[str, object] = {
         "schema": _CACHE_SCHEMA,
         "version": _CACHE_SCHEMA,
         "items": items,
@@ -102,7 +125,7 @@ def _find_items_table(soup: BeautifulSoup) -> Tag | None:
     return None
 
 
-def _parse_items_page(html: str) -> tuple[list[dict[str, Any]], dict[int, str]]:
+def _parse_items_page(html: str) -> tuple[list[_ScrapedItem], dict[int, str]]:
     """Returns (items, link_map). Raises WikiSchemaChangedError if table missing."""
     soup = BeautifulSoup(html, "html.parser")
     table = _find_items_table(soup)
@@ -111,7 +134,7 @@ def _parse_items_page(html: str) -> tuple[list[dict[str, Any]], dict[int, str]]:
             "Items table not found in wiki HTML (selector failed)"
         )
 
-    items: list[dict[str, Any]] = []
+    items: list[_ScrapedItem] = []
     links: dict[int, str] = {}
     rows = table.find_all("tr")
     for row in rows[1:]:
@@ -158,7 +181,7 @@ def _parse_items_page(html: str) -> tuple[list[dict[str, Any]], dict[int, str]]:
 
 
 async def _enrich_items(
-    items: list[dict[str, Any]],
+    items: list[_ScrapedItem],
     links: dict[int, str],
     client: HttpClient,
 ) -> None:
@@ -167,10 +190,7 @@ async def _enrich_items(
         url = links.get(item_id)
         if url is None:
             continue
-        try:
-            resp = await _get_with_retry(client, url)
-        except WikiUnavailableError:
-            raise
+        resp = await _get_with_retry(client, url)
 
         status = resp.status_code
         if status == 404:
@@ -183,13 +203,20 @@ async def _enrich_items(
             continue
 
         details = _parse_item_detail(resp.text)
-        entry.update(details)
+        if "sprite_url" in details:
+            entry["sprite_url"] = details["sprite_url"]
+        if "category" in details:
+            entry["category"] = details["category"]
+        if "rarity" in details:
+            entry["rarity"] = details["rarity"]
+        if "tooltip" in details:
+            entry["tooltip"] = details["tooltip"]
 
 
-def _parse_item_detail(html: str) -> dict[str, Any]:
+def _parse_item_detail(html: str) -> _ItemPatch:
     """Parse per-item infobox. Missing fields → defaults, never raise."""
     soup = BeautifulSoup(html, "html.parser")
-    out: dict[str, Any] = {}
+    out: _ItemPatch = {}
 
     img = soup.select_one("img.item-sprite, .infobox img")
     if isinstance(img, Tag):

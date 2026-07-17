@@ -135,9 +135,29 @@ Seed bundled: `backend/src/twi/item_catalog/data/items.seed.json` (schema v1, ~1
 - `httpx.HTTPError` propagado desde `refresh_cache_from_wiki`.
 
 ## 10. Estado
-- **Versión del contrato**: v1.3
-- **Último cierre**: 2026-05-10 (iter-13)
+- **Versión del contrato**: v1.3 (IT-17 no cambia el contrato público)
+- **Último cierre**: 2026-07-17 — IT-17 (PLAN_REMEDIACION M05+M06+M07+G07)
 - **Iteración actual**: cerrada
+
+### Cambios IT-17 (sin cambio de contrato)
+
+- M05 — `_parse_id`: `except (ValueError, OverflowError)` → `except ValueError`
+  (`int(str)` nunca lanza `OverflowError`).
+- M06 — eliminado el `try/except WikiUnavailableError: raise` no-op de
+  `_enrich_items`.
+- M07 — `_get_with_retry`: `except (httpx.TimeoutException,
+  httpx.TransportError)` → `except httpx.TransportError`
+  (`TimeoutException` es subclase).
+- G07 — sin `Any` explícito: `catalog.py` lee la caché como
+  `_CachePayload`/`_CacheItem` (TypedDict, `total=False` — la validación
+  runtime sigue siendo los `int()`/`str()` defensivos); `scraper.py` tipa los
+  items como `_ScrapedItem` y el resultado de `_parse_item_detail` como
+  `_ItemPatch` (TypedDict parcial).
+- **Decisión — `item_id` duplicado en la fuente** (antes: `_by_id` pisaba en
+  silencio con el último y `_index` conservaba ambos, respuestas
+  inconsistentes entre `get` y `search`): se **dedupe conservando la primera
+  entrada** (coherente con el criterio primer-gana de IT-14) con WARNING en
+  log; los duplicados no se indexan.
 - **Cambios iter-13**:
   - Scraper endurecido: `WikiUnavailableError` (5xx o timeout tras 3 reintentos con backoff 1s/2s/4s) y `WikiSchemaChangedError` (selector de tabla roto). Ambos exportados desde `twi.item_catalog`.
   - `refresh_cache_from_wiki(..., enrich=False)`: si `enrich=True` recorre la página de cada ítem y enriquece `sprite_url`/`category`/`rarity`/`tooltip`. 404 por ítem → log + skip. 5xx por ítem → `WikiUnavailableError` (no escribe cache).
