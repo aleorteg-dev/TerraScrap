@@ -1,6 +1,6 @@
 # ============================================
 # TerraScrap — .gitignore
-# Stack: Python 3.12 + FastAPI | React 18 + TS + Vite | Docker
+# Stack: Python 3.12 + FastAPI | React 19 + TS + Vite | Docker
 # ============================================
 
 # ─── Entornos virtuales Python ───────────────────────────

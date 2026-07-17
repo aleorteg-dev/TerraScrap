@@ -182,22 +182,55 @@ Lista de NPCs del mundo cargado.
   - Lista vacía si el mundo no tiene NPCs.
 - **404**: `code: "world_not_found"`.
 
-### `POST /api/world-imports` · `GET /api/world-imports/{job_id}` — retención de jobs
+### `POST /api/world-imports`
 
-> Los endpoints existen desde iter-08 en `openapi.json`/snapshot; su especificación
-> completa (202 + polling + códigos) se incorporará a este documento en IT-DOC-1 (G03).
-> Esta subsección fija desde ya el contrato de **retención** (IT-01).
+Sube un `.wld` y arranca un **import job asíncrono** con progreso (alternativa a
+`POST /api/worlds` para mundos grandes; el cliente por defecto usa esta vía).
+Endpoints presentes en `openapi.json`/snapshot desde iter-08 (`8181061`);
+especificación incorporada aquí en IT-DOC-1 (G03).
 
-- Un job en estado terminal (`done` | `error`) se retiene **15 minutos** (900 s,
-  configurable con `job_ttl_seconds` en `create_router`) desde que alcanza el estado
-  terminal. Pasado ese plazo el job se purga del servidor.
-- **`GET /api/world-imports/{job_id}` de un job expirado o desconocido** → 404
-  `code: "job_not_found"` (mismo error en ambos casos; el cliente no puede distinguirlos).
-- Los jobs `queued`/`processing` no expiran por este TTL.
-- **Nuevo código de error de job**: `error_code: "import_failed"` en
-  `ImportJobStatusDto` cuando el import falla por una causa inesperada (distinta de
-  `invalid_wld` / `unsupported_version`). El `error_message` acompañante es genérico:
-  nunca incluye trazas ni detalles internos.
+- **Body**: `multipart/form-data` con campo `file` (igual que `POST /worlds`).
+- **202** → `ImportJobCreatedDto`:
+  ```json
+  { "job_id": "uuid-v4" }
+  ```
+  El parseo ocurre en un hilo de fondo; el cliente hace polling del job.
+- **413**: `code: "upload_too_large"` (mismo límite y mensaje que `POST /worlds`;
+  lectura en streaming con corte al exceder, IT-05).
+
+### `GET /api/world-imports/{job_id}`
+
+Estado del import job (polling; el cliente F1 usa intervalo corto con timeout
+global de 5 min y máx. 3 errores de red consecutivos, ver `api-client.md`).
+
+- **200** → `ImportJobStatusDto`:
+  ```json
+  {
+    "job_id": "uuid-v4",
+    "status": "queued | processing | done | error",
+    "pct": 0,
+    "world_id": null,
+    "metadata": null,
+    "error_code": null,
+    "error_message": null
+  }
+  ```
+  - `pct`: 0–100 (progreso del parseo; 100 al terminar).
+  - `status: "done"` → `world_id` (UUID de sesión) y `metadata`
+    (`WorldMetadataDto`) no nulos; el mundo ya está en el repositorio y el resto
+    de endpoints `/worlds/{world_id}/…` funcionan.
+  - `status: "error"` → `error_code` ∈ `unsupported_version | invalid_wld |
+    import_failed` y `error_message` no nulos. `import_failed` (IT-01) cubre
+    fallos inesperados; su `error_message` es genérico, nunca incluye trazas ni
+    detalles internos.
+- **404**: `code: "job_not_found"` (job desconocido **o** expirado; el cliente no
+  puede distinguirlos).
+
+**Retención de jobs (IT-01)**: un job en estado terminal (`done` | `error`) se
+retiene **15 minutos** (900 s, configurable con `job_ttl_seconds` en
+`create_router`) desde que alcanza el estado terminal; después se purga (purga
+perezosa en cada acceso, dict acotado). Los jobs `queued`/`processing` no
+expiran por este TTL.
 
 ---
 
@@ -205,7 +238,14 @@ Lista de NPCs del mundo cargado.
 
 - **CORS**: en dev, `http://localhost:5173`. En prod, mismo nginx que el front.
 - **Sesión**: `world_id` opaco (UUID v4). Sin auth. TTL **30 minutos** desde último acceso.
-- **Límites**: `TWI_MAX_UPLOAD_MB` (default 200).
+- **Límites**: `TWI_MAX_UPLOAD_MB` (default 200). **Fuente única** (D08): la
+  variable de entorno (`.env`) alimenta `Settings.max_upload_mb` (B6), que se
+  pasa a `create_router(max_upload_mb=...)` (B5, respuesta 413) y al middleware
+  de `Content-Length`; el frontend la refleja en la prop `maxSizeMb` de
+  `UploadWorld` (F2, validación previa sin llamar a la API). El
+  `client_max_body_size 250m` de nginx **no** es el límite: es headroom
+  deliberado por encima del default para que el 413 con `ErrorDto` lo emita
+  siempre la aplicación (con `X-API-Version`), no nginx con HTML opaco.
 - **Versionado**: header `X-API-Version: 0.2` en **toda** respuesta (2xx, 4xx, 5xx, errores de
   validación, límite de upload). El cliente valida este header; si no coincide, muestra advertencia
   de incompatibilidad (no rompe la sesión).

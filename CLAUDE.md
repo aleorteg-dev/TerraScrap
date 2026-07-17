@@ -69,6 +69,7 @@ Ejecuta estos comandos antes de cerrar cualquier iteración. **No se cierra un m
 cd backend
 pytest                                    # todos los tests del módulo activo
 pytest tests/unit/<módulo>/               # solo el módulo activo
+pytest --cov=twi --cov-report=term-missing  # cobertura (mínimo 80 % por módulo)
 mypy src/twi --strict                     # tipado estricto, sin errores
 ruff check src/ tests/                    # linting
 ruff format src/ tests/ --check          # formato
@@ -137,7 +138,8 @@ docker compose -f docker/docker-compose.yml up --build
 ## Riesgos críticos
 
 ### Parser `.wld` (B1)
-- Soporta versiones **v230–v279** únicamente.
+- Soporta versiones **v230–v319** únicamente (fuente única:
+  `MIN/MAX_SUPPORTED_VERSION` en `wld_parser/_constants.py`, IT-15).
 - Cualquier mundo fuera de ese rango debe lanzar `WldParseError` con `code="unsupported_version"`.
 - No intentes inferir el formato de versiones desconocidas.
 
@@ -154,7 +156,7 @@ docker compose -f docker/docker-compose.yml up --build
 
 ### Sesiones en memoria
 - Sin base de datos, sin persistencia entre reinicios.
-- TTL de sesión: **30 minutos** desde el último acceso (configurable con `TWI_MAX_UPLOAD_MB`).
+- TTL de sesión: **30 minutos** desde el último acceso (configurable con `TWI_WORLD_TTL_SECONDS`).
 - `world_id` es un UUID v4 opaco; quien lo tenga puede operar sobre ese mundo.
 
 ---
@@ -166,6 +168,8 @@ El detalle completo vive en `docs/contracts/api-contract.md`. Al tocar la fronte
 | Endpoint | Descripción |
 |----------|-------------|
 | `POST /api/worlds` | Sube `.wld`; devuelve `world_id` + metadatos |
+| `POST /api/world-imports` | Sube `.wld` como import job asíncrono; devuelve `job_id` (202) |
+| `GET /api/world-imports/{job_id}` | Estado/progreso del import job (polling) |
 | `GET /api/worlds/{world_id}` | Metadatos del mundo en sesión |
 | `DELETE /api/worlds/{world_id}` | Libera memoria |
 | `GET /api/worlds/{world_id}/tiles` | Tiles empaquetados por chunk (`base64-rle-v1`) |
