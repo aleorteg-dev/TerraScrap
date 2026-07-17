@@ -71,6 +71,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps>;
 - **SP-17** (IT-08, P03) El tamaño de chunk pedido al backend es adaptativo según zoom vía `chunkSizeForZoom(zoom)`: `zoom ≥ 1 → 128`, `0.5 < zoom < 1 → 256`, `zoom ≤ 0.5 → 512` (el backend admite hasta 512). Las cachés se indexan por `(worldId, chunkSize, cx, cy)`.
 - **SP-18** (IT-08, P07) Las cachés de bitmaps y de chunks decodificados están acotadas con política LRU (al superar el tope se desaloja la entrada menos recientemente usada).
 - **SP-19** (IT-08, M09) Render unificado: todo chunk se rasteriza con `renderChunkBitmapV2`. Un payload `base64-rle-v1` se decodifica a un `DecodedChunkV2` parcial (solo `tileId`) vía `decodeBase64RleV1AsV2`; el renderer v1 (`renderChunkBitmap`/`paintBackdrop`) queda eliminado. La compat v1 vive solo en el decoder (DEC-2).
+- **SP-20** (IT-OPT-4, cadena E14 3/4) Con `showWires`, el paso 4 del renderer pinta cada tile con cable usando el color del cable presente vía `getWireColor(flags)`: bits 2–5 del byte `flags` v2 = rojo/azul/verde/amarillo, con prioridad rojo > azul > verde > amarillo cuando coinciden varios en el mismo tile. El bit 1 (actuator) NO pinta. Un payload v1 (flags=0) nunca pinta cables.
 
 ## 6. Plan de tests (TDD)
 Combinación de tests de componente + tests de funciones puras (más barato).
@@ -182,9 +183,18 @@ Pipeline de datos (IT-08):
 - Fallos de API delegados por `onError` del host (v1.1 opcional).
 
 ## 10. Estado
-- **Versión del contrato**: v2.1 (IT-07: `onZoomChange`, `ZOOM_LIMITS`, `zoomToFit` sin clamp inferior; IT-08 no cambia el contrato público)
-- **Último cierre**: 2026-07-17 — IT-08 (PLAN_REMEDIACION E08+E09+P03+P07+M09): pipeline de datos
+- **Versión del contrato**: v2.1 (IT-07: `onZoomChange`, `ZOOM_LIMITS`, `zoomToFit` sin clamp inferior; IT-08/IT-OPT-4 no cambian el contrato público)
+- **Último cierre**: 2026-07-17 — IT-OPT-4 (cadena E14 3/4): wires con bits reales
 - **Iteración actual**: cerrada
+
+### 10.-2. Cambios IT-OPT-4 (wires, sin cambio de contrato)
+
+- SP-20: el paso 4 del renderer v2 pinta cables con color por tipo —
+  `WIRE_COLORS {red, blue, green, yellow}` y `getWireColor(flags)` en
+  `tileColors.ts` (bits 2–5 del byte flags v2; prioridad rojo > azul > verde >
+  amarillo; el bit 1/actuator no pinta). Sustituye al `'#e53935'` único.
+  Tests T-W1..T-W6. El backend emite los bits desde IT-OPT-3; la
+  rehabilitación del toggle "Cables" es IT-OPT-5 (F6).
 
 ### 10.-1. Cambios IT-08 (pipeline de datos, sin cambio de contrato)
 

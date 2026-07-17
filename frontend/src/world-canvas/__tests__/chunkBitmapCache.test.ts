@@ -6,7 +6,9 @@ import {
   getTileColor,
   getWallColor,
   getLiquidColor,
+  getWireColor,
   getBackgroundColor,
+  WIRE_COLORS,
   DIRT_BAND_COLOR,
   ROCK_BAND_COLOR,
   HELL_BAND_COLOR,
@@ -66,6 +68,7 @@ function makeV2Data(
     wallId: number;
     liquidType: number;
     liquidAmount: number;
+    flags: number;
   }>,
   total = 1
 ): DecodedChunkV2 {
@@ -76,7 +79,7 @@ function makeV2Data(
     liquidAmount: new Uint8Array(total).fill(overrides.liquidAmount ?? 0),
     frameX: new Uint16Array(total),
     frameY: new Uint16Array(total),
-    flags: new Uint8Array(total),
+    flags: new Uint8Array(total).fill(overrides.flags ?? 0),
   };
 }
 
@@ -447,5 +450,73 @@ describe('renderChunkBitmapV2', () => {
     expect(r).toBe(hr);
     expect(g).toBe(hg);
     expect(b).toBe(hb);
+  });
+});
+
+// ── IT-OPT-4 (cadena E14 3/4): wires pintados con los bits reales ─────────────
+
+describe('getWireColor', () => {
+  it('T-W1 maps each wire bit to its own color (v2 flags bits 2-5)', () => {
+    expect(getWireColor(0b0000_0100)).toBe(WIRE_COLORS.red);
+    expect(getWireColor(0b0000_1000)).toBe(WIRE_COLORS.blue);
+    expect(getWireColor(0b0001_0000)).toBe(WIRE_COLORS.green);
+    expect(getWireColor(0b0010_0000)).toBe(WIRE_COLORS.yellow);
+  });
+
+  it('T-W2 prefers red > blue > green > yellow when several wires coincide', () => {
+    expect(getWireColor(0b0011_1100)).toBe(WIRE_COLORS.red);
+    expect(getWireColor(0b0011_1000)).toBe(WIRE_COLORS.blue);
+    expect(getWireColor(0b0011_0000)).toBe(WIRE_COLORS.green);
+  });
+
+  it('T-W3 returns null without wires — actuator alone (bit 1) does not paint', () => {
+    expect(getWireColor(0)).toBeNull();
+    expect(getWireColor(0b0000_0010)).toBeNull();
+    expect(getWireColor(0b0000_0001)).toBeNull(); // has_frame
+  });
+});
+
+describe('renderChunkBitmapV2 wires pass', () => {
+  it('T-W4 paints the wire color on top when showWires is on', () => {
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = makeLocalCtxV2();
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+    const data = makeV2Data({ tileId: 1, flags: 0b0000_1000 }); // blue wire
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y, {
+      showWires: true,
+    });
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [wr, wg, wb] = hexToRgb(WIRE_COLORS.blue);
+    expect(r).toBe(wr);
+    expect(g).toBe(wg);
+    expect(b).toBe(wb);
+  });
+
+  it('T-W5 does not paint wires when showWires is off (default)', () => {
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = makeLocalCtxV2();
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+    const data = makeV2Data({ tileId: 1, flags: 0b0000_0100 });
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y);
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [tr, tg, tb] = hexToRgb(getTileColor(1));
+    expect(r).toBe(tr);
+    expect(g).toBe(tg);
+    expect(b).toBe(tb);
+  });
+
+  it('T-W6 actuator-only tiles stay unpainted even with showWires on', () => {
+    const mockCtxGet = HTMLCanvasElement.prototype.getContext as ReturnType<typeof vi.fn>;
+    const localCtx = makeLocalCtxV2();
+    mockCtxGet.mockReturnValueOnce(localCtx as unknown as CanvasRenderingContext2D);
+    const data = makeV2Data({ tileId: 1, flags: 0b0000_0010 });
+    renderChunkBitmapV2('w1', 0, 0, data, 1, 1, 1, SURFACE_Y, ROCK_Y, HELL_Y, {
+      showWires: true,
+    });
+    const [r, g, b] = firstPixelRgba(localCtx);
+    const [tr, tg, tb] = hexToRgb(getTileColor(1));
+    expect(r).toBe(tr);
+    expect(g).toBe(tg);
+    expect(b).toBe(tb);
   });
 });

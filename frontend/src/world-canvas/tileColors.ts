@@ -223,3 +223,24 @@ export function getWallColor(wallId: number): string {
 export function getLiquidColor(liquidType: number): string {
   return LIQUID_COLORS[liquidType] ?? DEFAULT_LIQUID_COLOR;
 }
+
+// ── Wires (IT-OPT-4, cadena E14) ─────────────────────────────────────────────
+
+// Colores por tipo de cable, alineados con los cables de Terraria/TerraMap.
+export const WIRE_COLORS = {
+  red: '#ff3b30',
+  blue: '#3b82f6',
+  green: '#34c759',
+  yellow: '#ffd60a',
+} as const;
+
+// Byte flags del encoding v2: bit 2 = rojo, 3 = azul, 4 = verde, 5 = amarillo.
+// El bit 1 (actuator) NO pinta. Prioridad rojo > azul > verde > amarillo
+// cuando un mismo tile lleva varios cables (un píxel, un color).
+export function getWireColor(flags: number): string | null {
+  if (flags & 0b0000_0100) return WIRE_COLORS.red;
+  if (flags & 0b0000_1000) return WIRE_COLORS.blue;
+  if (flags & 0b0001_0000) return WIRE_COLORS.green;
+  if (flags & 0b0010_0000) return WIRE_COLORS.yellow;
+  return null;
+}

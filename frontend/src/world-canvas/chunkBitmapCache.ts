@@ -2,6 +2,7 @@ import {
   getTileColor,
   getWallColor,
   getLiquidColor,
+  getWireColor,
   getBackgroundColor,
   resolveBackgroundBreakpoints,
 } from './tileColors';
@@ -144,9 +145,11 @@ export function renderChunkBitmapV2(
             writePixel(buf, bufOffset, getLiquidColor(liquidType));
         }
 
-        // Pass 4: wire
-        if (showWires && ((data.flags[idx] ?? 0) & 0b0011_1100) !== 0) {
-          writePixel(buf, bufOffset, '#e53935');
+        // Pass 4: wire (IT-OPT-4) — un color por tipo de cable; el bit de
+        // actuator no pinta (getWireColor devuelve null sin cables).
+        if (showWires) {
+          const wireColor = getWireColor(data.flags[idx] ?? 0);
+          if (wireColor !== null) writePixel(buf, bufOffset, wireColor);
         }
       }
     }
