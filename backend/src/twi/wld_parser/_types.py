@@ -132,6 +132,27 @@ class TileGrid:
         self._wall_positions: dict[int, array[int]] = {}
         self._build_position_indexes()
 
+    @classmethod
+    def _from_parsed(
+        cls,
+        columns: list[list[Tile]],
+        tile_positions: dict[int, array[int]],
+        wall_positions: dict[int, array[int]],
+    ) -> TileGrid:
+        """Internal factory for the parser (IT-OPT-1, P04).
+
+        _read_tiles builds the position indexes per RLE run while decoding,
+        so this path must not pay the eager full-grid rescan of __init__.
+        Index encoding must match _build_position_indexes: x * height + y.
+        """
+        grid = cls.__new__(cls)
+        grid._columns = columns
+        grid._width = len(columns)
+        grid._height = len(columns[0]) if columns else 0
+        grid._tile_positions = tile_positions
+        grid._wall_positions = wall_positions
+        return grid
+
     @property
     def width(self) -> int:
         return self._width

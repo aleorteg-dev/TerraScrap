@@ -281,6 +281,62 @@ def test_parse_sign_with_cp1252_undefined_byte_falls_back_to_latin1() -> None:
     assert world.signs[0].text == raw_text.decode("latin-1")
 
 
+# ── IT-OPT-1 (P04): parser builds position indexes without a second pass ──────
+
+
+def test_parser_builds_position_indexes_without_second_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_read_tiles indexes per RLE run while decoding; the eager full rescan
+    (_build_position_indexes) must not run on the parser path."""
+    import twi.wld_parser._types as types_mod
+
+    calls = {"n": 0}
+    original = types_mod.TileGrid._build_position_indexes
+
+    def counting(self: types_mod.TileGrid) -> None:
+        calls["n"] += 1
+        original(self)
+
+    monkeypatch.setattr(types_mod.TileGrid, "_build_position_indexes", counting)
+
+    data = build_world(
+        width=6,
+        height=6,
+        tile_id_at={(1, 1): 1, (1, 2): 1, (3, 4): 2},
+        wall_id_at={(2, 2): 5},
+    )
+    world = parse_wld_bytes(data)
+
+    assert calls["n"] == 0, "parser must not trigger the full second pass"
+    assert sorted(world.tiles.iter_tile_positions(1)) == [(1, 1), (1, 2)]
+    assert list(world.tiles.iter_tile_positions(2)) == [(3, 4)]
+    assert list(world.tiles.iter_wall_positions(5)) == [(2, 2)]
+    assert list(world.tiles.iter_tile_positions(999)) == []
+    assert calls["n"] == 0
+
+
+def test_parser_position_indexes_match_eager_rebuild() -> None:
+    """Run-built indexes must be identical to the eager per-tile rebuild."""
+    data = build_world(
+        width=8,
+        height=8,
+        tile_id_at={(0, 0): 1, (0, 1): 1, (2, 3): 2, (7, 7): 1, (5, 0): 0},
+        wall_id_at={(1, 1): 5, (4, 4): 300, (2, 3): 5},
+    )
+    world = parse_wld_bytes(data)
+    rebuilt = TileGrid([list(world.tiles[x]) for x in range(world.tiles.width)])
+
+    for tile_id in (0, 1, 2, 999):
+        assert list(world.tiles.iter_tile_positions(tile_id)) == list(
+            rebuilt.iter_tile_positions(tile_id)
+        )
+    for wall_id in (5, 300, 999):
+        assert list(world.tiles.iter_wall_positions(wall_id)) == list(
+            rebuilt.iter_wall_positions(wall_id)
+        )
+
+
 # ── IT-OPT-2: wiring properties on Tile (contract v2.8) ───────────────────────
 
 

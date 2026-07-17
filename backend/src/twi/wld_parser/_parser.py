@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+from array import array
 from collections.abc import Callable
 from typing import BinaryIO, Literal
 
@@ -236,10 +237,17 @@ def _read_tiles(
     on_progress: Callable[[int], None] | None = None,
 ) -> TileGrid:
     columns: list[list[Tile]] = []
+    # Position indexes built per RLE run while decoding (IT-OPT-1, P04): the
+    # old eager rescan revisited every one of the ~20M tiles after parsing;
+    # here each run contributes a C-speed extend(range(...)) instead.
+    tile_positions: dict[int, array[int]] = {}
+    wall_positions: dict[int, array[int]] = {}
     for _x in range(width):
+        base = _x * height
         col: list[Tile] = []
         y = 0
         while y < height:
+            y_start = y
             flags1 = r.read_byte()
             flags2 = r.read_byte() if (flags1 & 0x01) else 0
             flags3 = r.read_byte() if (flags2 & 0x01) else 0
@@ -315,10 +323,20 @@ def _read_tiles(
                 col.append(tile)
             y += 1
 
+            run_len = len(col) - y_start
+            if tile_id is not None:
+                tile_positions.setdefault(tile_id, array("I")).extend(
+                    range(base + y_start, base + y_start + run_len)
+                )
+            if wall_id is not None:
+                wall_positions.setdefault(wall_id, array("I")).extend(
+                    range(base + y_start, base + y_start + run_len)
+                )
+
         columns.append(col)
         if on_progress is not None:
             on_progress(int((_x + 1) * 100 // width))
-    return TileGrid(columns)
+    return TileGrid._from_parsed(columns, tile_positions, wall_positions)
 
 
 # ── section 2: chests ────────────────────────────────────────────────────────

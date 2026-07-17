@@ -228,6 +228,31 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - **Versión del contrato**: v2.8 (IT-OPT-2 🔶: propiedades de wiring en `Tile`; antes v2.7 de IT-15)
 - **Último cierre**: 2026-07-17 — IT-OPT-2 (PLAN_REMEDIACION cadena E14, primer eslabón)
 
+### Cambios IT-OPT-1 (P04, sin cambio de contrato)
+
+- La 2ª pasada completa de `_build_position_indexes` (~20 M tiles re-visitados
+  tras el parseo) desaparece del camino del parser: `_read_tiles` construye
+  los índices de posición **por run** mientras decodifica el RLE — por cada
+  run conoce `(x, y0, longitud)` y extiende el índice con
+  `array.extend(range(...))` (velocidad C), en vez de 20 M iteraciones Python
+  con accesos a atributos + `setdefault`. El grid se crea con la factoría
+  interna `TileGrid._from_parsed(columns, tile_pos, wall_pos)`.
+- `TileGrid(columns)` (contrato público) no cambia: sigue construyendo los
+  índices eager en `__init__`, así que fixtures y módulos consumidores son
+  idénticos. Test de equivalencia: índices del camino del parser == rebuild
+  eager desde las mismas columnas.
+- **Decisión (parte columnar de P04)**: NO se migra a representación columnar
+  sin numpy. La grid actual ya comparte el mismo objeto `Tile` para todo un
+  run RLE (cientos de miles de objetos únicos, no 20 M), y una columnar por
+  campos con `array` perdería ese sharing (≈2× memoria); una grid indexada a
+  pool exigiría otra pasada completa de construcción, anulando la ganancia.
+  Se reevaluará si numpy entra al stack (decisión de stack, fuera del alcance
+  de esta iteración). Los índices, que eran el otro coste de P04, ya son
+  compactos (`array("I")`).
+- Presupuestos RNF verificados con los tests perf existentes: parse Large
+  <10 s y search <500 ms (los índices siguen listos al terminar el parse, el
+  primer search no paga construcción).
+
 ### Cambios IT-OPT-2 🔶 (contrato v2.8 — wiring expuesto en Tile)
 
 `Tile` descompone su bitmask `flags` en propiedades booleanas de solo lectura
