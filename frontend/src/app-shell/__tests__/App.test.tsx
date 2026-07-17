@@ -535,15 +535,19 @@ describe('App', () => {
     expect(capturedCanvasProps).toMatchObject({ showLiquids: true, showWires: false });
   });
 
-  it('wires layer defaults off and its toggle is disabled (E14 corto)', async () => {
+  it('wires layer defaults off but its toggle is enabled and works (IT-OPT-5)', async () => {
+    const user = userEvent.setup();
     render(<App apiClient={mockApiClient} />);
     triggerUpload();
 
     await waitFor(() => expect(capturedCanvasProps).toMatchObject({ showWires: false }));
 
     const wiresBtn = screen.getByRole('button', { name: /toggle wires/i });
-    expect(wiresBtn).toBeDisabled();
-    expect(wiresBtn).toHaveAttribute('title', 'Disponible en v0.3');
+    expect(wiresBtn).toBeEnabled();
+    expect(wiresBtn).not.toHaveAttribute('title');
+
+    await user.click(wiresBtn);
+    await waitFor(() => expect(capturedCanvasProps).toMatchObject({ showWires: true }));
   });
 
   it('HUD zoom in twice advances the shared zoom state (E06)', async () => {

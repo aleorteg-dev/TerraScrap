@@ -100,24 +100,17 @@ export const Toolbar: FC = () => {
       </div>
 
       <div className="tool-group app-toolbar-group">
-        {(Object.keys(layers) as Array<keyof typeof layers>).map((layer) => {
-          // El backend v0.2 no emite bits de cables: la capa no pinta nada,
-          // así que el toggle queda deshabilitado (E14 corto; IT-OPT-2..5).
-          const unavailable = layer === 'wires';
-          return (
-            <button
-              key={layer}
-              aria-label={`Toggle ${layer}`}
-              aria-pressed={layers[layer]}
-              className={`tool-btn app-toolbar-btn${layers[layer] ? ' active' : ''}`}
-              onClick={() => dispatch({ type: 'TOGGLE_LAYER', layer })}
-              disabled={unavailable}
-              title={unavailable ? 'Disponible en v0.3' : undefined}
-            >
-              {layerLabels[layer]}
-            </button>
-          );
-        })}
+        {(Object.keys(layers) as Array<keyof typeof layers>).map((layer) => (
+          <button
+            key={layer}
+            aria-label={`Toggle ${layer}`}
+            aria-pressed={layers[layer]}
+            className={`tool-btn app-toolbar-btn${layers[layer] ? ' active' : ''}`}
+            onClick={() => dispatch({ type: 'TOGGLE_LAYER', layer })}
+          >
+            {layerLabels[layer]}
+          </button>
+        ))}
       </div>
 
       <div className="tool-group app-toolbar-group">

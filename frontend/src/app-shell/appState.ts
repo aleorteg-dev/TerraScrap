@@ -50,8 +50,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         selectedTile: null,
         tileDetail: null,
         npcs: null,
-        // wires OFF por defecto (E14 corto): el backend v0.2 no emite bits de
-        // cables, la capa no pinta nada hasta IT-OPT-2..5.
+        // wires OFF por defecto: capa opcional (como en TerraMap); el toggle
+        // está habilitado y pinta el cableado real desde IT-OPT-2..5.
         layers: { walls: true, liquids: true, wires: false, grid: false },
         maskMode: false,
         sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,

@@ -34,7 +34,7 @@ Flujo principal (máquina de estados implícita):
 - **SP-08** Persiste `worldId` en `sessionStorage` para recuperar la sesión al recargar. Solo `terra_world_id`: la metadata se revalida siempre contra el backend (IT-09, M10). Un `sessionStorage` que lanza (cuota, modo privado) nunca rompe el flujo de subida (E18).
 - **SP-09** (IT-09, E06/D04) `state.zoom` es un **espejo** del zoom real del canvas: la única vía de actualización es `WorldCanvas.onZoomChange → dispatch SET_ZOOM` (sin clamp en el reducer; el canvas ya clampa donde corresponde y `zoomToFit` puede legitimamente quedar bajo `ZOOM_LIMITS.min`). Toolbar y HUD calculan el siguiente paso con `ZOOM_LIMITS` de `world-canvas` (fuente única) y solo llaman `canvasHandle.setZoom/zoomToFit`; no despachan `SET_ZOOM` directamente.
 - **SP-10** (IT-09, E16) La carga de detalle de tile se cancela al cambiar la selección: una respuesta obsoleta nunca pisa a la de la selección vigente.
-- **SP-11** (IT-09, E14 corto) La capa "Cables" arranca **OFF** y su botón queda deshabilitado con `title="Disponible en v0.3"` (el backend v0.2 no emite bits de wires; rehabilitación real en IT-OPT-2..5).
+- **SP-11** (IT-OPT-5; antes IT-09) La capa "Cables" arranca **OFF** por defecto (capa opcional, igual que TerraMap) pero su botón está **habilitado**: la cadena IT-OPT-2..4 hizo que el backend emita los bits de wires en el encoding v2 y que F3 los pinte con color por cable, así que togglear "Cables" muestra el cableado real (re-rasterizado local sin red, IT-08).
 
 ### Layout raiz
 - `#root` debe ocupar `width: 100%` del viewport, sin `max-width`, sin `margin: 0 auto`, sin padding inducido por la plantilla Vite y sin `text-align: center`.
@@ -116,8 +116,16 @@ Esta verificación queda pendiente de confirmación con `.wld` real (ver Deuda).
 
 ## 10. Estado
 - **Versión del contrato**: v2.1 (IT-09: reducer sin `panels.tile`; `state.zoom` espejo de `onZoomChange`; el contrato público `AppProps` no cambia)
-- **Último cierre**: 2026-07-17 — IT-09 (PLAN_REMEDIACION E06+E14corto+E16+E18+M10+M11+D02+D04resto)
+- **Último cierre**: 2026-07-17 — IT-OPT-5 (cadena E14 4/4): toggle "Cables" rehabilitado
 - **Iteración actual**: cerrada
+
+### Cambios IT-OPT-5
+
+- Toggle "Cables" habilitado (revierte la parte cosmética de IT-09): sin
+  `disabled` ni `title`; el click togglea `layers.wires` → `showWires` del
+  canvas, que pinta el cableado real (IT-OPT-4). **Decisión**: el default se
+  mantiene OFF — es una capa opcional, como en TerraMap. Cierra la solución
+  real de E14 (cadena IT-OPT-2..5 completa).
 
 ### Cambios IT-09
 
