@@ -7,6 +7,7 @@ import math
 from collections.abc import Callable
 from typing import BinaryIO, Literal
 
+from twi.wld_parser._constants import MAX_SUPPORTED_VERSION, MIN_SUPPORTED_VERSION
 from twi.wld_parser._exceptions import UnsupportedWorldVersionError, WldParseError
 from twi.wld_parser._reader import Reader
 from twi.wld_parser._types import (
@@ -26,8 +27,8 @@ _LOG = logging.getLogger(__name__)
 
 _MAGIC = b"relogic"
 _FILE_TYPE_WORLD: int = 2
-_MIN_VERSION: int = 230
-_MAX_VERSION: int = 319
+_MIN_VERSION: int = MIN_SUPPORTED_VERSION
+_MAX_VERSION: int = MAX_SUPPORTED_VERSION
 _MODERN_CHEST_VERSION: int = 280
 _CHEST_CAPACITY: int = 40
 _NPC_KILL_COUNT_VERSION: int = 268
@@ -35,7 +36,7 @@ _NPC_TOWN_VARIATION_VERSION: int = 213
 _NPC_HOMELESS_DESPAWN_VERSION: int = 280
 
 
-def _classify_size(width: int) -> str:
+def _classify_size(width: int) -> Literal["small", "medium", "large"]:
     if width <= 4200:
         return "small"
     if width <= 6400:
@@ -209,7 +210,7 @@ def _read_world_info(r: Reader, version: int) -> tuple[WorldMetadata, int]:
         height=max_tiles_y,
         version=version,
         seed=seed,
-        size=size,  # type: ignore[arg-type]
+        size=size,
         hardmode=hardmode,
         spawn_x=spawn_x,
         spawn_y=spawn_y,
@@ -697,7 +698,8 @@ def parse_wld(
             r.seek(offsets[5])
             tile_entities = _read_tile_entities(r)
         _validate_footer(r, offsets, metadata.name, world_id)
-    except (WldParseError, UnsupportedWorldVersionError):
+    except WldParseError:
+        # UnsupportedWorldVersionError is a WldParseError subclass (M08).
         raise
     except Exception as exc:
         raise WldParseError(f"Failed to parse .wld: {exc}", code="corrupt") from exc

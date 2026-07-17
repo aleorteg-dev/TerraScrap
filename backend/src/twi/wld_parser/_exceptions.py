@@ -1,5 +1,7 @@
 """Domain exceptions for B1 - wld-parser."""
 
+from ._constants import MAX_SUPPORTED_VERSION, MIN_SUPPORTED_VERSION
+
 
 class WldParseError(Exception):
     """Raised when a .wld file cannot be parsed."""
@@ -21,7 +23,10 @@ class UnsupportedWorldVersionError(WldParseError):
     def __init__(
         self,
         version: int,
-        supported_range: tuple[int, int] = (230, 319),
+        supported_range: tuple[int, int] = (
+            MIN_SUPPORTED_VERSION,
+            MAX_SUPPORTED_VERSION,
+        ),
     ) -> None:
         min_version, max_version = supported_range
         super().__init__(

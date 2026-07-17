@@ -124,13 +124,11 @@ class TileGrid:
     def iter_wall_positions(self, wall_id: int) -> Iterator[tuple[int, int]]:
         yield from self._iter_positions(self._wall_positions.get(wall_id))
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TileGrid):
-            return NotImplemented
-        return self._columns == other._columns
-
     def __hash__(self) -> int:
-        return hash(tuple(tuple(col) for col in self._columns))
+        # Structural __eq__/__hash__ were removed in IT-15 (E19): hashing
+        # would materialise a tuple with every tile (~20M in a large world).
+        # Equality is identity; tests compare grids column by column.
+        raise TypeError("TileGrid is unhashable: hashing would visit every tile")
 
     def _build_position_indexes(self) -> None:
         height = self._height

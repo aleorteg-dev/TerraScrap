@@ -9,10 +9,20 @@ import pytest
 from tests.fixtures.wld_builder import ChestSpec, SignSpec, build_world
 from twi.wld_parser import (
     Tile,
+    TileGrid,
     UnsupportedWorldVersionError,
     WldParseError,
     parse_wld_bytes,
 )
+
+
+def assert_grids_equal(a: TileGrid, b: TileGrid) -> None:
+    """Column-by-column structural comparison (TileGrid has no __eq__, IT-15)."""
+    assert a.width == b.width
+    assert a.height == b.height
+    for x in range(a.width):
+        assert list(a[x]) == list(b[x]), f"column {x} differs"
+
 
 # ── T-01 ──────────────────────────────────────────────────────────────────────
 
@@ -223,7 +233,7 @@ def test_parse_is_deterministic_same_bytes_equal_world() -> None:
     assert world_a.metadata == world_b.metadata
     assert world_a.chests == world_b.chests
     assert world_a.signs == world_b.signs
-    assert world_a.tiles == world_b.tiles
+    assert_grids_equal(world_a.tiles, world_b.tiles)
 
 
 # ── T-08 ──────────────────────────────────────────────────────────────────────
@@ -248,6 +258,52 @@ def test_parse_sign_with_cp1252_text_falls_back_gracefully() -> None:
     world = parse_wld_bytes(data)
     assert len(world.signs) == 1
     assert world.signs[0].text == "H\xdallo".encode("cp1252").decode("cp1252")
+
+
+# ── IT-15 (E11): bytes undefined in cp1252 must not raise ─────────────────────
+
+
+def test_parse_sign_with_cp1252_undefined_byte_falls_back_to_latin1() -> None:
+    """0x81 is invalid UTF-8 AND undefined in cp1252: latin-1 must absorb it.
+
+    Before IT-15 the cp1252 fallback itself raised UnicodeDecodeError (the
+    'cp1252 decodes every byte sequence' comment was false for 0x81, 0x8D,
+    0x8F, 0x90 and 0x9D), surfacing as WldParseError(code='corrupt').
+    """
+    raw_text = b"A\x81B\x8dC\x9d"
+    data = build_world(
+        width=4,
+        height=4,
+        signs=[SignSpec(x=1, y=1, text_bytes=raw_text)],
+    )
+    world = parse_wld_bytes(data)
+    assert len(world.signs) == 1
+    assert world.signs[0].text == raw_text.decode("latin-1")
+
+
+# ── IT-15 (E19): TileGrid must not be hashable ────────────────────────────────
+
+
+def test_tile_grid_is_not_hashable() -> None:
+    """hash(TileGrid) would visit every tile (~20M in a large world)."""
+    air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid([[air]])
+    with pytest.raises(TypeError):
+        hash(grid)
+
+
+# ── IT-15 (D06): exception default range shares the parser constants ──────────
+
+
+def test_unsupported_version_default_range_uses_shared_constants() -> None:
+    from twi.wld_parser._constants import (
+        MAX_SUPPORTED_VERSION,
+        MIN_SUPPORTED_VERSION,
+    )
+
+    exc = UnsupportedWorldVersionError(1)
+    assert exc.supported_range == (MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION)
+    assert (MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION) == (230, 319)
 
 
 @pytest.mark.perf

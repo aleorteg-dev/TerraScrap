@@ -76,6 +76,10 @@ class TileGrid:                     # read-only, indexable grid[x][y] -> Tile
     width: int
     height: int
     def __getitem__(self, x: int) -> Sequence[Tile]: ...
+    # v2.7 (IT-15, E19 — breaking menor): TileGrid NO es hashable
+    # (hash(grid) lanza TypeError: implicaría visitar los ~20M de tiles) y la
+    # igualdad es por identidad (sin __eq__ estructural). Para comparar grids
+    # en tests, usar un helper tipo assert_grids_equal(a, b) columna a columna.
 
 @dataclass(frozen=True)
 class World:
@@ -221,8 +225,28 @@ Fixtures sintéticas bajo `backend/tests/fixtures/wld_builder.py` generadas por 
 - `UnsupportedWorldVersionError`: fuera de rango soportado. Expone `version`, `detected_version`, `supported_range` y `details`.
 
 ## 10. Estado
-- **Versión del contrato**: v2.6
-- **Último cierre**: 2026-05-11
+- **Versión del contrato**: v2.7 (IT-15 🔶: `TileGrid` no hashable/sin eq estructural; decodificación de strings garantizada sin excepción)
+- **Último cierre**: 2026-07-17 — IT-15 (PLAN_REMEDIACION E11+E19+M08+D06+G08)
+
+### Cambios IT-15 🔶
+
+- E11 — `read_net_string`: la cadena de decodificación es `utf-8` →
+  `cp1252` → `latin-1`. El comentario antiguo ("cp1252 decodes every byte
+  sequence") era falso: 0x81, 0x8D, 0x8F, 0x90 y 0x9D no están definidos en
+  cp1252 y lanzaban `UnicodeDecodeError` (→ `WldParseError` corrupt). latin-1
+  decodifica cualquier byte, así que la decodificación **nunca** lanza.
+- E19 — eliminados `TileGrid.__eq__`/`__hash__` estructurales (breaking
+  menor): el hash construía una tupla con los ~20M de tiles. `hash(grid)`
+  ahora lanza `TypeError` explícito; la igualdad es por identidad. Tests
+  adaptados con `assert_grids_equal`.
+- M08 — `except (WldParseError, UnsupportedWorldVersionError)` simplificado a
+  `except WldParseError` (la segunda es subclase de la primera).
+- D06 — rango soportado con fuente única: `_constants.py` define
+  `MIN_SUPPORTED_VERSION = 230` / `MAX_SUPPORTED_VERSION = 319`; tanto el
+  parser como el default de `UnsupportedWorldVersionError` los consumen (el
+  default ya no puede quedar desfasado en silencio).
+- G08 — `_classify_size(...) -> Literal["small", "medium", "large"]`;
+  eliminado el `# type: ignore[arg-type]`.
 - **Iteración actual**: iter-07
 - **Tests**: `python -m pytest tests/unit/wld_parser -q` verde (60/60). `mypy src/twi/wld_parser --strict` sin errores. `ruff check` y `ruff format --check` sin warnings. Integración: todos los mundos del corpus pasan. Cobertura B1: ≥90%.
 

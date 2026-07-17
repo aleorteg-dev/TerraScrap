@@ -80,6 +80,12 @@ class Reader:
         try:
             return raw.decode("utf-8")
         except UnicodeDecodeError:
+            pass
+        try:
             # Older Terraria worlds (pre-Unicode client) stored strings in
-            # Windows-1252.  cp1252 decodes every byte sequence without error.
+            # Windows-1252.
             return raw.decode("cp1252")
+        except UnicodeDecodeError:
+            # 0x81, 0x8D, 0x8F, 0x90 and 0x9D are undefined in cp1252.
+            # latin-1 maps every byte, so string decoding never raises (E11).
+            return raw.decode("latin-1")
