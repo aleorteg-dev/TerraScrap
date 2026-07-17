@@ -344,6 +344,11 @@ fila-mayor (y externo, x interno).
 | 5 | `wire_yellow` | cable amarillo presente |
 | 6–7 | reservado | `0` |
 
+> Desde IT-OPT-3 el servidor **emite** los bits 1–5 con los valores reales del
+> mundo (antes viajaban siempre a 0, el layout solo los reservaba). No es
+> breaking: los decoders v2 ya preservaban el byte por tile. Dos tiles
+> idénticos salvo wiring pertenecen a runs distintos.
+
 #### Frame packing
 
 `frame_x` (uint16) se reconstruye como:

@@ -1579,6 +1579,42 @@ def _decode_base64_rle_v2(
     return out
 
 
+def test_encode_chunk_v2_emits_wiring_bits_in_flags_byte() -> None:
+    """IT-OPT-3: flags bits 1-5 carry actuator/wires from Tile (were always 0)."""
+    # Tile.flags raw: flags2 0x0E = red+blue+green; flags3 0x22 = actuator+yellow.
+    wired = Tile(
+        tile_id=1,
+        wall_id=None,
+        liquid_type="none",
+        liquid_amount=0,
+        flags=0x0E | (0x22 << 8),
+    )
+    plain = Tile(tile_id=1, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid([[wired, plain]])
+
+    w, h, payload = _encode_chunk_v2(grid, 0, 0, 2)
+    decoded = _decode_base64_rle_v2(payload, w, h)
+
+    # v2 flags byte: bit1 actuator, bit2 red, bit3 blue, bit4 green, bit5 yellow.
+    assert decoded[0][6] == 0b0011_1110
+    assert decoded[1][6] == 0
+
+
+def test_encode_chunk_v2_splits_runs_on_wiring_change() -> None:
+    """Two tiles identical except wiring must not collapse into one run."""
+    wired = Tile(
+        tile_id=1, wall_id=None, liquid_type="none", liquid_amount=0, flags=0x02
+    )
+    plain = Tile(tile_id=1, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
+    grid = TileGrid([[wired, plain]])
+
+    w, h, payload = _encode_chunk_v2(grid, 0, 0, 2)
+    decoded = _decode_base64_rle_v2(payload, w, h)
+
+    assert decoded[0][6] == 0b0000_0100  # red wire
+    assert decoded[1][6] == 0
+
+
 def test_encode_chunk_v2_round_trips_diverse_tiles() -> None:
     air = Tile(tile_id=None, wall_id=None, liquid_type="none", liquid_amount=0, flags=0)
     stone = Tile(tile_id=1, wall_id=2, liquid_type="none", liquid_amount=0, flags=0)

@@ -165,6 +165,16 @@ Errores 500: `internal_error` sin traceback ni detalles internos.
 - **Último cierre**: 2026-07-17 (IT-13 remediación — P01 caché de `surface_y`)
 - **Iteración actual**: cerrada
 
+### 10.-3. Cambios IT-OPT-3 (cadena E14 2/4, sin breaking)
+
+- El byte `flags` de cada run del encoding v2 emite ahora los bits 1–5 con los
+  valores reales del mundo (`_wire_flag_bits`: actuator + wires
+  rojo/azul/verde/amarillo, desde las propiedades de `Tile` de IT-OPT-2).
+  Antes viajaban siempre a 0 (reservados) — no es breaking: los decoders v2 ya
+  preservaban el byte por tile. `_tile_eq_v2` incluye el wiring, de modo que
+  tiles idénticos salvo cables no comparten run. `api-contract.md` §5.2
+  actualizado. Sin cambio de schema OpenAPI (payload base64 interno).
+
 ### 10.-2. Cambios IT-14 (P02 + P06, sin cambio de contrato)
 
 - P02 — `GET /tiles` cachea el chunk codificado: LRU

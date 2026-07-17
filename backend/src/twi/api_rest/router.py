@@ -518,6 +518,17 @@ def _encode_chunk(
     return w, h, base64.b64encode(bytes(buf)).decode()
 
 
+def _wire_flag_bits(tile: Tile) -> int:
+    """Bits 1-5 of the v2 run flags byte (IT-OPT-3): actuator + 4 wires."""
+    return (
+        (0x02 if tile.actuator else 0)
+        | (0x04 if tile.wire_red else 0)
+        | (0x08 if tile.wire_blue else 0)
+        | (0x10 if tile.wire_green else 0)
+        | (0x20 if tile.wire_yellow else 0)
+    )
+
+
 def _tile_eq_v2(a: Tile, b: Tile) -> bool:
     return (
         a.tile_id == b.tile_id
@@ -526,6 +537,9 @@ def _tile_eq_v2(a: Tile, b: Tile) -> bool:
         and a.liquid_amount == b.liquid_amount
         and a.frame_x == b.frame_x
         and a.frame_y == b.frame_y
+        # Wiring travels in the run flags byte, so tiles that differ in
+        # wiring cannot share a run (IT-OPT-3).
+        and _wire_flag_bits(a) == _wire_flag_bits(b)
     )
 
 
@@ -542,8 +556,9 @@ def _encode_chunk_v2(
                     liquid_amount u8, frame_x_hi u8, flags u8, count u16)
             + FRAME_BLOCK (6B per entry: run_index u16, frame_x_lo u8,
                     reserved u8, frame_y u16) when frame_count > 0.
-    flags bit 0 = has_frame. Bits 1..5 (actuator/wires) reserved as 0
-    until raw Tile.flags is decomposed (deuda).
+    flags bit 0 = has_frame; bits 1..5 = actuator / wire red / blue / green /
+    yellow, taken from Tile's wiring properties (IT-OPT-3; before they were
+    reserved as 0). Bits 6..7 remain reserved.
     """
     start_x, start_y, w, h = _chunk_bounds(
         chunk_x, chunk_y, chunk_size, tiles.width, tiles.height
@@ -576,17 +591,18 @@ def _encode_chunk_v2(
         wall_id_raw = (cur.wall_id or 0) & 0xFFFF
         liq_t = _LIQUID_TYPE_TO_INT[cur.liquid_type]
         liq_a = cur.liquid_amount & 0xFF
+        wire_bits = _wire_flag_bits(cur)
         if cur.frame_x is not None and cur.frame_y is not None:
             fx_u16 = cur.frame_x & 0xFFFF
             fy_u16 = cur.frame_y & 0xFFFF
             fx_hi = (fx_u16 >> 8) & 0xFF
             fx_lo = fx_u16 & 0xFF
-            flags_byte = 0x01
+            flags_byte = 0x01 | wire_bits
             frame_buf.extend(struct.pack("<HBBH", run_idx, fx_lo, 0, fy_u16))
             frame_count += 1
         else:
             fx_hi = 0
-            flags_byte = 0
+            flags_byte = wire_bits
 
         runs_buf.extend(
             struct.pack(
